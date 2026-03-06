@@ -104,7 +104,6 @@ export default function App() {
             scheduledTime,
           };
         })
-        .filter(service => (service.scheduledDate || currentDateKey) >= currentDateKey)
     );
   }, [currentDateKey]);
 
@@ -211,12 +210,21 @@ export default function App() {
     await api.saveTeam(next);
   };
 
-  const updateServiceStatus = (id: string, status: Service['status']) => {
-    persistServicesWithUpdater(current => current.map(s => s.id === id ? { ...s, status } : s));
+  const updateServiceRecord = (id: string, updater: (service: Service) => Service) => {
+    persistServicesWithUpdater(current => current.map(service => (service.id === id ? updater(service) : service)));
   };
 
-  const updateServiceWashers = (id: string, washers: string[]) => {
-    persistServicesWithUpdater(current => current.map(s => s.id === id ? { ...s, washers } : s));
+  const touchServiceTimeline = (id: string, timelineKey: keyof NonNullable<Service['timeline']>) => {
+    updateServiceRecord(id, (service) => {
+      const nowIso = new Date().toISOString();
+      return {
+        ...service,
+        timeline: {
+          ...(service.timeline || {}),
+          [timelineKey]: service.timeline?.[timelineKey] || nowIso,
+        },
+      };
+    });
   };
 
   const addService = (service: Service) => {
@@ -233,6 +241,19 @@ export default function App() {
 
   const handleNavigateWithService = (screen: Screen, serviceId?: string) => {
     if (serviceId) setActiveServiceId(serviceId);
+
+    if (serviceId && screen === 'inspection-pre') {
+      touchServiceTimeline(serviceId, 'preInspectionStartedAt');
+    }
+
+    if (serviceId && screen === 'inspection-post') {
+      touchServiceTimeline(serviceId, 'postInspectionStartedAt');
+    }
+
+    if (serviceId && screen === 'payment') {
+      touchServiceTimeline(serviceId, 'paymentStartedAt');
+    }
+
     navigateTo(screen);
   };
 
@@ -249,15 +270,6 @@ export default function App() {
     navigateTo('dashboard');
   };
 
-  const updateActiveServiceStatus = (status: Service['status']) => {
-    if (!activeServiceId) {
-      navigateTo('scheduling');
-      return;
-    }
-
-    updateServiceStatus(activeServiceId, status);
-  };
-
   const activeService = services.find((service) => service.id === activeServiceId) || null;
   const activeServiceElapsedMinutes = getElapsedMinutes(activeService?.startTime, clockNow);
   const selectedBaseInfo = getBaseById(selectedBase);
@@ -268,18 +280,64 @@ export default function App() {
     if (backendError) return <div className="min-h-screen flex items-center justify-center p-6 text-center text-rose-600 font-bold">{backendError}</div>;
 
     switch (currentScreen) {
-      case 'dashboard': return <Dashboard onNavigate={navigateTo} services={services} team={team} />;
+      case 'dashboard': return <Dashboard onNavigate={handleNavigateWithService} services={services} team={team} />;
       case 'checkin': return <CheckIn onNavigate={navigateTo} onAddService={addService} serviceTypes={serviceTypes} vehicleDb={vehicleDb} selectedBaseId={selectedBaseInfo?.id} selectedBaseName={selectedBaseInfo?.name} />;
-      case 'inspection-pre': return <InspectionPre teamMembers={team} elapsedMinutes={activeServiceElapsedMinutes} onNavigate={navigateTo} onStartWash={(washers) => {
+      case 'inspection-pre': return <InspectionPre service={activeService} teamMembers={team} elapsedMinutes={activeServiceElapsedMinutes} onNavigate={navigateTo} onStartWash={(washers) => {
         if (activeServiceId) {
-          updateServiceWashers(activeServiceId, washers);
-          updateServiceStatus(activeServiceId, 'in_progress');
+          updateServiceRecord(activeServiceId, (service) => {
+            const nowIso = new Date().toISOString();
+            return {
+              ...service,
+              washers,
+              status: 'in_progress',
+              startTime: nowIso,
+              timeline: {
+                ...(service.timeline || {}),
+                preInspectionStartedAt: service.timeline?.preInspectionStartedAt || nowIso,
+                preInspectionCompletedAt: nowIso,
+                washStartedAt: nowIso,
+              },
+            };
+          });
         }
       }} />;
-      case 'inspection-post': return <InspectionPost elapsedMinutes={activeServiceElapsedMinutes} onNavigate={navigateTo} onCompleteWash={() => updateActiveServiceStatus('waiting_payment')} />;
-      case 'payment': return <Payment elapsedMinutes={activeServiceElapsedMinutes} onNavigate={navigateTo} onPaymentComplete={() => updateActiveServiceStatus('completed')} />;
-      case 'history': return <ServiceHistory onNavigate={navigateTo} />;
-      case 'customer-history': return <CustomerHistory onNavigate={navigateTo} />;
+      case 'inspection-post': return <InspectionPost service={activeService} elapsedMinutes={activeServiceElapsedMinutes} onNavigate={navigateTo} onCompleteWash={() => {
+        if (activeServiceId) {
+          updateServiceRecord(activeServiceId, (service) => {
+            const nowIso = new Date().toISOString();
+            return {
+              ...service,
+              status: 'waiting_payment',
+              endTime: nowIso,
+              timeline: {
+                ...(service.timeline || {}),
+                postInspectionStartedAt: service.timeline?.postInspectionStartedAt || nowIso,
+                washCompletedAt: nowIso,
+                postInspectionCompletedAt: nowIso,
+              },
+            };
+          });
+        }
+      }} />;
+      case 'payment': return <Payment service={activeService} elapsedMinutes={activeServiceElapsedMinutes} onNavigate={navigateTo} onPaymentComplete={() => {
+        if (activeServiceId) {
+          updateServiceRecord(activeServiceId, (service) => {
+            const nowIso = new Date().toISOString();
+            return {
+              ...service,
+              status: 'completed',
+              timeline: {
+                ...(service.timeline || {}),
+                paymentStartedAt: service.timeline?.paymentStartedAt || nowIso,
+                paymentCompletedAt: nowIso,
+                completedAt: nowIso,
+              },
+            };
+          });
+        }
+      }} />;
+      case 'history': return <ServiceHistory onNavigate={handleNavigateWithService} service={activeService} />;
+      case 'customer-history': return <CustomerHistory onNavigate={handleNavigateWithService} selectedService={activeService} services={services} />;
       case 'queue':
       case 'scheduling': 
         if (!selectedBase) {
@@ -307,7 +365,7 @@ export default function App() {
         </div>
       );
       case 'settings': return <Settings onNavigate={navigateTo} serviceTypes={serviceTypes} onUpdateServiceTypes={persistServiceTypes} vehicleDb={vehicleDb} onUpdateVehicleDb={persistVehicleDb} team={team} onUpdateTeam={persistTeam} />;
-      default: return <Dashboard onNavigate={navigateTo} services={services} team={team} />;
+      default: return <Dashboard onNavigate={handleNavigateWithService} services={services} team={team} />;
     }
   };
 

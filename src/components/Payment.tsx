@@ -5,10 +5,10 @@
 
 import React from 'react';
 import { CheckCircle2, Clock, ChevronRight, ChevronLeft } from 'lucide-react';
-import { Screen } from '../types';
+import { Screen, Service } from '../types';
 import { formatElapsedMinutes } from '../utils/app';
 
-export default function Payment({ onNavigate, onPaymentComplete, elapsedMinutes = 0 }: { onNavigate: (screen: Screen) => void, onPaymentComplete: () => void, elapsedMinutes?: number }) {
+export default function Payment({ onNavigate, onPaymentComplete, elapsedMinutes = 0, service }: { onNavigate: (screen: Screen) => void, onPaymentComplete: () => void, elapsedMinutes?: number, service?: Service | null }) {
   const handlePayment = () => {
     onPaymentComplete();
     onNavigate('dashboard');
@@ -37,10 +37,10 @@ export default function Payment({ onNavigate, onPaymentComplete, elapsedMinutes 
             ></div>
             <div className="flex flex-col justify-center flex-1">
               <div className="flex justify-between items-start gap-3">
-                <p className="text-slate-900 text-lg font-semibold leading-tight">Sedan Luxo - Branco</p>
-                <span className="text-primary font-bold text-xl">R$ 120,00</span>
+                <p className="text-slate-900 text-lg font-semibold leading-tight">{service?.model || 'Veiculo em pagamento'}</p>
+                <span className="text-primary font-bold text-xl">R$ {service?.price?.toFixed(2) || '0,00'}</span>
               </div>
-              <p className="text-slate-500 text-sm">Higienizacao Completa + Cera</p>
+              <p className="text-slate-500 text-sm">{service?.type || 'Servico nao informado'}</p>
               <div className="mt-2 flex items-center gap-2 flex-wrap">
                 <p className="text-slate-400 text-xs flex items-center gap-1">
                   <Clock className="w-3 h-3" /> Concluido ha 12 min
@@ -55,15 +55,15 @@ export default function Payment({ onNavigate, onPaymentComplete, elapsedMinutes 
           <div className="bg-slate-50 rounded-xl p-4 mb-5 space-y-3 border border-slate-50">
             <div className="flex justify-between text-sm">
               <span className="text-slate-500">Cliente</span>
-              <span className="text-slate-900 font-semibold">Marcelo Silva</span>
+              <span className="text-slate-900 font-semibold">{service?.customer || 'Nao informado'}</span>
             </div>
             <div className="flex justify-between text-sm">
               <span className="text-slate-500">Placa</span>
-              <span className="text-slate-900 font-bold uppercase tracking-widest">BRA-2E19</span>
+              <span className="text-slate-900 font-bold uppercase tracking-widest">{service?.plate || '---'}</span>
             </div>
             <div className="flex justify-between text-sm">
               <span className="text-slate-500">Lavador</span>
-              <span className="text-slate-900 font-medium">Equipe 02 (David)</span>
+              <span className="text-slate-900 font-medium">{service?.washers?.length ? service.washers.join(', ') : 'Nao definido'}</span>
             </div>
           </div>
 

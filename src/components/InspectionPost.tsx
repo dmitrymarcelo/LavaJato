@@ -5,10 +5,10 @@
 
 import React from 'react';
 import { Camera, CheckCircle2, CreditCard, Info, PlusCircle, ChevronLeft } from 'lucide-react';
-import { Screen } from '../types';
+import { Screen, Service } from '../types';
 import { formatElapsedMinutes } from '../utils/app';
 
-export default function InspectionPost({ onNavigate, onCompleteWash, elapsedMinutes = 0 }: { onNavigate: (screen: Screen) => void, onCompleteWash: () => void, elapsedMinutes?: number }) {
+export default function InspectionPost({ onNavigate, onCompleteWash, elapsedMinutes = 0, service }: { onNavigate: (screen: Screen) => void, onCompleteWash: () => void, elapsedMinutes?: number, service?: Service | null }) {
   const handleComplete = () => {
     onCompleteWash();
     onNavigate('payment');
@@ -30,8 +30,8 @@ export default function InspectionPost({ onNavigate, onCompleteWash, elapsedMinu
           <div className="flex justify-between items-start mb-4">
             <div>
               <p className="text-[10px] font-bold uppercase tracking-wider text-primary mb-1">Tarefa Atual</p>
-              <h3 className="text-lg font-bold">Exterior + Interior Premium</h3>
-              <p className="text-sm text-slate-500">Sedan • Branco • ABC-1234</p>
+              <h3 className="text-lg font-bold">{service?.type || 'Servico em andamento'}</h3>
+              <p className="text-sm text-slate-500">{service?.model || 'Veiculo'} • {service?.plate || 'Sem placa'}</p>
             </div>
             <div className="flex flex-col items-end gap-2">
               <div className="bg-primary/10 text-primary px-2 py-1 rounded text-[10px] font-bold uppercase">

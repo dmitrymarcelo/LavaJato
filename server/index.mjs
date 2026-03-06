@@ -6,6 +6,7 @@ import cors from 'cors';
 import bcrypt from 'bcryptjs';
 import { pool, query } from './db.mjs';
 import { seedDatabase } from './seed.mjs';
+import { getAssistantTips, getAssistantWeather } from './assistant.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -52,6 +53,7 @@ function toCamelService(row) {
     observations: row.observations,
     washer: row.washer,
     washers: row.washers || [],
+    timeline: row.timeline || {},
     startTime: row.start_time,
     endTime: row.end_time,
     image: row.image,
@@ -92,6 +94,7 @@ function toCamelAppointment(row) {
     customer: row.customer,
     vehicle: row.vehicle,
     plate: row.plate,
+    vehicleType: row.vehicle_type,
     service: row.service,
     date: row.date,
     time: row.time?.slice?.(0, 5) || row.time,
@@ -127,6 +130,22 @@ app.post('/api/auth/login', async (req, res) => {
     return res.status(401).json({ error: 'Credenciais invalidas.' });
   }
   res.json({ user: toCamelTeam(member) });
+});
+
+app.post('/api/assistant/tips', async (req, res) => {
+  const { query: question } = req.body || {};
+  if (!question?.trim()) {
+    return res.status(400).json({ error: 'Informe uma pergunta para o assistente.' });
+  }
+
+  const text = await getAssistantTips(question.trim());
+  res.json({ text });
+});
+
+app.get('/api/assistant/weather', async (req, res) => {
+  const location = typeof req.query.location === 'string' ? req.query.location : 'Manaus';
+  const text = await getAssistantWeather(location);
+  res.json({ text });
 });
 
 app.get('/api/bootstrap', async (_req, res) => {
@@ -205,8 +224,8 @@ app.put('/api/services', async (req, res) => {
       `
       INSERT INTO services (
         id, plate, model, type, base_id, base_name, scheduled_date, scheduled_time, status, price, priority, customer,
-        third_party_name, third_party_cpf, observations, washer, washers, start_time, end_time, image
-      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17::jsonb,$18,$19,$20)
+        third_party_name, third_party_cpf, observations, washer, washers, timeline, start_time, end_time, image
+      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17::jsonb,$18::jsonb,$19,$20,$21)
       `,
       [
         service.id,
@@ -226,6 +245,7 @@ app.put('/api/services', async (req, res) => {
         service.observations || null,
         service.washer || null,
         JSON.stringify(service.washers || []),
+        JSON.stringify(service.timeline || {}),
         service.startTime || null,
         service.endTime || null,
         service.image || null,
@@ -247,14 +267,15 @@ app.put('/api/appointments', async (req, res) => {
     await query(
       `
       INSERT INTO appointments (
-        id, customer, vehicle, plate, service, date, time, status, photo, third_party_name, third_party_cpf
-      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+        id, customer, vehicle, plate, vehicle_type, service, date, time, status, photo, third_party_name, third_party_cpf
+      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
       `,
       [
         appointment.id,
         appointment.customer,
         appointment.vehicle,
         appointment.plate,
+        appointment.vehicleType || null,
         appointment.service,
         appointment.date,
         appointment.time,

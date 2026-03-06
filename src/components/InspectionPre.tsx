@@ -6,7 +6,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Camera, CheckCircle2, Lock, Info, RefreshCw, ChevronLeft, PlayCircle, AlertCircle, Upload, X } from 'lucide-react';
 import { motion } from 'motion/react';
-import { Screen, TeamMember, INITIAL_TEAM } from '../types';
+import { Screen, Service, TeamMember, INITIAL_TEAM } from '../types';
 import { formatElapsedMinutes } from '../utils/app';
 
 const PHOTO_TYPES = [
@@ -17,7 +17,7 @@ const PHOTO_TYPES = [
   { id: 'interior', label: 'Interior' }
 ];
 
-export default function InspectionPre({ onNavigate, onStartWash, elapsedMinutes = 0, teamMembers: teamMembersProp = [] }: { onNavigate: (screen: Screen) => void, onStartWash: (washers: string[]) => void, elapsedMinutes?: number, teamMembers?: TeamMember[] }) {
+export default function InspectionPre({ onNavigate, onStartWash, elapsedMinutes = 0, teamMembers: teamMembersProp = [], service }: { onNavigate: (screen: Screen) => void, onStartWash: (washers: string[]) => void, elapsedMinutes?: number, teamMembers?: TeamMember[], service?: Service | null }) {
   const [photos, setPhotos] = useState<Record<string, string>>({});
   const [activePhotoId, setActivePhotoId] = useState<string | null>(null);
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
@@ -137,10 +137,10 @@ export default function InspectionPre({ onNavigate, onStartWash, elapsedMinutes 
               <Camera className="w-8 h-8" />
             </div>
             <div className="flex flex-col justify-center flex-1">
-              <p className="text-lg font-bold leading-tight">Sedan Luxo • Preto</p>
+              <p className="text-lg font-bold leading-tight">{service?.model || 'Veiculo nao identificado'}</p>
               <div className="flex items-center gap-2 mt-1">
-                <span className="bg-slate-50 px-2 py-0.5 rounded text-xs font-bold tracking-wider text-slate-700 border border-slate-100">ABC-1234</span>
-                <span className="text-slate-400 text-[10px] uppercase font-bold">• Check-in 14:30</span>
+                <span className="bg-slate-50 px-2 py-0.5 rounded text-xs font-bold tracking-wider text-slate-700 border border-slate-100">{service?.plate || 'Sem placa'}</span>
+                <span className="text-slate-400 text-[10px] uppercase font-bold">• Agenda {service?.scheduledTime || '--:--'}</span>
               </div>
             </div>
             <div className="shrink-0 bg-amber-500 text-white px-3 py-2 rounded-xl shadow-lg">

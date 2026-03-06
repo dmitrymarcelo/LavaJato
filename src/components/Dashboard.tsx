@@ -54,7 +54,7 @@ export default function Dashboard({
   services,
   team = [],
 }: {
-  onNavigate: (screen: Screen) => void;
+  onNavigate: (screen: Screen, serviceId?: string) => void;
   services: Service[];
   team?: TeamMember[];
 }) {
@@ -283,7 +283,7 @@ export default function Dashboard({
               {recentServices.map(service => (
                 <div
                   key={service.id}
-                  onClick={() => onNavigate('history')}
+                  onClick={() => onNavigate('history', service.id)}
                   className="p-5 flex items-center justify-between cursor-pointer hover:bg-slate-50 active:scale-[0.99] transition-all"
                 >
                   <div className="flex items-center gap-4">

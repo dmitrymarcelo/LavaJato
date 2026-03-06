@@ -51,6 +51,7 @@ CREATE TABLE IF NOT EXISTS services (
     observations TEXT,
     washer TEXT,
     washers JSONB NOT NULL DEFAULT '[]'::jsonb,
+    timeline JSONB NOT NULL DEFAULT '{}'::jsonb,
     start_time TIMESTAMPTZ,
     end_time TIMESTAMPTZ,
     image TEXT,
@@ -64,11 +65,15 @@ ALTER TABLE services
 ALTER TABLE services
     ADD COLUMN IF NOT EXISTS base_name TEXT;
 
+ALTER TABLE services
+    ADD COLUMN IF NOT EXISTS timeline JSONB NOT NULL DEFAULT '{}'::jsonb;
+
 CREATE TABLE IF NOT EXISTS appointments (
     id TEXT PRIMARY KEY,
     customer TEXT NOT NULL,
     vehicle TEXT NOT NULL,
     plate TEXT NOT NULL,
+    vehicle_type TEXT,
     service TEXT NOT NULL,
     date DATE NOT NULL,
     time TIME NOT NULL,
@@ -79,6 +84,9 @@ CREATE TABLE IF NOT EXISTS appointments (
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+ALTER TABLE appointments
+    ADD COLUMN IF NOT EXISTS vehicle_type TEXT;
 
 CREATE TABLE IF NOT EXISTS products (
     id TEXT PRIMARY KEY,

@@ -68,6 +68,7 @@ export default function CheckIn({
     }
 
     const now = new Date();
+    const nowIso = now.toISOString();
 
     const newService: Service = {
       id: generateId(),
@@ -85,8 +86,11 @@ export default function CheckIn({
       thirdPartyName: isThirdParty ? thirdPartyName : undefined,
       thirdPartyCpf: isThirdParty ? thirdPartyCpf.replace(/\D/g, '') : undefined,
       observations,
-      startTime: now.toISOString(),
-      image: 'https://images.unsplash.com/photo-1550355291-bbee04a92027?auto=format&fit=crop&q=80&w=400'
+      image: 'https://images.unsplash.com/photo-1550355291-bbee04a92027?auto=format&fit=crop&q=80&w=400',
+      timeline: {
+        createdAt: nowIso,
+        checkInAt: nowIso,
+      },
     };
 
     onAddService(newService);

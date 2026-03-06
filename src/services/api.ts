@@ -5,6 +5,7 @@ export interface Appointment {
   customer: string;
   vehicle: string;
   plate: string;
+  vehicleType?: VehicleType;
   service: string;
   date: string;
   time: string;
@@ -61,6 +62,10 @@ export const api = {
     request('/services', { method: 'PUT', body: JSON.stringify(services) }),
   saveAppointments: (appointments: Appointment[]) =>
     request('/appointments', { method: 'PUT', body: JSON.stringify(appointments) }),
+  assistantTips: (query: string) =>
+    request<{ text: string }>('/assistant/tips', { method: 'POST', body: JSON.stringify({ query }) }),
+  assistantWeather: (location?: string) =>
+    request<{ text: string }>(`/assistant/weather${location ? `?location=${encodeURIComponent(location)}` : ''}`),
   saveProducts: (products: Product[]) =>
     request('/products', { method: 'PUT', body: JSON.stringify(products) }),
   saveTeam: (team: TeamMember[]) =>

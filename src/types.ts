@@ -50,6 +50,20 @@ export interface ProductMovement {
   createdAt: string;
 }
 
+export interface ServiceTimeline {
+  createdAt?: string;
+  checkInAt?: string;
+  preInspectionStartedAt?: string;
+  preInspectionCompletedAt?: string;
+  washStartedAt?: string;
+  washCompletedAt?: string;
+  postInspectionStartedAt?: string;
+  postInspectionCompletedAt?: string;
+  paymentStartedAt?: string;
+  paymentCompletedAt?: string;
+  completedAt?: string;
+}
+
 export interface Service {
   id: string;
   plate: string;
@@ -71,6 +85,7 @@ export interface Service {
   startTime?: string;
   endTime?: string;
   image?: string;
+  timeline?: ServiceTimeline;
 }
 
 export interface Notification {

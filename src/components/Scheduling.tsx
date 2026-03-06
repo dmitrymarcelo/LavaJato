@@ -27,7 +27,11 @@ import { Appointment } from '../services/api';
 import { addDays, digitsOnly, formatCpf, generateId, getElapsedMinutes, getTodayDate } from '../utils/app';
 
 const TIME_SLOTS = ['07:00', '09:00', '11:00', '13:00', '15:00', '17:00'];
-const MAX_CAPACITY = 2;
+const SLOT_LIMITS = {
+  total: 5,
+  truck: 2,
+  other: 3,
+};
 const DEFAULT_SERVICE_IMAGE = 'https://images.unsplash.com/photo-1549317661-bd32c8ce0db2?q=80&w=400&auto=format&fit=crop';
 
 const normalizePlate = (value: string) => value.toUpperCase().replace(/[^A-Z0-9]/g, '');
@@ -38,6 +42,8 @@ const getVehicleTypeLabel = (type: VehicleType) => {
   if (type === 'boat') return 'Embarcacao';
   return 'Carro';
 };
+
+const isTruckType = (type?: VehicleType) => type === 'truck';
 
 const getServiceStartReference = (service: Service, currentDateKey: string) => {
   if (service.startTime) {
@@ -227,15 +233,37 @@ export default function Scheduling({
     void onUpdateAppointments(nextAppointments);
   };
 
-  const getSlotStatus = (date: string, time: string) => {
-    const count = appointments.filter(appointment => appointment.date === date && appointment.time === time && appointment.status !== 'cancelled').length;
-    const isFull = count >= MAX_CAPACITY;
+  const resolveAppointmentVehicleType = (appointment: Appointment): VehicleType => {
+    if (appointment.vehicleType) {
+      return appointment.vehicleType;
+    }
+
+    return vehicleDb?.find(vehicle => normalizePlate(vehicle.plate) === normalizePlate(appointment.plate))?.type || 'car';
+  };
+
+  const getSlotStatus = (date: string, time: string, nextVehicleType?: VehicleType) => {
+    const sameSlotAppointments = appointments.filter(
+      appointment => appointment.date === date && appointment.time === time && appointment.status !== 'cancelled'
+    );
+    const truckCount = sameSlotAppointments.filter(appointment => isTruckType(resolveAppointmentVehicleType(appointment))).length;
+    const otherCount = sameSlotAppointments.length - truckCount;
+    const totalCount = sameSlotAppointments.length;
+    const nextIsTruck = isTruckType(nextVehicleType);
+    const isFull =
+      totalCount >= SLOT_LIMITS.total ||
+      (nextVehicleType
+        ? nextIsTruck
+          ? truckCount >= SLOT_LIMITS.truck
+          : otherCount >= SLOT_LIMITS.other
+        : false);
 
     const todayStr = getTodayDate();
     const isPastSlotDate = date < todayStr;
 
     return {
-      count,
+      count: totalCount,
+      truckCount,
+      otherCount,
       isFull,
       isPast: isPastSlotDate,
     };
@@ -254,7 +282,7 @@ export default function Scheduling({
       return;
     }
 
-    const { isFull, isPast } = getSlotStatus(appointmentDate, selectedTime);
+    const { isFull, isPast } = getSlotStatus(appointmentDate, selectedTime, vehicleType);
     if (isFull) {
       alert('Este horario esta lotado.');
       return;
@@ -273,6 +301,7 @@ export default function Scheduling({
       customer,
       vehicle: vehicleModel,
       plate,
+      vehicleType,
       service: selectedService,
       date: appointmentDate,
       time: selectedTime,
@@ -296,6 +325,9 @@ export default function Scheduling({
       thirdPartyName: newAppointment.thirdPartyName,
       thirdPartyCpf: newAppointment.thirdPartyCpf,
       image: DEFAULT_SERVICE_IMAGE,
+      timeline: {
+        createdAt: new Date().toISOString(),
+      },
     });
 
     const nextAppointments = [...appointments, newAppointment];
@@ -428,7 +460,7 @@ export default function Scheduling({
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: index * 0.05 }}
-                  onClick={() => onNavigate('customer-history')}
+                  onClick={() => onNavigate('customer-history', appointment.id)}
                   className="bg-white rounded-2xl p-4 border border-slate-100 shadow-sm flex gap-4 items-center group cursor-pointer active:scale-[0.98] transition-transform"
                 >
                   <div className="flex flex-col items-center justify-center bg-slate-50 rounded-xl min-w-[75px] h-[75px] border border-slate-100 overflow-hidden relative">
@@ -628,7 +660,7 @@ export default function Scheduling({
                         <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400 ml-1">Hora</label>
                         <div className="grid grid-cols-3 gap-2">
                           {TIME_SLOTS.map(time => {
-                            const { isFull, isPast, count } = getSlotStatus(appointmentDate, time);
+                            const { isFull, isPast, count, truckCount, otherCount } = getSlotStatus(appointmentDate, time, vehicleType);
                             const isSelected = selectedTime === time;
 
                             return (
@@ -637,7 +669,11 @@ export default function Scheduling({
                                 type="button"
                                 onClick={() => {
                                   if (isFull) {
-                                    alert('Horario cheio. Nao e possivel agendar mais veiculos neste horario.');
+                                    alert(
+                                      vehicleType === 'truck'
+                                        ? 'Horario sem vaga para caminhao. Limite: 2 caminhoes e 5 veiculos no total por horario.'
+                                        : 'Horario sem vaga para este tipo de veiculo. Limite: 3 veiculos leves e 5 veiculos no total por horario.'
+                                    );
                                     return;
                                   }
 
@@ -658,7 +694,8 @@ export default function Scheduling({
                                         : 'bg-white border border-slate-200 text-slate-600 hover:border-primary hover:text-primary'
                                 }`}
                               >
-                                {time}
+                                <span className="block">{time}</span>
+                                <span className="block text-[8px] font-medium opacity-70">C{truckCount}/2 O{otherCount}/3</span>
                                 {isFull && (
                                   <span className="absolute -top-1 -right-1 w-4 h-4 bg-rose-500 text-white text-[10px] flex items-center justify-center rounded-full border border-white shadow-sm">
                                     !
@@ -674,6 +711,10 @@ export default function Scheduling({
                           })}
                         </div>
                       </div>
+                    </div>
+
+                    <div className="rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3 text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                      Capacidade por horario: 2 caminhoes, 3 outros veiculos, 5 vagas totais.
                     </div>
 
                     <div className="space-y-1">
