@@ -118,7 +118,7 @@ WITH ranked_active_appointments AS (
             ORDER BY updated_at DESC, created_at DESC, id DESC
         ) AS duplicate_rank
     FROM appointments
-    WHERE status <> 'cancelled'
+    WHERE status IN ('confirmed', 'pending')
 )
 DELETE FROM appointments
 WHERE id IN (
@@ -152,6 +152,8 @@ ALTER TABLE products
 
 CREATE INDEX IF NOT EXISTS idx_services_status_date ON services (status, scheduled_date);
 CREATE INDEX IF NOT EXISTS idx_appointments_date_status ON appointments (date, status);
-CREATE UNIQUE INDEX IF NOT EXISTS idx_appointments_unique_plate_slot_active
+DROP INDEX IF EXISTS idx_appointments_unique_plate_slot_active;
+
+CREATE UNIQUE INDEX idx_appointments_unique_plate_slot_active
     ON appointments ((UPPER(plate)), date, time)
-    WHERE status <> 'cancelled';
+    WHERE status IN ('confirmed', 'pending');

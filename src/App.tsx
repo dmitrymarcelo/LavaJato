@@ -566,7 +566,33 @@ export default function App() {
       return service;
     });
 
+    const serviceMap = new Map<string, Service>(nextServices.map((service) => [service.id, service]));
     const nextAppointments = appointments.map((appointment) => {
+      const relatedService = serviceMap.get(appointment.id);
+      if (relatedService?.status === 'completed' && appointment.status !== 'completed') {
+        hasAppointmentChanges = true;
+        return {
+          ...appointment,
+          status: 'completed' as const,
+        };
+      }
+
+      if (relatedService?.status === 'no_show' && appointment.status !== 'no_show') {
+        hasAppointmentChanges = true;
+        return {
+          ...appointment,
+          status: 'no_show' as const,
+        };
+      }
+
+      if (relatedService && ['in_progress', 'waiting_payment'].includes(relatedService.status) && appointment.status !== 'pending') {
+        hasAppointmentChanges = true;
+        return {
+          ...appointment,
+          status: 'pending' as const,
+        };
+      }
+
       if (appointment.date < currentDateKey && !['completed', 'cancelled', 'no_show'].includes(appointment.status)) {
         hasAppointmentChanges = true;
         return {
@@ -640,8 +666,8 @@ export default function App() {
       }} />;
       case 'payment': return <Payment service={activeService} services={services} elapsedMinutes={activeServiceElapsedMinutes} onNavigate={navigateTo} onPaymentComplete={async () => {
         if (activeServiceId) {
+          const nowIso = new Date().toISOString();
           await updateServiceRecord(activeServiceId, (service) => {
-            const nowIso = new Date().toISOString();
             return {
               ...service,
               status: 'completed',
@@ -653,6 +679,17 @@ export default function App() {
               },
             };
           });
+
+          await persistAppointments(
+            appointmentsRef.current.map((appointment) =>
+              appointment.id === activeServiceId
+                ? {
+                    ...appointment,
+                    status: 'completed',
+                  }
+                : appointment
+            )
+          );
         }
       }} />;
       case 'history': return <ServiceHistory onNavigate={handleNavigateWithService} service={activeService} />;

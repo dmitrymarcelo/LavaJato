@@ -27,6 +27,7 @@ import { Appointment } from '../services/api';
 import { addDays, digitsOnly, formatCpf, generateId, getElapsedMinutes, getTodayDate } from '../utils/app';
 
 const TIME_SLOTS = ['07:00', '09:00', '11:00', '13:00', '15:00', '17:00'];
+const ACTIVE_APPOINTMENT_STATUSES: Appointment['status'][] = ['confirmed', 'pending'];
 const SLOT_LIMITS = {
   total: 5,
   truck: 2,
@@ -35,6 +36,18 @@ const SLOT_LIMITS = {
 const DEFAULT_SERVICE_IMAGE = 'https://images.unsplash.com/photo-1549317661-bd32c8ce0db2?q=80&w=400&auto=format&fit=crop';
 
 const normalizePlate = (value: string) => value.toUpperCase().replace(/[^A-Z0-9]/g, '');
+const isActiveAppointment = (appointment: Appointment) => ACTIVE_APPOINTMENT_STATUSES.includes(appointment.status);
+const isWeekendDate = (date: string) => {
+  const weekDay = new Date(`${date}T12:00:00`).getDay();
+  return weekDay === 0 || weekDay === 6;
+};
+const getNextBusinessDate = (date: string) => {
+  let nextDate = date;
+  while (isWeekendDate(nextDate)) {
+    nextDate = addDays(nextDate, 1);
+  }
+  return nextDate;
+};
 
 const getVehicleTypeLabel = (type: VehicleType) => {
   if (type === 'motorcycle') return 'Moto';
@@ -88,7 +101,7 @@ export default function Scheduling({
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
   const [appointments, setAppointments] = useState<Appointment[]>(appointmentsProp);
   const [filterDate, setFilterDate] = useState(currentDateKey);
-  const [appointmentDate, setAppointmentDate] = useState(currentDateKey);
+  const [appointmentDate, setAppointmentDate] = useState(getNextBusinessDate(currentDateKey));
   const [activeTab, setActiveTab] = useState<'appointments' | 'waiting' | 'washing' | 'completed'>('appointments');
   const [clockNow, setClockNow] = useState(() => Date.now());
 
@@ -104,7 +117,7 @@ export default function Scheduling({
 
   const resetAppointmentForm = () => {
     setIsAdding(false);
-    setAppointmentDate(currentDateKey);
+    setAppointmentDate(getNextBusinessDate(currentDateKey));
     setSelectedTime(null);
     setPlate('');
     setCustomer('');
@@ -134,7 +147,7 @@ export default function Scheduling({
 
   const pendingAppointmentsForDate = appointments.filter(appointment => {
     const relatedService = services.find(service => service.id === appointment.id);
-    return appointment.date === filterDate && (!relatedService || relatedService.status === 'pending');
+    return appointment.date === filterDate && isActiveAppointment(appointment) && (!relatedService || relatedService.status === 'pending');
   });
 
   const waitingServices = services.filter(service => service.status === 'pending' && service.scheduledDate === currentDateKey);
@@ -243,7 +256,7 @@ export default function Scheduling({
 
   const getSlotStatus = (date: string, time: string, nextVehicleType?: VehicleType) => {
     const sameSlotAppointments = appointments.filter(
-      appointment => appointment.date === date && appointment.time === time && appointment.status !== 'cancelled'
+      appointment => appointment.date === date && appointment.time === time && isActiveAppointment(appointment)
     );
     const truckCount = sameSlotAppointments.filter(appointment => isTruckType(resolveAppointmentVehicleType(appointment))).length;
     const otherCount = sameSlotAppointments.length - truckCount;
@@ -282,12 +295,17 @@ export default function Scheduling({
       return;
     }
 
+    if (isWeekendDate(appointmentDate)) {
+      alert('Nao trabalhamos aos finais de semana. Selecione um dia util.');
+      return;
+    }
+
     const duplicatePlateInSlot = appointments.some(
       appointment =>
         normalizePlate(appointment.plate) === normalizePlate(plate) &&
         appointment.date === appointmentDate &&
         appointment.time === selectedTime &&
-        appointment.status !== 'cancelled'
+        isActiveAppointment(appointment)
     );
 
     if (duplicatePlateInSlot) {
@@ -353,6 +371,7 @@ export default function Scheduling({
       resetAppointmentForm();
     } catch (error) {
       console.error(error);
+      alert(error instanceof Error ? error.message : 'Nao foi possivel salvar o agendamento.');
     }
   };
 
@@ -670,7 +689,14 @@ export default function Scheduling({
                           type="date"
                           value={appointmentDate}
                           min={currentDateKey}
-                          onChange={event => setAppointmentDate(event.target.value)}
+                          onChange={event => {
+                            const nextDate = event.target.value;
+                            if (isWeekendDate(nextDate)) {
+                              alert('Nao trabalhamos aos finais de semana. Selecione um dia util.');
+                              return;
+                            }
+                            setAppointmentDate(nextDate);
+                          }}
                           className="w-full h-14 px-4 bg-slate-50 border border-slate-100 rounded-2xl focus:border-primary outline-none text-slate-900"
                           required
                         />
@@ -687,6 +713,11 @@ export default function Scheduling({
                                 key={time}
                                 type="button"
                                 onClick={() => {
+                                  if (isWeekendDate(appointmentDate)) {
+                                    alert('Nao trabalhamos aos finais de semana. Selecione um dia util.');
+                                    return;
+                                  }
+
                                   if (isFull) {
                                     alert(
                                       vehicleType === 'truck'
@@ -735,6 +766,12 @@ export default function Scheduling({
                     <div className="rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3 text-[10px] font-bold uppercase tracking-wider text-slate-500">
                       Capacidade por horario: 2 caminhoes, 3 outros veiculos, 5 vagas totais.
                     </div>
+
+                    {isWeekendDate(appointmentDate) && (
+                      <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-xs font-bold text-rose-700">
+                        Nao trabalhamos aos finais de semana. Selecione um dia util para concluir o agendamento.
+                      </div>
+                    )}
 
                     <div className="space-y-1">
                       <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400 ml-1">Servico</label>

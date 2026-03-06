@@ -137,7 +137,7 @@ async function upsertServiceRow(service) {
     INSERT INTO services (
       id, sort_order, plate, model, type, base_id, base_name, scheduled_date, scheduled_time, status, price, priority, customer,
       third_party_name, third_party_cpf, observations, washer, washers, timeline, pre_inspection_photos, post_inspection_photos, start_time, end_time, image, updated_at
-    ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18::jsonb,$19::jsonb,$20::jsonb,$21,$22,$23,NOW())
+    ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18::jsonb,$19::jsonb,$20::jsonb,$21,$22,$23,$24,NOW())
     ON CONFLICT (id) DO UPDATE SET
       sort_order = EXCLUDED.sort_order,
       plate = EXCLUDED.plate,
@@ -384,7 +384,7 @@ async function upsertAppointmentRow(appointment) {
     WHERE UPPER(plate) = UPPER($1)
       AND date = $2
       AND time = $3
-      AND status <> 'cancelled'
+      AND status IN ('confirmed', 'pending')
       AND id <> $4
     LIMIT 1
     `,
