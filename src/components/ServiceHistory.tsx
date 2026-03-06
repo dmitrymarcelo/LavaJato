@@ -119,6 +119,9 @@ export default function ServiceHistory({
             ))}
           </div>
         </div>
+
+        <PhotoSection title="Fotos da inspecao pre" photos={service.preInspectionPhotos} />
+        <PhotoSection title="Fotos da inspecao pos" photos={service.postInspectionPhotos} />
       </section>
     </div>
   );
@@ -132,6 +135,36 @@ function InfoCard({ icon, label, value }: { icon: React.ReactNode; label: string
         <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">{label}</p>
       </div>
       <p className="text-sm font-black text-slate-900">{value}</p>
+    </div>
+  );
+}
+
+function PhotoSection({ title, photos }: { title: string; photos?: Record<string, string> }) {
+  const entries = Object.entries(photos || {}).filter(([, value]) => !!value);
+
+  if (!entries.length) {
+    return (
+      <div className="bg-white rounded-2xl border border-dashed border-slate-200 p-4 text-sm text-slate-400">
+        {title}: nenhuma foto registrada.
+      </div>
+    );
+  }
+
+  return (
+    <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+      <div className="p-4 border-b border-slate-100">
+        <h3 className="text-lg font-black text-slate-900">{title}</h3>
+      </div>
+      <div className="grid grid-cols-2 gap-3 p-4">
+        {entries.map(([key, value]) => (
+          <div key={key} className="space-y-2">
+            <div className="aspect-square rounded-2xl overflow-hidden border border-slate-100 bg-slate-100">
+              <img src={value} alt={key} className="w-full h-full object-cover" />
+            </div>
+            <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">{key}</p>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

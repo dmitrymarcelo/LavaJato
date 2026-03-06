@@ -17,7 +17,7 @@ const PHOTO_TYPES = [
   { id: 'interior', label: 'Interior' }
 ];
 
-export default function InspectionPre({ onNavigate, onStartWash, elapsedMinutes = 0, teamMembers: teamMembersProp = [], service }: { onNavigate: (screen: Screen) => void, onStartWash: (washers: string[]) => Promise<void> | void, elapsedMinutes?: number, teamMembers?: TeamMember[], service?: Service | null }) {
+export default function InspectionPre({ onNavigate, onStartWash, elapsedMinutes = 0, teamMembers: teamMembersProp = [], service }: { onNavigate: (screen: Screen) => void, onStartWash: (washers: string[], photos: Record<string, string>) => Promise<void> | void, elapsedMinutes?: number, teamMembers?: TeamMember[], service?: Service | null }) {
   const [photos, setPhotos] = useState<Record<string, string>>({});
   const [activePhotoId, setActivePhotoId] = useState<string | null>(null);
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
@@ -33,6 +33,23 @@ export default function InspectionPre({ onNavigate, onStartWash, elapsedMinutes 
       )
     );
   }, [teamMembersProp]);
+
+  useEffect(() => {
+    setPhotos(service?.preInspectionPhotos || {});
+  }, [service?.id, service?.preInspectionPhotos]);
+
+  useEffect(() => {
+    if (!teamMembers.length) {
+      setSelectedWashers([]);
+      return;
+    }
+
+    const selectedIds = teamMembers
+      .filter((member) => service?.washers?.includes(member.name))
+      .map((member) => member.id);
+
+    setSelectedWashers(selectedIds);
+  }, [service?.id, service?.washers, teamMembers]);
 
   const handlePhotoClick = (id: string) => {
     setActivePhotoId(id);
@@ -80,7 +97,7 @@ export default function InspectionPre({ onNavigate, onStartWash, elapsedMinutes 
         .filter(m => selectedWashers.includes(m.id))
         .map(m => m.name);
       try {
-        await onStartWash(washerNames);
+        await onStartWash(washerNames, photos);
         onNavigate('queue');
       } catch (error) {
         console.error(error);

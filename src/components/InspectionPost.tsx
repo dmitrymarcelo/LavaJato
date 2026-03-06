@@ -3,15 +3,81 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React from 'react';
-import { Camera, CheckCircle2, CreditCard, Info, PlusCircle, ChevronLeft } from 'lucide-react';
+import React, { useEffect, useRef, useState } from 'react';
+import { Camera, CheckCircle2, ChevronLeft, CreditCard, RefreshCw, Upload, X, AlertCircle } from 'lucide-react';
 import { Screen, Service } from '../types';
 import { formatElapsedMinutes } from '../utils/app';
 
-export default function InspectionPost({ onNavigate, onCompleteWash, elapsedMinutes = 0, service }: { onNavigate: (screen: Screen) => void, onCompleteWash: () => Promise<void> | void, elapsedMinutes?: number, service?: Service | null }) {
+const PHOTO_TYPES = [
+  { id: 'front', label: 'Frente' },
+  { id: 'back', label: 'Traseira' },
+  { id: 'left', label: 'Lateral Esq.' },
+  { id: 'right', label: 'Lateral Dir.' },
+  { id: 'interior', label: 'Interior' },
+];
+
+export default function InspectionPost({
+  onNavigate,
+  onCompleteWash,
+  elapsedMinutes = 0,
+  service,
+}: {
+  onNavigate: (screen: Screen) => void;
+  onCompleteWash: (photos: Record<string, string>) => Promise<void> | void;
+  elapsedMinutes?: number;
+  service?: Service | null;
+}) {
+  const [photos, setPhotos] = useState<Record<string, string>>({});
+  const [activePhotoId, setActivePhotoId] = useState<string | null>(null);
+  const [isPhotoSourceOpen, setIsPhotoSourceOpen] = useState(false);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
+  const galleryInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    setPhotos(service?.postInspectionPhotos || {});
+  }, [service?.id, service?.postInspectionPhotos]);
+
+  const handlePhotoClick = (photoId: string) => {
+    setActivePhotoId(photoId);
+    setIsPhotoSourceOpen(true);
+  };
+
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file || !activePhotoId) {
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setPhotos((current) => ({
+        ...current,
+        [activePhotoId]: reader.result as string,
+      }));
+      setIsPhotoSourceOpen(false);
+    };
+    reader.readAsDataURL(file);
+
+    if (cameraInputRef.current) {
+      cameraInputRef.current.value = '';
+    }
+
+    if (galleryInputRef.current) {
+      galleryInputRef.current.value = '';
+    }
+  };
+
+  const completedCount = Object.keys(photos).length;
+  const progress = (completedCount / PHOTO_TYPES.length) * 100;
+  const canComplete = completedCount === PHOTO_TYPES.length;
+
   const handleComplete = async () => {
+    if (!canComplete) {
+      return;
+    }
+
     try {
-      await onCompleteWash();
+      await onCompleteWash(photos);
       onNavigate('payment');
     } catch (error) {
       console.error(error);
@@ -20,8 +86,24 @@ export default function InspectionPost({ onNavigate, onCompleteWash, elapsedMinu
 
   return (
     <div className="flex flex-col min-h-full bg-white">
-      <div className="p-4">
-        <div className="mb-4">
+      <input
+        ref={cameraInputRef}
+        type="file"
+        accept="image/*"
+        capture="environment"
+        className="hidden"
+        onChange={handleFileChange}
+      />
+      <input
+        ref={galleryInputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={handleFileChange}
+      />
+
+      <main className="max-w-md mx-auto p-4 space-y-6 pb-40">
+        <div className="flex items-center">
           <button
             onClick={() => onNavigate('scheduling')}
             className="flex items-center gap-2 text-slate-500 hover:text-primary transition-colors font-bold text-sm"
@@ -30,97 +112,183 @@ export default function InspectionPost({ onNavigate, onCompleteWash, elapsedMinu
             Voltar
           </button>
         </div>
-        <div className="bg-white p-4 rounded-xl border border-slate-100 shadow-sm">
-          <div className="flex justify-between items-start mb-4">
-            <div>
-              <p className="text-[10px] font-bold uppercase tracking-wider text-primary mb-1">Tarefa Atual</p>
-              <h3 className="text-lg font-bold">{service?.type || 'Servico em andamento'}</h3>
-              <p className="text-sm text-slate-500">{service?.model || 'Veiculo'} • {service?.plate || 'Sem placa'}</p>
+
+        <section className="space-y-3">
+          <h2 className="text-[10px] font-bold uppercase tracking-[0.1em] text-slate-500">Entrega Tecnica</h2>
+          <div className="flex items-center gap-4 bg-white p-4 rounded-2xl border border-slate-100 shadow-sm">
+            <div className="flex items-center justify-center rounded-xl bg-primary/10 text-primary shrink-0 w-14 h-14 overflow-hidden">
+              {service?.image ? <img src={service.image} alt={service.model} className="w-full h-full object-cover" /> : <Camera className="w-8 h-8" />}
             </div>
-            <div className="flex flex-col items-end gap-2">
-              <div className="bg-primary/10 text-primary px-2 py-1 rounded text-[10px] font-bold uppercase">
-                ETAPA 3/3
-              </div>
-              <div className="bg-amber-500 text-white px-3 py-2 rounded-xl shadow-lg">
-                <p className="text-[10px] font-black uppercase tracking-widest">Tempo</p>
-                <p className="text-sm font-black">{formatElapsedMinutes(elapsedMinutes)}</p>
+            <div className="flex flex-col justify-center flex-1">
+              <p className="text-lg font-bold leading-tight">{service?.model || 'Veiculo nao identificado'}</p>
+              <div className="flex items-center gap-2 mt-1">
+                <span className="bg-slate-50 px-2 py-0.5 rounded text-xs font-bold tracking-wider text-slate-700 border border-slate-100">{service?.plate || 'Sem placa'}</span>
+                <span className="text-slate-400 text-[10px] uppercase font-bold">Servico {service?.type || 'nao informado'}</span>
               </div>
             </div>
-          </div>
-          <div className="flex flex-col gap-2">
-            <div className="flex gap-6 justify-between items-center">
-              <p className="text-slate-700 text-sm font-medium">Progresso da Conclusão</p>
-              <p className="text-primary text-sm font-bold">80%</p>
-            </div>
-            <div className="rounded-full bg-slate-100 h-2 overflow-hidden">
-              <div className="h-full rounded-full bg-primary" style={{ width: '80%' }}></div>
+            <div className="shrink-0 bg-amber-500 text-white px-3 py-2 rounded-xl shadow-lg">
+              <p className="text-[10px] font-black uppercase tracking-widest">Tempo</p>
+              <p className="text-sm font-black">{formatElapsedMinutes(elapsedMinutes)}</p>
             </div>
           </div>
+        </section>
+
+        <div className="space-y-1">
+          <h2 className="text-xl font-bold tracking-tight">Estado Final</h2>
+          <p className="text-sm text-slate-500 leading-relaxed">Capture as 5 fotos obrigatorias para documentar a entrega do veiculo apos a lavagem.</p>
         </div>
-      </div>
 
-      <div className="px-4 py-2">
-        <h3 className="text-lg font-bold leading-tight tracking-tight">Veículo Limpo: Entrega Técnica</h3>
-        <p className="text-slate-500 text-sm mt-1">Capture os 5 ângulos obrigatórios para validar a qualidade do serviço.</p>
-      </div>
+        <div className="grid grid-cols-2 gap-3">
+          {PHOTO_TYPES.map((type) => (
+            <PhotoItem
+              key={type.id}
+              label={type.label}
+              image={photos[type.id]}
+              onClick={() => handlePhotoClick(type.id)}
+              required
+            />
+          ))}
+        </div>
 
-      <div className="grid grid-cols-2 gap-3 p-4 pb-48">
-        <CapturedPhoto label="Vista Frontal" imageUrl="https://lh3.googleusercontent.com/aida-public/AB6AXuBlvuNUhemTXILPRs4U0LJnNEaIoQUcNVBE9M-n4W2q-1r5xTla9vUtaq0zRKxeYA4_mBlwQUzsw_q5YoqdgzIy-5RWhaiHHF44dEfzQWqeV7iJtVCU6Mzc39i_fqJkamYxEOIHyb45WwJhuUt8xRb6GOaKPx8cmREmVZa-iKrpPjOg_CKOXmp4MT6LogTJpt2yACIHCZlhcMVm0zhqfA2SxzDCWCJE4k2a8FZ7AWTIUDRJbNLE0URnyS60AmgaAcL3ddAo1L83SSEt" />
-        <CapturedPhoto label="Vista Traseira" imageUrl="https://lh3.googleusercontent.com/aida-public/AB6AXuDeTcgf46qH3XxgUD8ZKGyGG28HLD2ZAWZQQF210yjTbM4GK4tTAwpe6DS9jQjfOxpZDX27zVF9vOqXgEueZnQUt1b6VLTjBCizIAMjdpFGE2aEtBpb7JoJ0XHpBF-LQHzQNeToxPzwOO_0I6l6l87SkaOSs0by5f-PPizNsgFOInpcjOFdLEBBbpRBSc4ZjB4OsEGqWUf14aAqP5TCQXsfINu9pFql32q0TLmIzlJd4K_vuDM0PHzll2dvRcd-UQ53XOp6BPtmdkO0" />
-        <CapturedPhoto label="Lateral Esquerda" imageUrl="https://lh3.googleusercontent.com/aida-public/AB6AXuBk_W4g5n-Hh1FFelQsF6-QvQf9qXJPCBcFvuW8cgYeM7AQZ83blcw3CM_1m5zFopAnP3PHkWOTkF8dMx7bYOxQL7lyqfMPhRttCgbKtLLFgLk3rOS8QeOV_hpo6euLLcndujOoBPlnr7TRQE1bvQO662fRgjZH0e4EdUbqhuiqthnj1AQLFJ6WyT7MdSF23SvBZ1eiEqYZz0RFpp49Cym3zN59aE2zL2molcHsMyAovvxNuTG12iOe9hYS-GMaID0VEtuKH0JZfK53" />
-        <CapturedPhoto label="Lateral Direita" imageUrl="https://lh3.googleusercontent.com/aida-public/AB6AXuBUE0FpxIyviyfIAHH1Nt0JKUwlkn_UaFOuD6Z5h8buOvl75H_X1S7DHQ0ueQjAthqRDcqcAQzACQw8y5Wpv0Ck6OBCqOr0_OQfVznsTwb1Njs0AAraV51MK-cAreX0UKm3aaniI0ynHGWJiGxBeVI4onIN95Rw1k4Mq40JNy8QKzFqXhCFZgWn80Z81KSti4e4Sex0bV-33ZNszy1CzYyEG_iXcE_ksEd9Py3CrTiRLN6OqKOMJNtnqouoQtC4-CRcb3K4C4-qGBs5" />
-
-        <div 
-          onClick={() => alert('Abrindo câmera para capturar interior...')}
-          className="relative group aspect-square rounded-xl overflow-hidden border-2 border-dashed border-primary bg-primary/5 flex flex-col items-center justify-center cursor-pointer active:scale-95 transition-transform"
-        >
-          <div className="flex flex-col items-center gap-2 text-primary">
-            <Camera className="w-10 h-10" />
-            <p className="text-sm font-bold">Interior Limpo</p>
-          </div>
-          <div className="absolute top-2 right-2">
-            <span className="flex h-3 w-3">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-3 w-3 bg-primary"></span>
+        <div className="pt-2">
+          <div className="flex justify-between items-end mb-2">
+            <div>
+              <span className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider">Progresso da Captura</span>
+              <span className={`text-lg font-black italic ${canComplete ? 'text-emerald-500' : 'text-primary'}`}>
+                {completedCount}/{PHOTO_TYPES.length} Concluido
+              </span>
+            </div>
+            <span className="text-xs font-semibold text-slate-400">
+              {canComplete ? 'Entrega pronta' : `Aguardando ${PHOTO_TYPES.length - completedCount} fotos`}
             </span>
           </div>
-        </div>
-
-        <div 
-          onClick={() => alert('Abrindo câmera para foto extra...')}
-          className="relative group aspect-square rounded-xl overflow-hidden border-2 border-dashed border-slate-300 bg-slate-50 flex flex-col items-center justify-center cursor-pointer active:scale-95 transition-transform"
-        >
-          <div className="flex flex-col items-center gap-2 text-slate-400">
-            <PlusCircle className="w-10 h-10" />
-            <p className="text-sm font-bold">Foto Extra</p>
+          <div className="w-full bg-slate-100 h-3 rounded-full overflow-hidden p-0.5 border border-slate-200">
+            <div
+              className={`h-full rounded-full ${canComplete ? 'bg-emerald-500' : 'bg-primary'}`}
+              style={{ width: `${progress}%` }}
+            />
           </div>
         </div>
-      </div>
+      </main>
 
-      <div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[430px] px-4 pb-10 bg-white/95 backdrop-blur-lg border-t border-slate-100 pt-6 z-[70]">
-        <button 
-          onClick={handleComplete}
-          className="w-full bg-primary text-white font-bold py-4 rounded-xl shadow-lg shadow-primary/20 flex items-center justify-center gap-2 active:scale-[0.98] transition-all"
-        >
-          <span>Concluir e Liberar</span>
-          <CreditCard className="w-5 h-5" />
-        </button>
-        <p className="text-center text-[10px] font-bold uppercase text-slate-400 mt-2">Valide a qualidade final antes de liberar o veículo</p>
-      </div>
+      {isPhotoSourceOpen && (
+        <div className="fixed inset-0 z-[80] bg-black/40 backdrop-blur-sm flex items-end justify-center p-4">
+          <div className="w-full max-w-md rounded-[28px] bg-white p-5 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-lg font-black text-slate-900">Adicionar foto final</h3>
+                <p className="text-sm text-slate-500">Escolha como deseja capturar ou enviar a imagem.</p>
+              </div>
+              <button
+                onClick={() => setIsPhotoSourceOpen(false)}
+                className="rounded-xl p-2 text-slate-400 hover:bg-slate-100"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                onClick={() => cameraInputRef.current?.click()}
+                className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-5 text-slate-900 active:scale-[0.98]"
+              >
+                <div className="rounded-2xl bg-primary/10 p-3 text-primary">
+                  <Camera className="w-6 h-6" />
+                </div>
+                <span className="text-sm font-bold">Abrir camera</span>
+              </button>
+              <button
+                onClick={() => galleryInputRef.current?.click()}
+                className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-5 text-slate-900 active:scale-[0.98]"
+              >
+                <div className="rounded-2xl bg-primary/10 p-3 text-primary">
+                  <Upload className="w-6 h-6" />
+                </div>
+                <span className="text-sm font-bold">Enviar do dispositivo</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <footer className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[430px] p-4 bg-white/95 backdrop-blur-lg border-t border-slate-100 pb-6 z-[70]">
+        <div className="space-y-3">
+          <button
+            disabled={!canComplete}
+            onClick={handleComplete}
+            className={`w-full py-4 rounded-2xl font-bold flex items-center justify-center gap-3 transition-all ${
+              canComplete
+                ? 'bg-primary text-white shadow-lg shadow-primary/20 active:scale-[0.98]'
+                : 'text-slate-400 bg-slate-50 border border-slate-100 cursor-not-allowed'
+            }`}
+          >
+            <CreditCard className="w-5 h-5" />
+            <span>Salvar e Liberar para Pagamento</span>
+          </button>
+          <div className="flex items-center justify-center gap-2 px-6">
+            <AlertCircle className={`w-4 h-4 ${canComplete ? 'text-emerald-500' : 'text-amber-500'}`} />
+            <p className="text-center text-[10px] uppercase font-bold tracking-wider text-slate-500">
+              {canComplete ? 'Tudo pronto para finalizar a lavagem' : `Capture as ${PHOTO_TYPES.length} fotos finais para habilitar`}
+            </p>
+          </div>
+        </div>
+      </footer>
     </div>
   );
 }
 
-function CapturedPhoto({ label, imageUrl }: { label: string, imageUrl: string }) {
-  return (
-    <div className="relative group aspect-square rounded-xl overflow-hidden border-2 border-blue-500 bg-slate-200">
-      <div className="absolute inset-0 bg-cover bg-center" style={{ backgroundImage: `url('${imageUrl}')` }}></div>
-      <div className="absolute inset-0 bg-black/40 flex flex-col justify-end p-3">
-        <div className="flex justify-between items-center">
-          <p className="text-white text-sm font-bold">{label}</p>
-          <CheckCircle2 className="text-emerald-400 w-5 h-5 font-bold" />
+function PhotoItem({
+  label,
+  image,
+  onClick,
+  required,
+}: {
+  key?: React.Key;
+  label: string;
+  image?: string;
+  onClick: () => void;
+  required?: boolean;
+}) {
+  if (image) {
+    return (
+      <div className="relative group" onClick={onClick}>
+        <div
+          className="aspect-square rounded-2xl overflow-hidden bg-slate-100 border-2 border-primary ring-4 ring-primary/10 bg-cover bg-center transition-all active:scale-95"
+          style={{ backgroundImage: `linear-gradient(rgba(0,0,0,0.1), rgba(0,0,0,0.4)), url('${image}')` }}
+        >
+          <div className="absolute inset-0 flex flex-col justify-end p-3">
+            <p className="text-white text-[10px] font-black uppercase tracking-widest drop-shadow-md">{label}</p>
+          </div>
+          <div className="absolute top-2 right-2 bg-emerald-500 text-white rounded-full p-1 shadow-lg ring-2 ring-white/20">
+            <CheckCircle2 className="w-4 h-4" />
+          </div>
+          <div className="absolute top-2 left-2 bg-black/40 backdrop-blur-sm text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity">
+            <RefreshCw className="w-3 h-3" />
+          </div>
         </div>
       </div>
+    );
+  }
+
+  return (
+    <div
+      onClick={onClick}
+      className={`relative aspect-square rounded-2xl border-2 border-dashed flex flex-col items-center justify-center gap-2 cursor-pointer active:scale-95 transition-all hover:border-primary/50 ${
+        required ? 'animate-blink-red border-red-500/30' : 'border-slate-200 bg-slate-50'
+      }`}
+    >
+      <div className={`p-4 rounded-full border ${
+        required ? 'bg-red-50 text-red-500 border-red-200/50' : 'bg-slate-200 text-slate-400 border-slate-300/50'
+      }`}>
+        <Camera className="w-8 h-8" />
+      </div>
+      <span className={`text-[10px] font-black uppercase tracking-widest ${
+        required ? 'text-red-500' : 'text-slate-500'
+      }`}>{label}</span>
+      {required && (
+        <div className="absolute top-2 right-2 flex items-center justify-center w-6 h-6 bg-red-500 text-white rounded-full shadow-lg animate-pulse">
+          <AlertCircle className="w-4 h-4" />
+        </div>
+      )}
     </div>
   );
 }

@@ -101,6 +101,23 @@ export default function CheckIn({
     }
   };
 
+  const handleVehicleLookup = () => {
+    if (!plate.trim()) {
+      alert('Informe a placa para consultar na base cadastrada.');
+      return;
+    }
+
+    const vehicle = vehicleDb?.find((item) => item.plate.toUpperCase() === plate.toUpperCase());
+    if (!vehicle) {
+      alert('Placa nao encontrada na base de veiculos cadastrados.');
+      return;
+    }
+
+    setCustomer(vehicle.customer);
+    setModel(vehicle.model);
+    setVehicleType(vehicle.type);
+  };
+
   return (
     <div className="p-4 space-y-6 bg-white min-h-full transition-colors">
       <div className="flex flex-col gap-2">
@@ -114,7 +131,8 @@ export default function CheckIn({
             onChange={handlePlateChange}
           />
           <button
-            onClick={() => alert('Buscando placa nos sistemas do DETRAN...')}
+            type="button"
+            onClick={handleVehicleLookup}
             className="bg-primary text-white px-6 flex items-center justify-center hover:bg-blue-600 active:bg-blue-700 active:scale-95 transition-all"
           >
             <Search className="w-6 h-6" />

@@ -35,7 +35,7 @@ import Scheduling, { QueueSection } from './components/Scheduling';
 import Settings from './components/Settings';
 import Inventory from './components/Inventory';
 import { getElapsedMinutes, getTodayDate } from './utils/app';
-import { api, Appointment } from './services/api';
+import { api, ApiError, Appointment } from './services/api';
 import { getBaseById } from './data/bases';
 
 export default function App() {
@@ -74,11 +74,11 @@ export default function App() {
       return null;
     }
   });
-  const [isAuthenticated, setIsAuthenticated] = useState(() => {
+  const [authToken, setAuthToken] = useState<string | null>(() => {
     try {
-      return localStorage.getItem('isAuthenticated') === 'true';
+      return localStorage.getItem('authToken');
     } catch (e) {
-      return false;
+      return null;
     }
   });
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -90,8 +90,15 @@ export default function App() {
   const [backendError, setBackendError] = useState<string | null>(null);
   const servicesRef = useRef<Service[]>([]);
   const appointmentsRef = useRef<Appointment[]>([]);
+  const vehicleDbRef = useRef<VehicleRegistration[]>([]);
+  const productsRef = useRef<Product[]>([]);
+  const teamRef = useRef<TeamMember[]>([]);
   const servicesSyncQueueRef = useRef<Promise<void>>(Promise.resolve());
   const appointmentsSyncQueueRef = useRef<Promise<void>>(Promise.resolve());
+  const vehiclesSyncQueueRef = useRef<Promise<void>>(Promise.resolve());
+  const productsSyncQueueRef = useRef<Promise<void>>(Promise.resolve());
+  const teamSyncQueueRef = useRef<Promise<void>>(Promise.resolve());
+  const isAuthenticated = Boolean(authToken);
 
   useEffect(() => {
     const interval = window.setInterval(() => {
@@ -131,6 +138,18 @@ export default function App() {
     appointmentsRef.current = appointments;
   }, [appointments]);
 
+  useEffect(() => {
+    vehicleDbRef.current = vehicleDb;
+  }, [vehicleDb]);
+
+  useEffect(() => {
+    productsRef.current = products;
+  }, [products]);
+
+  useEffect(() => {
+    teamRef.current = team;
+  }, [team]);
+
   const handleMarkAsRead = (id: string) => {
     setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
   };
@@ -140,10 +159,8 @@ export default function App() {
   };
 
   useEffect(() => {
-    try {
-      localStorage.setItem('isAuthenticated', isAuthenticated.toString());
-    } catch (e) {}
-  }, [isAuthenticated]);
+    api.setAuthToken(authToken);
+  }, [authToken]);
 
   useEffect(() => {
     try {
@@ -204,6 +221,12 @@ export default function App() {
       setProducts(data.products || []);
       setTeam(data.team || []);
     } catch (error: any) {
+      if (error instanceof ApiError && error.status === 401) {
+        performClientLogout();
+        setBackendError(null);
+        return;
+      }
+
       setBackendError(error.message || 'Nao foi possivel carregar os dados persistentes.');
     } finally {
       setIsBootstrapping(false);
@@ -225,11 +248,6 @@ export default function App() {
   const persistServiceTypes = async (next: Record<VehicleType, VehicleCategory>) => {
     setServiceTypes(next);
     await api.saveServiceTypes(next);
-  };
-
-  const persistVehicleDb = async (next: VehicleRegistration[]) => {
-    setVehicleDb(next);
-    await api.saveVehicles(next);
   };
 
   const normalizeServicesForPersistence = (next: Service[]) => {
@@ -258,10 +276,139 @@ export default function App() {
     return appointmentsSyncQueueRef.current;
   };
 
+  const queueVehiclesSync = (task: () => Promise<void>) => {
+    vehiclesSyncQueueRef.current = vehiclesSyncQueueRef.current
+      .catch(() => undefined)
+      .then(task);
+    return vehiclesSyncQueueRef.current;
+  };
+
+  const queueProductsSync = (task: () => Promise<void>) => {
+    productsSyncQueueRef.current = productsSyncQueueRef.current
+      .catch(() => undefined)
+      .then(task);
+    return productsSyncQueueRef.current;
+  };
+
+  const queueTeamSync = (task: () => Promise<void>) => {
+    teamSyncQueueRef.current = teamSyncQueueRef.current
+      .catch(() => undefined)
+      .then(task);
+    return teamSyncQueueRef.current;
+  };
+
+  const performClientLogout = () => {
+    api.clearAuthToken();
+    setAuthToken(null);
+    setActiveServiceId(null);
+    setSelectedBase(null);
+    setServices([]);
+    setAppointments([]);
+    setProducts([]);
+    setTeam([]);
+    setVehicleDb([]);
+    setNotifications([]);
+    navigateTo('login');
+  };
+
   const handlePersistenceError = async (error: any, fallbackMessage: string) => {
     console.error(error);
+
+    if (error instanceof ApiError && error.status === 401) {
+      alert('Sua sessao expirou. Faca login novamente.');
+      performClientLogout();
+      return;
+    }
+
     alert(error?.message || fallbackMessage);
     await loadBootstrap();
+  };
+
+  const persistVehicleDb = async (next: VehicleRegistration[]) => {
+    const previous = vehicleDbRef.current;
+    setVehicleDb(next);
+    vehicleDbRef.current = next;
+
+    return queueVehiclesSync(async () => {
+      try {
+        const previousMap = new Map(previous.map((vehicle) => [vehicle.plate, vehicle]));
+        const nextMap = new Map(next.map((vehicle) => [vehicle.plate, vehicle]));
+
+        for (const vehicle of next) {
+          const previousVehicle = previousMap.get(vehicle.plate);
+          if (!previousVehicle || JSON.stringify(previousVehicle) !== JSON.stringify(vehicle)) {
+            await api.upsertVehicle(vehicle);
+          }
+        }
+
+        for (const vehicle of previous) {
+          if (!nextMap.has(vehicle.plate)) {
+            await api.deleteVehicle(vehicle.plate);
+          }
+        }
+      } catch (error) {
+        await handlePersistenceError(error, 'Nao foi possivel salvar os veiculos.');
+        throw error;
+      }
+    });
+  };
+
+  const persistProducts = async (next: Product[]) => {
+    const previous = productsRef.current;
+    setProducts(next);
+    productsRef.current = next;
+
+    return queueProductsSync(async () => {
+      try {
+        const previousMap = new Map(previous.map((product) => [product.id, product]));
+        const nextMap = new Map(next.map((product) => [product.id, product]));
+
+        for (const product of next) {
+          const previousProduct = previousMap.get(product.id);
+          if (!previousProduct || JSON.stringify(previousProduct) !== JSON.stringify(product)) {
+            await api.upsertProduct(product);
+          }
+        }
+
+        for (const product of previous) {
+          if (!nextMap.has(product.id)) {
+            await api.deleteProduct(product.id);
+          }
+        }
+      } catch (error) {
+        await handlePersistenceError(error, 'Nao foi possivel salvar os produtos.');
+        throw error;
+      }
+    });
+  };
+
+  const persistTeam = async (next: TeamMember[]) => {
+    const previous = teamRef.current;
+    setTeam(next);
+    teamRef.current = next;
+
+    return queueTeamSync(async () => {
+      try {
+        const previousMap = new Map(previous.map((member) => [member.id, member]));
+        const nextMap = new Map(next.map((member) => [member.id, member]));
+
+        for (const member of next) {
+          const previousMember = previousMap.get(member.id);
+          if (!previousMember || JSON.stringify(previousMember) !== JSON.stringify(member)) {
+            await api.upsertTeamMember(member);
+          }
+        }
+
+        for (const member of previous) {
+          if (!nextMap.has(member.id)) {
+            await api.deleteTeamMember(member.id);
+          }
+        }
+      } catch (error) {
+        await handlePersistenceError(error, 'Nao foi possivel salvar a equipe.');
+        throw error;
+      }
+    });
   };
 
   const persistServices = async (next: Service[]) => {
@@ -323,16 +470,6 @@ export default function App() {
     });
   };
 
-  const persistProducts = async (next: Product[]) => {
-    setProducts(next);
-    await api.saveProducts(next);
-  };
-
-  const persistTeam = async (next: TeamMember[]) => {
-    setTeam(next);
-    await api.saveTeam(next);
-  };
-
   const updateServiceRecord = async (id: string, updater: (service: Service) => Service) => {
     await persistServices(
       servicesRef.current.map((service) => (service.id === id ? updater(service) : service))
@@ -384,16 +521,19 @@ export default function App() {
     navigateTo(screen);
   };
 
-  const handleLogout = () => {
-    setIsAuthenticated(false);
-    setActiveServiceId(null);
-    setSelectedBase(null);
-    navigateTo('login');
+  const handleLogout = async () => {
+    try {
+      await api.logout();
+    } catch (error) {
+      console.error(error);
+    }
+
+    performClientLogout();
   };
 
   const handleLogin = async (registration: string, password: string) => {
-    await api.login(registration, password);
-    setIsAuthenticated(true);
+    const response = await api.login(registration, password);
+    setAuthToken(response.token);
     navigateTo('dashboard');
   };
 
@@ -459,13 +599,14 @@ export default function App() {
     switch (currentScreen) {
       case 'dashboard': return <Dashboard onNavigate={handleNavigateWithService} services={services} team={team} />;
       case 'checkin': return <CheckIn onNavigate={navigateTo} onAddService={addService} serviceTypes={serviceTypes} vehicleDb={vehicleDb} selectedBaseId={selectedBaseInfo?.id} selectedBaseName={selectedBaseInfo?.name} />;
-      case 'inspection-pre': return <InspectionPre service={activeService} teamMembers={team} elapsedMinutes={activeServiceElapsedMinutes} onNavigate={navigateTo} onStartWash={async (washers) => {
+      case 'inspection-pre': return <InspectionPre service={activeService} teamMembers={team} elapsedMinutes={activeServiceElapsedMinutes} onNavigate={navigateTo} onStartWash={async (washers, photos) => {
         if (activeServiceId) {
           await updateServiceRecord(activeServiceId, (service) => {
             const nowIso = new Date().toISOString();
             return {
               ...service,
               washers,
+              preInspectionPhotos: photos,
               status: 'in_progress',
               startTime: nowIso,
               timeline: {
@@ -478,12 +619,13 @@ export default function App() {
           });
         }
       }} />;
-      case 'inspection-post': return <InspectionPost service={activeService} elapsedMinutes={activeServiceElapsedMinutes} onNavigate={navigateTo} onCompleteWash={async () => {
+      case 'inspection-post': return <InspectionPost service={activeService} elapsedMinutes={activeServiceElapsedMinutes} onNavigate={navigateTo} onCompleteWash={async (photos) => {
         if (activeServiceId) {
           await updateServiceRecord(activeServiceId, (service) => {
             const nowIso = new Date().toISOString();
             return {
               ...service,
+              postInspectionPhotos: photos,
               status: 'waiting_payment',
               endTime: nowIso,
               timeline: {
@@ -496,7 +638,7 @@ export default function App() {
           });
         }
       }} />;
-      case 'payment': return <Payment service={activeService} elapsedMinutes={activeServiceElapsedMinutes} onNavigate={navigateTo} onPaymentComplete={async () => {
+      case 'payment': return <Payment service={activeService} services={services} elapsedMinutes={activeServiceElapsedMinutes} onNavigate={navigateTo} onPaymentComplete={async () => {
         if (activeServiceId) {
           await updateServiceRecord(activeServiceId, (service) => {
             const nowIso = new Date().toISOString();

@@ -217,7 +217,7 @@ export default function Settings({
     onUpdateServiceTypes(updatedTypes);
   };
 
-  const handleAddVehicle = () => {
+  const handleAddVehicle = async () => {
     if (!newVehicle.plate || !newVehicle.customer || !newVehicle.model) {
       alert('Preencha placa, cliente e modelo.');
       return;
@@ -230,7 +230,7 @@ export default function Settings({
     
     if (onUpdateVehicleDb) {
       const currentDb = vehicleDb || [];
-      onUpdateVehicleDb([...currentDb, {
+      await onUpdateVehicleDb([...currentDb, {
         ...newVehicle,
         thirdPartyCpf: newVehicle.thirdPartyCpf ? digitsOnly(newVehicle.thirdPartyCpf) : undefined
       } as VehicleRegistration]);
@@ -245,7 +245,7 @@ export default function Settings({
     if (!file) return;
 
     const reader = new FileReader();
-    reader.onload = (e) => {
+    reader.onload = async (e) => {
       const text = e.target?.result as string;
       if (!text) return;
 
@@ -310,7 +310,7 @@ export default function Settings({
           dbMap.set(v.plate, v);
         });
 
-        onUpdateVehicleDb(Array.from(dbMap.values()));
+        await onUpdateVehicleDb(Array.from(dbMap.values()));
         alert(`${newVehicles.length} veículos importados com sucesso!`);
       }
     };

@@ -119,7 +119,7 @@ const getLastOutput = (product: Product) => getLastMovement(product.manualOutput
 
 export default function Inventory({
   onNavigate,
-  products = INITIAL_PRODUCTS,
+  products = [],
   onUpdateProducts,
 }: {
   onNavigate: (screen: Screen) => void;

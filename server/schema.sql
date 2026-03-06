@@ -53,6 +53,8 @@ CREATE TABLE IF NOT EXISTS services (
     washer TEXT,
     washers JSONB NOT NULL DEFAULT '[]'::jsonb,
     timeline JSONB NOT NULL DEFAULT '{}'::jsonb,
+    pre_inspection_photos JSONB NOT NULL DEFAULT '{}'::jsonb,
+    post_inspection_photos JSONB NOT NULL DEFAULT '{}'::jsonb,
     start_time TIMESTAMPTZ,
     end_time TIMESTAMPTZ,
     image TEXT,
@@ -71,6 +73,12 @@ ALTER TABLE services
 
 ALTER TABLE services
     ADD COLUMN IF NOT EXISTS sort_order INTEGER NOT NULL DEFAULT 0;
+
+ALTER TABLE services
+    ADD COLUMN IF NOT EXISTS pre_inspection_photos JSONB NOT NULL DEFAULT '{}'::jsonb;
+
+ALTER TABLE services
+    ADD COLUMN IF NOT EXISTS post_inspection_photos JSONB NOT NULL DEFAULT '{}'::jsonb;
 
 CREATE TABLE IF NOT EXISTS appointments (
     id TEXT PRIMARY KEY,
@@ -91,6 +99,16 @@ CREATE TABLE IF NOT EXISTS appointments (
 
 ALTER TABLE appointments
     ADD COLUMN IF NOT EXISTS vehicle_type TEXT;
+
+CREATE TABLE IF NOT EXISTS auth_sessions (
+    token TEXT PRIMARY KEY,
+    member_id TEXT NOT NULL REFERENCES team_members(id) ON DELETE CASCADE,
+    expires_at TIMESTAMPTZ NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_auth_sessions_member_id ON auth_sessions (member_id);
+CREATE INDEX IF NOT EXISTS idx_auth_sessions_expires_at ON auth_sessions (expires_at);
 
 WITH ranked_active_appointments AS (
     SELECT

@@ -88,6 +88,8 @@ export interface Service {
   endTime?: string;
   image?: string;
   timeline?: ServiceTimeline;
+  preInspectionPhotos?: Record<string, string>;
+  postInspectionPhotos?: Record<string, string>;
 }
 
 export interface Notification {
@@ -103,7 +105,8 @@ export interface TeamMember {
   id: string;
   name: string;
   registration: string;
-  password: string;
+  password?: string;
+  passwordHash?: string;
   role: string;
   rating: number;
   servicesCount: number;
