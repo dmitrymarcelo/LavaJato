@@ -125,14 +125,6 @@ export default function Scheduling({
   }, [appointmentsProp]);
 
   useEffect(() => {
-    const nextAppointments = appointments.filter(appointment => appointment.date >= currentDateKey);
-    if (nextAppointments.length !== appointments.length) {
-      setAppointments(nextAppointments);
-      void onUpdateAppointments(nextAppointments);
-    }
-  }, [appointments, currentDateKey, onUpdateAppointments]);
-
-  useEffect(() => {
     const interval = window.setInterval(() => {
       setClockNow(Date.now());
     }, 60000);
@@ -279,6 +271,19 @@ export default function Scheduling({
 
     if (!selectedTime) {
       alert('Selecione um horario.');
+      return;
+    }
+
+    const duplicatePlateInSlot = appointments.some(
+      appointment =>
+        normalizePlate(appointment.plate) === normalizePlate(plate) &&
+        appointment.date === appointmentDate &&
+        appointment.time === selectedTime &&
+        appointment.status !== 'cancelled'
+    );
+
+    if (duplicatePlateInSlot) {
+      alert('Ja existe um agendamento para esta placa neste mesmo horario.');
       return;
     }
 
@@ -1042,6 +1047,7 @@ function StatusSelector({
     pending: { color: 'text-amber-500', bg: 'bg-amber-50', icon: <Clock className="w-3 h-3" />, label: 'Pendente' },
     cancelled: { color: 'text-rose-500', bg: 'bg-rose-50', icon: <AlertCircle className="w-3 h-3" />, label: 'Cancelado' },
     completed: { color: 'text-blue-500', bg: 'bg-blue-50', icon: <CheckCircle2 className="w-3 h-3" />, label: 'Finalizado' },
+    no_show: { color: 'text-rose-500', bg: 'bg-rose-50', icon: <AlertCircle className="w-3 h-3" />, label: 'Nao compareceu' },
   };
 
   const config = configs[status];

@@ -62,6 +62,7 @@ export interface ServiceTimeline {
   paymentStartedAt?: string;
   paymentCompletedAt?: string;
   completedAt?: string;
+  noShowAt?: string;
 }
 
 export interface Service {
@@ -73,7 +74,7 @@ export interface Service {
   baseName?: string;
   scheduledDate?: string;
   scheduledTime?: string;
-  status: 'pending' | 'in_progress' | 'completed' | 'waiting_payment';
+  status: 'pending' | 'in_progress' | 'completed' | 'waiting_payment' | 'no_show';
   price: number;
   priority?: boolean;
   customer: string;

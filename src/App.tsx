@@ -60,8 +60,20 @@ export default function App() {
   const [products, setProducts] = useState<Product[]>([]);
   const [team, setTeam] = useState<TeamMember[]>([]);
 
-  const [activeServiceId, setActiveServiceId] = useState<string | null>(null);
-  const [selectedBase, setSelectedBase] = useState<string | null>(null);
+  const [activeServiceId, setActiveServiceId] = useState<string | null>(() => {
+    try {
+      return localStorage.getItem('activeServiceId');
+    } catch (e) {
+      return null;
+    }
+  });
+  const [selectedBase, setSelectedBase] = useState<string | null>(() => {
+    try {
+      return localStorage.getItem('selectedBase');
+    } catch (e) {
+      return null;
+    }
+  });
   const [isAuthenticated, setIsAuthenticated] = useState(() => {
     try {
       return localStorage.getItem('isAuthenticated') === 'true';
@@ -128,6 +140,26 @@ export default function App() {
   }, [currentScreen]);
 
   useEffect(() => {
+    try {
+      if (selectedBase) {
+        localStorage.setItem('selectedBase', selectedBase);
+      } else {
+        localStorage.removeItem('selectedBase');
+      }
+    } catch (e) {}
+  }, [selectedBase]);
+
+  useEffect(() => {
+    try {
+      if (activeServiceId) {
+        localStorage.setItem('activeServiceId', activeServiceId);
+      } else {
+        localStorage.removeItem('activeServiceId');
+      }
+    } catch (e) {}
+  }, [activeServiceId]);
+
+  useEffect(() => {
     document.documentElement.classList.remove('dark');
   }, []);
 
@@ -171,6 +203,12 @@ export default function App() {
       loadBootstrap();
     }
   }, [isAuthenticated]);
+
+  useEffect(() => {
+    if (activeServiceId && !services.some((service) => service.id === activeServiceId)) {
+      setActiveServiceId(null);
+    }
+  }, [services, activeServiceId]);
 
   const persistServiceTypes = async (next: Record<VehicleType, VehicleCategory>) => {
     setServiceTypes(next);
@@ -240,7 +278,9 @@ export default function App() {
   };
 
   const handleNavigateWithService = (screen: Screen, serviceId?: string) => {
-    if (serviceId) setActiveServiceId(serviceId);
+    if (serviceId) {
+      setActiveServiceId(serviceId);
+    }
 
     if (serviceId && screen === 'inspection-pre') {
       touchServiceTimeline(serviceId, 'preInspectionStartedAt');
@@ -273,6 +313,58 @@ export default function App() {
   const activeService = services.find((service) => service.id === activeServiceId) || null;
   const activeServiceElapsedMinutes = getElapsedMinutes(activeService?.startTime, clockNow);
   const selectedBaseInfo = getBaseById(selectedBase);
+
+  useEffect(() => {
+    if (!isAuthenticated || !services.length || !appointments.length) {
+      return;
+    }
+
+    const nowIso = new Date().toISOString();
+    let hasServiceChanges = false;
+    let hasAppointmentChanges = false;
+
+    const nextServices = services.map((service) => {
+      if ((service.scheduledDate || currentDateKey) < currentDateKey && service.status === 'pending') {
+        hasServiceChanges = true;
+        return {
+          ...service,
+          status: 'no_show' as const,
+          timeline: {
+            ...(service.timeline || {}),
+            noShowAt: service.timeline?.noShowAt || nowIso,
+          },
+        };
+      }
+
+      return service;
+    });
+
+    const nextAppointments = appointments.map((appointment) => {
+      if (appointment.date < currentDateKey && !['completed', 'cancelled', 'no_show'].includes(appointment.status)) {
+        hasAppointmentChanges = true;
+        return {
+          ...appointment,
+          status: 'no_show' as const,
+        };
+      }
+
+      return appointment;
+    });
+
+    if (!hasServiceChanges && !hasAppointmentChanges) {
+      return;
+    }
+
+    if (hasServiceChanges) {
+      setServices(nextServices);
+      void api.saveServices(nextServices);
+    }
+
+    if (hasAppointmentChanges) {
+      setAppointments(nextAppointments);
+      void api.saveAppointments(nextAppointments);
+    }
+  }, [isAuthenticated, currentDateKey, services, appointments]);
 
   const renderScreen = () => {
     if (!isAuthenticated) return <Login onLogin={handleLogin} />;

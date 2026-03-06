@@ -9,7 +9,7 @@ export interface Appointment {
   service: string;
   date: string;
   time: string;
-  status: 'confirmed' | 'pending' | 'cancelled' | 'completed';
+  status: 'confirmed' | 'pending' | 'cancelled' | 'completed' | 'no_show';
   photo?: string;
   thirdPartyName?: string;
   thirdPartyCpf?: string;

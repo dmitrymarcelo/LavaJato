@@ -427,6 +427,7 @@ export function StatusBadge({ status }: { status: Service['status'] }) {
     in_progress: { label: 'Em curso', classes: 'bg-blue-100 text-blue-700' },
     completed: { label: 'Pago', classes: 'bg-green-100 text-green-700' },
     waiting_payment: { label: 'Aguardando', classes: 'bg-amber-100 text-amber-700' },
+    no_show: { label: 'Nao compareceu', classes: 'bg-rose-100 text-rose-700' },
   };
 
   const config = configs[status];

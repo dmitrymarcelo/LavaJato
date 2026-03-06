@@ -53,6 +53,7 @@ export default function ServiceHistory({
     { label: 'Pagamento iniciado', value: service.timeline?.paymentStartedAt },
     { label: 'Pagamento concluido', value: service.timeline?.paymentCompletedAt },
     { label: 'Servico finalizado', value: service.timeline?.completedAt },
+    { label: 'Nao comparecimento', value: service.timeline?.noShowAt },
   ];
 
   return (
@@ -75,7 +76,7 @@ export default function ServiceHistory({
             </div>
             <div className="rounded-2xl bg-emerald-50 px-4 py-3 text-right">
               <p className="text-[10px] font-bold uppercase tracking-widest text-emerald-600">Status</p>
-              <p className="text-sm font-black text-emerald-700">{service.status === 'completed' ? 'Finalizado' : 'Em andamento'}</p>
+              <p className="text-sm font-black text-emerald-700">{service.status === 'completed' ? 'Finalizado' : service.status === 'no_show' ? 'Nao compareceu' : 'Em andamento'}</p>
             </div>
           </div>
 

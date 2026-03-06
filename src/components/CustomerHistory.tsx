@@ -45,7 +45,7 @@ export default function CustomerHistory({
   }
 
   const vehicleHistory = [...services]
-    .filter((service) => service.plate === selectedService.plate)
+    .filter((service) => service.plate === selectedService.plate && ['completed', 'no_show'].includes(service.status))
     .sort((left, right) => {
       const leftKey = left.timeline?.completedAt || left.endTime || left.startTime || `${left.scheduledDate || ''}T${left.scheduledTime || '00:00'}`;
       const rightKey = right.timeline?.completedAt || right.endTime || right.startTime || `${right.scheduledDate || ''}T${right.scheduledTime || '00:00'}`;
@@ -97,7 +97,7 @@ export default function CustomerHistory({
                       <span className="text-sm font-bold text-slate-700">{formatDateTime(item.timeline?.completedAt || item.endTime || item.startTime)}</span>
                     </div>
                     <div className="bg-emerald-500/10 text-emerald-600 px-2 py-1 rounded-lg text-[10px] font-bold uppercase">
-                      {item.status === 'completed' ? 'Finalizado' : item.status === 'waiting_payment' ? 'Pagamento' : 'Em aberto'}
+                      {item.status === 'completed' ? 'Finalizado' : 'Nao compareceu'}
                     </div>
                   </div>
 
@@ -113,7 +113,7 @@ export default function CustomerHistory({
 
                   <div className="flex items-center gap-2 text-[11px] text-slate-500 font-medium">
                     <Clock className="w-3 h-3" />
-                    {washMinutes ? formatElapsedMinutes(washMinutes) : 'Tempo ainda nao finalizado'}
+                    {item.status === 'no_show' ? 'Nao compareceu ate o fim do dia' : washMinutes ? formatElapsedMinutes(washMinutes) : 'Tempo ainda nao finalizado'}
                     <span className="text-slate-300">•</span>
                     {item.washers?.length ? item.washers.join(', ') : 'Sem lavador registrado'}
                   </div>
