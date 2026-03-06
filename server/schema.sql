@@ -92,6 +92,23 @@ CREATE TABLE IF NOT EXISTS appointments (
 ALTER TABLE appointments
     ADD COLUMN IF NOT EXISTS vehicle_type TEXT;
 
+WITH ranked_active_appointments AS (
+    SELECT
+        id,
+        ROW_NUMBER() OVER (
+            PARTITION BY UPPER(plate), date, time
+            ORDER BY updated_at DESC, created_at DESC, id DESC
+        ) AS duplicate_rank
+    FROM appointments
+    WHERE status <> 'cancelled'
+)
+DELETE FROM appointments
+WHERE id IN (
+    SELECT id
+    FROM ranked_active_appointments
+    WHERE duplicate_rank > 1
+);
+
 CREATE TABLE IF NOT EXISTS products (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
