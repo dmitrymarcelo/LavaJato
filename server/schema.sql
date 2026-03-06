@@ -91,10 +91,14 @@ CREATE TABLE IF NOT EXISTS products (
     last_restock DATE,
     status TEXT NOT NULL,
     image TEXT,
+    manual_entries JSONB NOT NULL DEFAULT '[]'::jsonb,
     manual_outputs JSONB NOT NULL DEFAULT '[]'::jsonb,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+ALTER TABLE products
+    ADD COLUMN IF NOT EXISTS manual_entries JSONB NOT NULL DEFAULT '[]'::jsonb;
 
 ALTER TABLE products
     ADD COLUMN IF NOT EXISTS manual_outputs JSONB NOT NULL DEFAULT '[]'::jsonb;

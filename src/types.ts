@@ -39,10 +39,11 @@ export interface Product {
   lastRestock: string;
   status: 'ok' | 'low' | 'critical';
   image?: string;
-  manualOutputs?: ProductOutput[];
+  manualEntries?: ProductMovement[];
+  manualOutputs?: ProductMovement[];
 }
 
-export interface ProductOutput {
+export interface ProductMovement {
   id: string;
   quantity: number;
   note?: string;
