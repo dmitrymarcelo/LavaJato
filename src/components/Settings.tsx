@@ -125,7 +125,7 @@ export default function Settings({
       role: activeRole,
       rating: 5.0,
       servicesCount: 0,
-      status: 'offline',
+      status: 'active',
       avatar: `https://i.pravatar.cc/150?u=${generateId()}`,
       efficiency: '100%'
     };

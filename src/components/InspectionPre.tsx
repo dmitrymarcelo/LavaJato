@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useRef, useEffect } from 'react';
-import { Camera, CheckCircle2, Lock, Info, RefreshCw, ChevronLeft, PlayCircle, AlertCircle, Users, User } from 'lucide-react';
+import { Camera, CheckCircle2, Lock, Info, RefreshCw, ChevronLeft, PlayCircle, AlertCircle, Upload, X } from 'lucide-react';
 import { motion } from 'motion/react';
 import { Screen, TeamMember, INITIAL_TEAM } from '../types';
 import { formatElapsedMinutes } from '../utils/app';
@@ -22,27 +22,37 @@ export default function InspectionPre({ onNavigate, onStartWash, elapsedMinutes 
   const [activePhotoId, setActivePhotoId] = useState<string | null>(null);
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
   const [selectedWashers, setSelectedWashers] = useState<string[]>([]);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isPhotoSourceOpen, setIsPhotoSourceOpen] = useState(false);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
+  const galleryInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (teamMembersProp.length) {
-      setTeamMembers(teamMembersProp.filter((m: TeamMember) => m.status !== 'offline'));
+      setTeamMembers(
+        teamMembersProp.filter(
+          (m: TeamMember) => m.role.toLowerCase() === 'lavador'
+        )
+      );
       return;
     }
     const savedTeam = localStorage.getItem('team_members');
     if (savedTeam) {
       const parsedTeam = JSON.parse(savedTeam);
-      setTeamMembers(parsedTeam.filter((m: TeamMember) => m.status !== 'offline'));
+      setTeamMembers(
+        parsedTeam.filter(
+          (m: TeamMember) => m.role.toLowerCase() === 'lavador'
+        )
+      );
     } else {
-      setTeamMembers(INITIAL_TEAM.filter(m => m.status !== 'offline'));
+      setTeamMembers(
+        INITIAL_TEAM.filter(m => m.role.toLowerCase() === 'lavador')
+      );
     }
   }, [teamMembersProp]);
 
   const handlePhotoClick = (id: string) => {
     setActivePhotoId(id);
-    if (fileInputRef.current) {
-      fileInputRef.current.click();
-    }
+    setIsPhotoSourceOpen(true);
   };
 
   const toggleWasher = (washerId: string) => {
@@ -62,12 +72,15 @@ export default function InspectionPre({ onNavigate, onStartWash, elapsedMinutes 
           ...prev,
           [activePhotoId]: reader.result as string
         }));
+        setIsPhotoSourceOpen(false);
       };
       reader.readAsDataURL(file);
     }
-    // Reset input so the same file can be picked again if needed
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
+    if (cameraInputRef.current) {
+      cameraInputRef.current.value = '';
+    }
+    if (galleryInputRef.current) {
+      galleryInputRef.current.value = '';
     }
   };
 
@@ -94,7 +107,14 @@ export default function InspectionPre({ onNavigate, onStartWash, elapsedMinutes 
         accept="image/*" 
         capture="environment" 
         className="hidden" 
-        ref={fileInputRef}
+        ref={cameraInputRef}
+        onChange={onFileChange}
+      />
+      <input
+        type="file"
+        accept="image/*"
+        className="hidden"
+        ref={galleryInputRef}
         onChange={onFileChange}
       />
 
@@ -220,6 +240,45 @@ export default function InspectionPre({ onNavigate, onStartWash, elapsedMinutes 
           </div>
         </div>
       </main>
+
+      {isPhotoSourceOpen && (
+        <div className="fixed inset-0 z-[80] bg-black/40 backdrop-blur-sm flex items-end justify-center p-4">
+          <div className="w-full max-w-md rounded-[28px] bg-white p-5 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-lg font-black text-slate-900">Adicionar foto</h3>
+                <p className="text-sm text-slate-500">Escolha como deseja capturar ou enviar a imagem.</p>
+              </div>
+              <button
+                onClick={() => setIsPhotoSourceOpen(false)}
+                className="rounded-xl p-2 text-slate-400 hover:bg-slate-100"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                onClick={() => cameraInputRef.current?.click()}
+                className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-5 text-slate-900 active:scale-[0.98]"
+              >
+                <div className="rounded-2xl bg-primary/10 p-3 text-primary">
+                  <Camera className="w-6 h-6" />
+                </div>
+                <span className="text-sm font-bold">Abrir camera</span>
+              </button>
+              <button
+                onClick={() => galleryInputRef.current?.click()}
+                className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-5 text-slate-900 active:scale-[0.98]"
+              >
+                <div className="rounded-2xl bg-primary/10 p-3 text-primary">
+                  <Upload className="w-6 h-6" />
+                </div>
+                <span className="text-sm font-bold">Enviar do dispositivo</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Footer Action */}
       <footer className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[430px] p-4 bg-white/95 backdrop-blur-lg border-t border-slate-100 pb-6 z-[70]">
