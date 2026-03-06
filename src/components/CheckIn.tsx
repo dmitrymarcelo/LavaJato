@@ -17,7 +17,7 @@ export default function CheckIn({
   selectedBaseName,
 }: {
   onNavigate: (screen: Screen) => void,
-  onAddService: (service: Service) => void,
+  onAddService: (service: Service) => Promise<void> | void,
   serviceTypes: Record<VehicleType, VehicleCategory>,
   vehicleDb?: VehicleRegistration[],
   selectedBaseId?: string | null,
@@ -56,7 +56,7 @@ export default function CheckIn({
     }
   };
 
-  const handleStartCheckIn = () => {
+  const handleStartCheckIn = async () => {
     if (!plate || !model) {
       alert('Por favor, preencha a placa e o modelo do veiculo.');
       return;
@@ -93,8 +93,12 @@ export default function CheckIn({
       },
     };
 
-    onAddService(newService);
-    onNavigate('scheduling');
+    try {
+      await onAddService(newService);
+      onNavigate('scheduling');
+    } catch (error) {
+      console.error(error);
+    }
   };
 
   return (

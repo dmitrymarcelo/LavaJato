@@ -76,8 +76,8 @@ export default function Scheduling({
   onUpdateAppointments: (appointments: Appointment[]) => Promise<void> | void;
   onNavigate: (screen: Screen, serviceId?: string) => void;
   services: Service[];
-  onAddService: (service: Service) => void;
-  onReorder: (newServices: Service[]) => void;
+  onAddService: (service: Service) => Promise<void> | void;
+  onReorder: (newServices: Service[]) => Promise<void> | void;
   serviceTypes: Record<VehicleType, VehicleCategory>;
   vehicleDb?: VehicleRegistration[];
   selectedBaseId?: string | null;
@@ -203,7 +203,7 @@ export default function Scheduling({
     }
   };
 
-  const moveService = (id: string, direction: 'up' | 'down') => {
+  const moveService = async (id: string, direction: 'up' | 'down') => {
     const index = services.findIndex(service => service.id === id);
     if (index === -1) return;
 
@@ -214,15 +214,23 @@ export default function Scheduling({
     const nextServices = [...services];
     const [moved] = nextServices.splice(index, 1);
     nextServices.splice(targetIndex, 0, moved);
-    onReorder(nextServices);
+    try {
+      await onReorder(nextServices);
+    } catch (error) {
+      console.error(error);
+    }
   };
 
-  const handleStatusChange = (id: string, newStatus: Appointment['status']) => {
+  const handleStatusChange = async (id: string, newStatus: Appointment['status']) => {
     const nextAppointments = appointments.map(appointment =>
       appointment.id === id ? { ...appointment, status: newStatus } : appointment
     );
     setAppointments(nextAppointments);
-    void onUpdateAppointments(nextAppointments);
+    try {
+      await onUpdateAppointments(nextAppointments);
+    } catch (error) {
+      console.error(error);
+    }
   };
 
   const resolveAppointmentVehicleType = (appointment: Appointment): VehicleType => {
@@ -261,7 +269,7 @@ export default function Scheduling({
     };
   };
 
-  const handleAddAppointment = (event: React.FormEvent) => {
+  const handleAddAppointment = async (event: React.FormEvent) => {
     event.preventDefault();
 
     if (!isVehicleFound) {
@@ -315,7 +323,7 @@ export default function Scheduling({
       thirdPartyCpf: isThirdParty ? digitsOnly(thirdPartyCpf) : undefined,
     };
 
-    onAddService({
+    const newService: Service = {
       id: newAppointment.id,
       plate: newAppointment.plate,
       model: newAppointment.vehicle,
@@ -333,13 +341,19 @@ export default function Scheduling({
       timeline: {
         createdAt: new Date().toISOString(),
       },
-    });
+    };
 
     const nextAppointments = [...appointments, newAppointment];
     setAppointments(nextAppointments);
-    void onUpdateAppointments(nextAppointments);
-    alert('Agendamento realizado com sucesso.');
-    resetAppointmentForm();
+
+    try {
+      await onUpdateAppointments(nextAppointments);
+      await onAddService(newService);
+      alert('Agendamento realizado com sucesso.');
+      resetAppointmentForm();
+    } catch (error) {
+      console.error(error);
+    }
   };
 
   return (

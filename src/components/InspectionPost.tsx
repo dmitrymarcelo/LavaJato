@@ -8,10 +8,14 @@ import { Camera, CheckCircle2, CreditCard, Info, PlusCircle, ChevronLeft } from 
 import { Screen, Service } from '../types';
 import { formatElapsedMinutes } from '../utils/app';
 
-export default function InspectionPost({ onNavigate, onCompleteWash, elapsedMinutes = 0, service }: { onNavigate: (screen: Screen) => void, onCompleteWash: () => void, elapsedMinutes?: number, service?: Service | null }) {
-  const handleComplete = () => {
-    onCompleteWash();
-    onNavigate('payment');
+export default function InspectionPost({ onNavigate, onCompleteWash, elapsedMinutes = 0, service }: { onNavigate: (screen: Screen) => void, onCompleteWash: () => Promise<void> | void, elapsedMinutes?: number, service?: Service | null }) {
+  const handleComplete = async () => {
+    try {
+      await onCompleteWash();
+      onNavigate('payment');
+    } catch (error) {
+      console.error(error);
+    }
   };
 
   return (

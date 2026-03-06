@@ -60,8 +60,16 @@ export const api = {
     request('/vehicles', { method: 'PUT', body: JSON.stringify(vehicles) }),
   saveServices: (services: Service[]) =>
     request('/services', { method: 'PUT', body: JSON.stringify(services) }),
+  upsertService: (service: Service) =>
+    request<Service>('/services/upsert', { method: 'POST', body: JSON.stringify(service) }),
+  deleteService: (id: string) =>
+    request<void>(`/services/${id}`, { method: 'DELETE' }),
   saveAppointments: (appointments: Appointment[]) =>
     request('/appointments', { method: 'PUT', body: JSON.stringify(appointments) }),
+  upsertAppointment: (appointment: Appointment) =>
+    request<Appointment>('/appointments/upsert', { method: 'POST', body: JSON.stringify(appointment) }),
+  deleteAppointment: (id: string) =>
+    request<void>(`/appointments/${id}`, { method: 'DELETE' }),
   assistantTips: (query: string) =>
     request<{ text: string }>('/assistant/tips', { method: 'POST', body: JSON.stringify({ query }) }),
   assistantWeather: (location?: string) =>

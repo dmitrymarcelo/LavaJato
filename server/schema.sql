@@ -35,6 +35,7 @@ CREATE TABLE IF NOT EXISTS vehicles (
 
 CREATE TABLE IF NOT EXISTS services (
     id TEXT PRIMARY KEY,
+    sort_order INTEGER NOT NULL DEFAULT 0,
     plate TEXT NOT NULL,
     model TEXT NOT NULL,
     type TEXT NOT NULL,
@@ -67,6 +68,9 @@ ALTER TABLE services
 
 ALTER TABLE services
     ADD COLUMN IF NOT EXISTS timeline JSONB NOT NULL DEFAULT '{}'::jsonb;
+
+ALTER TABLE services
+    ADD COLUMN IF NOT EXISTS sort_order INTEGER NOT NULL DEFAULT 0;
 
 CREATE TABLE IF NOT EXISTS appointments (
     id TEXT PRIMARY KEY,
@@ -113,3 +117,6 @@ ALTER TABLE products
 
 CREATE INDEX IF NOT EXISTS idx_services_status_date ON services (status, scheduled_date);
 CREATE INDEX IF NOT EXISTS idx_appointments_date_status ON appointments (date, status);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_appointments_unique_plate_slot_active
+    ON appointments ((UPPER(plate)), date, time)
+    WHERE status <> 'cancelled';

@@ -67,6 +67,7 @@ export interface ServiceTimeline {
 
 export interface Service {
   id: string;
+  sortOrder?: number;
   plate: string;
   model: string;
   type: string;

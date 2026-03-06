@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, ReactNode, useEffect } from 'react';
+import React, { useState, ReactNode, useEffect, useRef } from 'react';
 import { 
   LayoutDashboard, 
   Settings as SettingsIcon, 
@@ -88,6 +88,10 @@ export default function App() {
   const [currentDateKey, setCurrentDateKey] = useState(() => getTodayDate());
   const [isBootstrapping, setIsBootstrapping] = useState(false);
   const [backendError, setBackendError] = useState<string | null>(null);
+  const servicesRef = useRef<Service[]>([]);
+  const appointmentsRef = useRef<Appointment[]>([]);
+  const servicesSyncQueueRef = useRef<Promise<void>>(Promise.resolve());
+  const appointmentsSyncQueueRef = useRef<Promise<void>>(Promise.resolve());
 
   useEffect(() => {
     const interval = window.setInterval(() => {
@@ -118,6 +122,14 @@ export default function App() {
         })
     );
   }, [currentDateKey]);
+
+  useEffect(() => {
+    servicesRef.current = services;
+  }, [services]);
+
+  useEffect(() => {
+    appointmentsRef.current = appointments;
+  }, [appointments]);
 
   const handleMarkAsRead = (id: string) => {
     setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
@@ -220,22 +232,95 @@ export default function App() {
     await api.saveVehicles(next);
   };
 
-  const persistServices = async (next: Service[]) => {
-    setServices(next);
-    await api.saveServices(next);
+  const normalizeServicesForPersistence = (next: Service[]) => {
+    const counters = new Map<string, number>();
+    return next.map((service) => {
+      const nextOrder = counters.get(service.status) || 0;
+      counters.set(service.status, nextOrder + 1);
+      return {
+        ...service,
+        sortOrder: nextOrder,
+      };
+    });
   };
 
-  const persistServicesWithUpdater = (updater: (current: Service[]) => Service[]) => {
-    setServices(current => {
-      const next = updater(current);
-      void api.saveServices(next);
-      return next;
+  const queueServicesSync = (task: () => Promise<void>) => {
+    servicesSyncQueueRef.current = servicesSyncQueueRef.current
+      .catch(() => undefined)
+      .then(task);
+    return servicesSyncQueueRef.current;
+  };
+
+  const queueAppointmentsSync = (task: () => Promise<void>) => {
+    appointmentsSyncQueueRef.current = appointmentsSyncQueueRef.current
+      .catch(() => undefined)
+      .then(task);
+    return appointmentsSyncQueueRef.current;
+  };
+
+  const handlePersistenceError = async (error: any, fallbackMessage: string) => {
+    console.error(error);
+    alert(error?.message || fallbackMessage);
+    await loadBootstrap();
+  };
+
+  const persistServices = async (next: Service[]) => {
+    const previous = servicesRef.current;
+    const normalizedNext = normalizeServicesForPersistence(next);
+    setServices(normalizedNext);
+    servicesRef.current = normalizedNext;
+
+    return queueServicesSync(async () => {
+      try {
+        const previousMap = new Map(previous.map((service) => [service.id, service]));
+        const nextMap = new Map(normalizedNext.map((service) => [service.id, service]));
+
+        for (const service of normalizedNext) {
+          const previousService = previousMap.get(service.id);
+          if (!previousService || JSON.stringify(previousService) !== JSON.stringify(service)) {
+            await api.upsertService(service);
+          }
+        }
+
+        for (const service of previous) {
+          if (!nextMap.has(service.id)) {
+            await api.deleteService(service.id);
+          }
+        }
+      } catch (error) {
+        await handlePersistenceError(error, 'Nao foi possivel salvar os servicos.');
+        throw error;
+      }
     });
   };
 
   const persistAppointments = async (next: Appointment[]) => {
+    const previous = appointmentsRef.current;
     setAppointments(next);
-    await api.saveAppointments(next);
+    appointmentsRef.current = next;
+
+    return queueAppointmentsSync(async () => {
+      try {
+        const previousMap = new Map(previous.map((appointment) => [appointment.id, appointment]));
+        const nextMap = new Map(next.map((appointment) => [appointment.id, appointment]));
+
+        for (const appointment of next) {
+          const previousAppointment = previousMap.get(appointment.id);
+          if (!previousAppointment || JSON.stringify(previousAppointment) !== JSON.stringify(appointment)) {
+            await api.upsertAppointment(appointment);
+          }
+        }
+
+        for (const appointment of previous) {
+          if (!nextMap.has(appointment.id)) {
+            await api.deleteAppointment(appointment.id);
+          }
+        }
+      } catch (error) {
+        await handlePersistenceError(error, 'Nao foi possivel salvar os agendamentos.');
+        throw error;
+      }
+    });
   };
 
   const persistProducts = async (next: Product[]) => {
@@ -248,12 +333,14 @@ export default function App() {
     await api.saveTeam(next);
   };
 
-  const updateServiceRecord = (id: string, updater: (service: Service) => Service) => {
-    persistServicesWithUpdater(current => current.map(service => (service.id === id ? updater(service) : service)));
+  const updateServiceRecord = async (id: string, updater: (service: Service) => Service) => {
+    await persistServices(
+      servicesRef.current.map((service) => (service.id === id ? updater(service) : service))
+    );
   };
 
   const touchServiceTimeline = (id: string, timelineKey: keyof NonNullable<Service['timeline']>) => {
-    updateServiceRecord(id, (service) => {
+    void updateServiceRecord(id, (service) => {
       const nowIso = new Date().toISOString();
       return {
         ...service,
@@ -265,12 +352,12 @@ export default function App() {
     });
   };
 
-  const addService = (service: Service) => {
-    persistServicesWithUpdater(current => [service, ...current]);
+  const addService = async (service: Service) => {
+    await persistServices([service, ...servicesRef.current]);
   };
 
-  const reorderServices = (newServices: Service[]) => {
-    void persistServices(newServices);
+  const reorderServices = async (newServices: Service[]) => {
+    await persistServices(newServices);
   };
 
   const navigateTo = (screen: Screen) => {
@@ -315,7 +402,7 @@ export default function App() {
   const selectedBaseInfo = getBaseById(selectedBase);
 
   useEffect(() => {
-    if (!isAuthenticated || !services.length || !appointments.length) {
+    if (!isAuthenticated) {
       return;
     }
 
@@ -356,13 +443,11 @@ export default function App() {
     }
 
     if (hasServiceChanges) {
-      setServices(nextServices);
-      void api.saveServices(nextServices);
+      void persistServices(nextServices);
     }
 
     if (hasAppointmentChanges) {
-      setAppointments(nextAppointments);
-      void api.saveAppointments(nextAppointments);
+      void persistAppointments(nextAppointments);
     }
   }, [isAuthenticated, currentDateKey, services, appointments]);
 
@@ -374,9 +459,9 @@ export default function App() {
     switch (currentScreen) {
       case 'dashboard': return <Dashboard onNavigate={handleNavigateWithService} services={services} team={team} />;
       case 'checkin': return <CheckIn onNavigate={navigateTo} onAddService={addService} serviceTypes={serviceTypes} vehicleDb={vehicleDb} selectedBaseId={selectedBaseInfo?.id} selectedBaseName={selectedBaseInfo?.name} />;
-      case 'inspection-pre': return <InspectionPre service={activeService} teamMembers={team} elapsedMinutes={activeServiceElapsedMinutes} onNavigate={navigateTo} onStartWash={(washers) => {
+      case 'inspection-pre': return <InspectionPre service={activeService} teamMembers={team} elapsedMinutes={activeServiceElapsedMinutes} onNavigate={navigateTo} onStartWash={async (washers) => {
         if (activeServiceId) {
-          updateServiceRecord(activeServiceId, (service) => {
+          await updateServiceRecord(activeServiceId, (service) => {
             const nowIso = new Date().toISOString();
             return {
               ...service,
@@ -393,9 +478,9 @@ export default function App() {
           });
         }
       }} />;
-      case 'inspection-post': return <InspectionPost service={activeService} elapsedMinutes={activeServiceElapsedMinutes} onNavigate={navigateTo} onCompleteWash={() => {
+      case 'inspection-post': return <InspectionPost service={activeService} elapsedMinutes={activeServiceElapsedMinutes} onNavigate={navigateTo} onCompleteWash={async () => {
         if (activeServiceId) {
-          updateServiceRecord(activeServiceId, (service) => {
+          await updateServiceRecord(activeServiceId, (service) => {
             const nowIso = new Date().toISOString();
             return {
               ...service,
@@ -411,9 +496,9 @@ export default function App() {
           });
         }
       }} />;
-      case 'payment': return <Payment service={activeService} elapsedMinutes={activeServiceElapsedMinutes} onNavigate={navigateTo} onPaymentComplete={() => {
+      case 'payment': return <Payment service={activeService} elapsedMinutes={activeServiceElapsedMinutes} onNavigate={navigateTo} onPaymentComplete={async () => {
         if (activeServiceId) {
-          updateServiceRecord(activeServiceId, (service) => {
+          await updateServiceRecord(activeServiceId, (service) => {
             const nowIso = new Date().toISOString();
             return {
               ...service,

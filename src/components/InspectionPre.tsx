@@ -6,7 +6,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Camera, CheckCircle2, Lock, Info, RefreshCw, ChevronLeft, PlayCircle, AlertCircle, Upload, X } from 'lucide-react';
 import { motion } from 'motion/react';
-import { Screen, Service, TeamMember, INITIAL_TEAM } from '../types';
+import { Screen, Service, TeamMember } from '../types';
 import { formatElapsedMinutes } from '../utils/app';
 
 const PHOTO_TYPES = [
@@ -17,7 +17,7 @@ const PHOTO_TYPES = [
   { id: 'interior', label: 'Interior' }
 ];
 
-export default function InspectionPre({ onNavigate, onStartWash, elapsedMinutes = 0, teamMembers: teamMembersProp = [], service }: { onNavigate: (screen: Screen) => void, onStartWash: (washers: string[]) => void, elapsedMinutes?: number, teamMembers?: TeamMember[], service?: Service | null }) {
+export default function InspectionPre({ onNavigate, onStartWash, elapsedMinutes = 0, teamMembers: teamMembersProp = [], service }: { onNavigate: (screen: Screen) => void, onStartWash: (washers: string[]) => Promise<void> | void, elapsedMinutes?: number, teamMembers?: TeamMember[], service?: Service | null }) {
   const [photos, setPhotos] = useState<Record<string, string>>({});
   const [activePhotoId, setActivePhotoId] = useState<string | null>(null);
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
@@ -27,27 +27,11 @@ export default function InspectionPre({ onNavigate, onStartWash, elapsedMinutes 
   const galleryInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    if (teamMembersProp.length) {
-      setTeamMembers(
-        teamMembersProp.filter(
-          (m: TeamMember) => m.role.toLowerCase() === 'lavador'
-        )
-      );
-      return;
-    }
-    const savedTeam = localStorage.getItem('team_members');
-    if (savedTeam) {
-      const parsedTeam = JSON.parse(savedTeam);
-      setTeamMembers(
-        parsedTeam.filter(
-          (m: TeamMember) => m.role.toLowerCase() === 'lavador'
-        )
-      );
-    } else {
-      setTeamMembers(
-        INITIAL_TEAM.filter(m => m.role.toLowerCase() === 'lavador')
-      );
-    }
+    setTeamMembers(
+      teamMembersProp.filter(
+        (m: TeamMember) => m.role.toLowerCase() === 'lavador'
+      )
+    );
   }, [teamMembersProp]);
 
   const handlePhotoClick = (id: string) => {
@@ -90,13 +74,17 @@ export default function InspectionPre({ onNavigate, onStartWash, elapsedMinutes 
   const isWashersSelected = selectedWashers.length > 0;
   const canStart = isPhotosComplete && isWashersSelected;
 
-  const handleStartWash = () => {
+  const handleStartWash = async () => {
     if (canStart) {
       const washerNames = teamMembers
         .filter(m => selectedWashers.includes(m.id))
         .map(m => m.name);
-      onStartWash(washerNames);
-      onNavigate('queue');
+      try {
+        await onStartWash(washerNames);
+        onNavigate('queue');
+      } catch (error) {
+        console.error(error);
+      }
     }
   };
 

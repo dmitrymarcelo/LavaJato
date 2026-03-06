@@ -8,10 +8,14 @@ import { CheckCircle2, Clock, ChevronRight, ChevronLeft } from 'lucide-react';
 import { Screen, Service } from '../types';
 import { formatElapsedMinutes } from '../utils/app';
 
-export default function Payment({ onNavigate, onPaymentComplete, elapsedMinutes = 0, service }: { onNavigate: (screen: Screen) => void, onPaymentComplete: () => void, elapsedMinutes?: number, service?: Service | null }) {
-  const handlePayment = () => {
-    onPaymentComplete();
-    onNavigate('dashboard');
+export default function Payment({ onNavigate, onPaymentComplete, elapsedMinutes = 0, service }: { onNavigate: (screen: Screen) => void, onPaymentComplete: () => Promise<void> | void, elapsedMinutes?: number, service?: Service | null }) {
+  const handlePayment = async () => {
+    try {
+      await onPaymentComplete();
+      onNavigate('dashboard');
+    } catch (error) {
+      console.error(error);
+    }
   };
 
   return (

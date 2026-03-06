@@ -37,6 +37,7 @@ function toCamelProduct(row) {
 function toCamelService(row) {
   return {
     id: row.id,
+    sortOrder: row.sort_order,
     plate: row.plate,
     model: row.model,
     type: row.type,
@@ -111,6 +112,146 @@ async function runSchema() {
   await seedDatabase();
 }
 
+const servicesOrderSql = `
+  CASE status
+    WHEN 'pending' THEN 1
+    WHEN 'in_progress' THEN 2
+    WHEN 'waiting_payment' THEN 3
+    WHEN 'completed' THEN 4
+    WHEN 'no_show' THEN 5
+    ELSE 6
+  END,
+  sort_order ASC,
+  scheduled_date DESC NULLS LAST,
+  scheduled_time DESC NULLS LAST,
+  created_at DESC
+`;
+
+async function upsertServiceRow(service) {
+  await query(
+    `
+    INSERT INTO services (
+      id, sort_order, plate, model, type, base_id, base_name, scheduled_date, scheduled_time, status, price, priority, customer,
+      third_party_name, third_party_cpf, observations, washer, washers, timeline, start_time, end_time, image, updated_at
+    ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18::jsonb,$19::jsonb,$20,$21,$22,NOW())
+    ON CONFLICT (id) DO UPDATE SET
+      sort_order = EXCLUDED.sort_order,
+      plate = EXCLUDED.plate,
+      model = EXCLUDED.model,
+      type = EXCLUDED.type,
+      base_id = EXCLUDED.base_id,
+      base_name = EXCLUDED.base_name,
+      scheduled_date = EXCLUDED.scheduled_date,
+      scheduled_time = EXCLUDED.scheduled_time,
+      status = EXCLUDED.status,
+      price = EXCLUDED.price,
+      priority = EXCLUDED.priority,
+      customer = EXCLUDED.customer,
+      third_party_name = EXCLUDED.third_party_name,
+      third_party_cpf = EXCLUDED.third_party_cpf,
+      observations = EXCLUDED.observations,
+      washer = EXCLUDED.washer,
+      washers = EXCLUDED.washers,
+      timeline = EXCLUDED.timeline,
+      start_time = EXCLUDED.start_time,
+      end_time = EXCLUDED.end_time,
+      image = EXCLUDED.image,
+      updated_at = NOW()
+    `,
+    [
+      service.id,
+      service.sortOrder || 0,
+      service.plate,
+      service.model,
+      service.type,
+      service.baseId || null,
+      service.baseName || null,
+      service.scheduledDate || null,
+      service.scheduledTime || null,
+      service.status,
+      service.price || 0,
+      Boolean(service.priority),
+      service.customer,
+      service.thirdPartyName || null,
+      service.thirdPartyCpf || null,
+      service.observations || null,
+      service.washer || null,
+      JSON.stringify(service.washers || []),
+      JSON.stringify(service.timeline || {}),
+      service.startTime || null,
+      service.endTime || null,
+      service.image || null,
+    ]
+  );
+}
+
+async function upsertAppointmentRow(appointment) {
+  const duplicate = await query(
+    `
+    SELECT id
+    FROM appointments
+    WHERE UPPER(plate) = UPPER($1)
+      AND date = $2
+      AND time = $3
+      AND status <> 'cancelled'
+      AND id <> $4
+    LIMIT 1
+    `,
+    [appointment.plate, appointment.date, appointment.time, appointment.id]
+  );
+
+  if (duplicate.rows[0]) {
+    const error = new Error('Ja existe um agendamento para esta placa neste mesmo horario.');
+    error.statusCode = 409;
+    throw error;
+  }
+
+  try {
+    await query(
+      `
+      INSERT INTO appointments (
+        id, customer, vehicle, plate, vehicle_type, service, date, time, status, photo, third_party_name, third_party_cpf, updated_at
+      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,NOW())
+      ON CONFLICT (id) DO UPDATE SET
+        customer = EXCLUDED.customer,
+        vehicle = EXCLUDED.vehicle,
+        plate = EXCLUDED.plate,
+        vehicle_type = EXCLUDED.vehicle_type,
+        service = EXCLUDED.service,
+        date = EXCLUDED.date,
+        time = EXCLUDED.time,
+        status = EXCLUDED.status,
+        photo = EXCLUDED.photo,
+        third_party_name = EXCLUDED.third_party_name,
+        third_party_cpf = EXCLUDED.third_party_cpf,
+        updated_at = NOW()
+      `,
+      [
+        appointment.id,
+        appointment.customer,
+        appointment.vehicle,
+        appointment.plate,
+        appointment.vehicleType || null,
+        appointment.service,
+        appointment.date,
+        appointment.time,
+        appointment.status,
+        appointment.photo || null,
+        appointment.thirdPartyName || null,
+        appointment.thirdPartyCpf || null,
+      ]
+    );
+  } catch (error) {
+    if (error.code === '23505') {
+      const duplicateError = new Error('Ja existe um agendamento para esta placa neste mesmo horario.');
+      duplicateError.statusCode = 409;
+      throw duplicateError;
+    }
+
+    throw error;
+  }
+}
+
 app.get('/api/health', async (_req, res) => {
   res.json({ ok: true });
 });
@@ -152,7 +293,7 @@ app.get('/api/bootstrap', async (_req, res) => {
   const [serviceTypesResult, vehiclesResult, servicesResult, appointmentsResult, productsResult, teamResult] = await Promise.all([
     query("SELECT value FROM app_settings WHERE key = 'service_types'"),
     query('SELECT * FROM vehicles ORDER BY plate'),
-    query('SELECT * FROM services ORDER BY scheduled_date DESC NULLS LAST, scheduled_time DESC NULLS LAST'),
+    query(`SELECT * FROM services ORDER BY ${servicesOrderSql}`),
     query('SELECT * FROM appointments ORDER BY date DESC, time DESC'),
     query('SELECT * FROM products ORDER BY name'),
     query('SELECT * FROM team_members ORDER BY name'),
@@ -212,45 +353,31 @@ app.put('/api/vehicles', async (req, res) => {
 });
 
 app.get('/api/services', async (_req, res) => {
-  const result = await query('SELECT * FROM services ORDER BY scheduled_date DESC NULLS LAST, scheduled_time DESC NULLS LAST');
+  const result = await query(`SELECT * FROM services ORDER BY ${servicesOrderSql}`);
   res.json(result.rows.map(toCamelService));
+});
+
+app.post('/api/services/upsert', async (req, res) => {
+  const service = req.body || {};
+  if (!service.id) {
+    return res.status(400).json({ error: 'Id do servico e obrigatorio.' });
+  }
+
+  await upsertServiceRow(service);
+  const result = await query('SELECT * FROM services WHERE id = $1', [service.id]);
+  res.json(toCamelService(result.rows[0]));
+});
+
+app.delete('/api/services/:id', async (req, res) => {
+  await query('DELETE FROM services WHERE id = $1', [req.params.id]);
+  res.status(204).end();
 });
 
 app.put('/api/services', async (req, res) => {
   const services = Array.isArray(req.body) ? req.body : [];
   await query('TRUNCATE TABLE services');
   for (const service of services) {
-    await query(
-      `
-      INSERT INTO services (
-        id, plate, model, type, base_id, base_name, scheduled_date, scheduled_time, status, price, priority, customer,
-        third_party_name, third_party_cpf, observations, washer, washers, timeline, start_time, end_time, image
-      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17::jsonb,$18::jsonb,$19,$20,$21)
-      `,
-      [
-        service.id,
-        service.plate,
-        service.model,
-        service.type,
-        service.baseId || null,
-        service.baseName || null,
-        service.scheduledDate || null,
-        service.scheduledTime || null,
-        service.status,
-        service.price || 0,
-        Boolean(service.priority),
-        service.customer,
-        service.thirdPartyName || null,
-        service.thirdPartyCpf || null,
-        service.observations || null,
-        service.washer || null,
-        JSON.stringify(service.washers || []),
-        JSON.stringify(service.timeline || {}),
-        service.startTime || null,
-        service.endTime || null,
-        service.image || null,
-      ]
-    );
+    await upsertServiceRow(service);
   }
   res.json({ count: services.length });
 });
@@ -260,31 +387,27 @@ app.get('/api/appointments', async (_req, res) => {
   res.json(result.rows.map(toCamelAppointment));
 });
 
+app.post('/api/appointments/upsert', async (req, res) => {
+  const appointment = req.body || {};
+  if (!appointment.id) {
+    return res.status(400).json({ error: 'Id do agendamento e obrigatorio.' });
+  }
+
+  await upsertAppointmentRow(appointment);
+  const result = await query('SELECT * FROM appointments WHERE id = $1', [appointment.id]);
+  res.json(toCamelAppointment(result.rows[0]));
+});
+
+app.delete('/api/appointments/:id', async (req, res) => {
+  await query('DELETE FROM appointments WHERE id = $1', [req.params.id]);
+  res.status(204).end();
+});
+
 app.put('/api/appointments', async (req, res) => {
   const appointments = Array.isArray(req.body) ? req.body : [];
   await query('TRUNCATE TABLE appointments');
   for (const appointment of appointments) {
-    await query(
-      `
-      INSERT INTO appointments (
-        id, customer, vehicle, plate, vehicle_type, service, date, time, status, photo, third_party_name, third_party_cpf
-      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
-      `,
-      [
-        appointment.id,
-        appointment.customer,
-        appointment.vehicle,
-        appointment.plate,
-        appointment.vehicleType || null,
-        appointment.service,
-        appointment.date,
-        appointment.time,
-        appointment.status,
-        appointment.photo || null,
-        appointment.thirdPartyName || null,
-        appointment.thirdPartyCpf || null,
-      ]
-    );
+    await upsertAppointmentRow(appointment);
   }
   res.json({ count: appointments.length });
 });
@@ -358,7 +481,7 @@ app.put('/api/team-members', async (req, res) => {
 
 app.use((error, _req, res, _next) => {
   console.error(error);
-  res.status(500).json({ error: error.message || 'Erro interno no servidor.' });
+  res.status(error.statusCode || 500).json({ error: error.message || 'Erro interno no servidor.' });
 });
 
 runSchema()
