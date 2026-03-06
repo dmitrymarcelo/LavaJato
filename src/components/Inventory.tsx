@@ -2,20 +2,18 @@ import React, { useState, useEffect } from 'react';
 import { 
   Search, 
   Plus, 
-  Filter, 
   Package, 
   AlertTriangle, 
   CheckCircle2, 
   MoreVertical, 
   Trash2, 
   Edit3, 
-  ArrowUpRight, 
-  ArrowDownLeft,
   X,
   Save
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Screen, Product } from '../types';
+import { generateId } from '../utils/app';
 
 const INITIAL_PRODUCTS: Product[] = [
   {
@@ -94,10 +92,15 @@ export default function Inventory({ onNavigate }: { onNavigate: (screen: Screen)
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const [filterStatus, setFilterStatus] = useState<'all' | 'ok' | 'low' | 'critical'>('all');
+  const [productImage, setProductImage] = useState('');
 
   useEffect(() => {
     localStorage.setItem('inventory_products', JSON.stringify(products));
   }, [products]);
+
+  useEffect(() => {
+    setProductImage(editingProduct?.image || '');
+  }, [editingProduct, isAdding]);
 
   const filteredProducts = products.filter(product => {
     const matchesSearch = product.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
@@ -126,7 +129,7 @@ export default function Inventory({ onNavigate }: { onNavigate: (screen: Screen)
     else if (quantity <= minQuantity) status = 'low';
 
     const productData: Product = {
-      id: editingProduct ? editingProduct.id : Math.random().toString(36).substr(2, 9),
+      id: editingProduct ? editingProduct.id : generateId(),
       name: formData.get('name') as string,
       category: formData.get('category') as string,
       quantity,
@@ -135,7 +138,7 @@ export default function Inventory({ onNavigate }: { onNavigate: (screen: Screen)
       price: Number(formData.get('price')),
       lastRestock: new Date().toISOString().split('T')[0],
       status,
-      image: editingProduct?.image || `https://images.unsplash.com/photo-1600456548090-7d1b3f0bbea5?q=80&w=200&auto=format&fit=crop&seed=${Math.random()}`
+      image: productImage || editingProduct?.image || `https://images.unsplash.com/photo-1600456548090-7d1b3f0bbea5?q=80&w=200&auto=format&fit=crop&seed=${Math.random()}`
     };
 
     if (editingProduct) {
@@ -146,6 +149,18 @@ export default function Inventory({ onNavigate }: { onNavigate: (screen: Screen)
 
     setIsAdding(false);
     setEditingProduct(null);
+    setProductImage('');
+  };
+
+  const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      setProductImage(String(reader.result || ''));
+    };
+    reader.readAsDataURL(file);
   };
 
   const getStatusColor = (status: Product['status']) => {
@@ -368,6 +383,34 @@ export default function Inventory({ onNavigate }: { onNavigate: (screen: Screen)
               </div>
 
               <form onSubmit={handleSaveProduct} className="space-y-4">
+                <div className="space-y-2">
+                  <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400 ml-1">Imagem do Produto</label>
+                  <div className="flex items-center gap-4">
+                    <div className="w-20 h-20 rounded-2xl overflow-hidden border border-slate-100 bg-slate-50 shrink-0">
+                      {productImage ? (
+                        <img src={productImage} alt="Preview do produto" className="w-full h-full object-cover" />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center text-slate-300 text-xs font-bold">Sem imagem</div>
+                      )}
+                    </div>
+                    <div className="flex-1 space-y-2">
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={handleImageUpload}
+                        className="w-full text-sm text-slate-500 file:mr-3 file:rounded-xl file:border-0 file:bg-slate-100 file:px-3 file:py-2 file:font-bold file:text-slate-700"
+                      />
+                      <input
+                        type="url"
+                        value={productImage.startsWith('data:') ? '' : productImage}
+                        onChange={(e) => setProductImage(e.target.value)}
+                        placeholder="Ou informe a URL da imagem"
+                        className="w-full h-12 px-4 bg-slate-50 border border-slate-100 rounded-xl outline-none focus:border-primary transition-all text-slate-900"
+                      />
+                    </div>
+                  </div>
+                </div>
+
                 <div className="space-y-1">
                   <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400 ml-1">Nome do Produto</label>
                   <input 

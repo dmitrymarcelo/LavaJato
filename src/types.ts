@@ -46,6 +46,8 @@ export interface Service {
   plate: string;
   model: string;
   type: string;
+  scheduledDate?: string;
+  scheduledTime?: string;
   status: 'pending' | 'in_progress' | 'completed' | 'waiting_payment';
   price: number;
   priority?: boolean;

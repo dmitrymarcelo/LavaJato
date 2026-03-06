@@ -14,7 +14,7 @@ import {
   Package
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Screen, SERVICES as INITIAL_SERVICES, Service, Notification, MOCK_NOTIFICATIONS, INITIAL_SERVICE_TYPES, VehicleCategory, VehicleType, VehicleRegistration } from './types';
+import { Screen, Service, Notification, MOCK_NOTIFICATIONS, INITIAL_SERVICE_TYPES, VehicleCategory, VehicleType, VehicleRegistration } from './types';
 import { getCarCareTips } from './services/geminiService';
 
 // Components
@@ -34,12 +34,18 @@ import CustomerHistory from './components/CustomerHistory';
 import Scheduling, { QueueSection } from './components/Scheduling';
 import Settings from './components/Settings';
 import Inventory from './components/Inventory';
+import { getElapsedMinutes, getTodayDate } from './utils/app';
+import { DEFAULT_VEHICLE_DB } from './data/vehicleSeed';
+
+const DEMO_DATA_VERSION = '2026-03-06-seed-v1';
 
 export default function App() {
+  const normalizeScreen = (screen: Screen): Screen => screen === 'queue' ? 'scheduling' : screen;
+
   const [currentScreen, setCurrentScreen] = useState<Screen>(() => {
     try {
       const saved = localStorage.getItem('currentScreen');
-      return (saved as Screen) || 'dashboard';
+      return saved ? normalizeScreen(saved as Screen) : 'dashboard';
     } catch (e) {
       return 'dashboard';
     }
@@ -51,9 +57,9 @@ export default function App() {
   const [services, setServices] = useState<Service[]>(() => {
     try {
       const saved = localStorage.getItem('services');
-      return saved ? JSON.parse(saved) : INITIAL_SERVICES;
+      return saved ? JSON.parse(saved) : [];
     } catch (e) {
-      return INITIAL_SERVICES;
+      return [];
     }
   });
   const [serviceTypes, setServiceTypes] = useState<Record<VehicleType, VehicleCategory>>(() => {
@@ -67,11 +73,36 @@ export default function App() {
   const [vehicleDb, setVehicleDb] = useState<VehicleRegistration[]>(() => {
     try {
       const saved = localStorage.getItem('vehicle_db');
-      return saved ? JSON.parse(saved) : [];
+      return saved ? JSON.parse(saved) : DEFAULT_VEHICLE_DB;
     } catch (e) {
-      return [];
+      return DEFAULT_VEHICLE_DB;
     }
   });
+
+  useEffect(() => {
+    try {
+      const currentVersion = localStorage.getItem('demo_data_version');
+      if (currentVersion !== DEMO_DATA_VERSION) {
+        localStorage.setItem('services', JSON.stringify([]));
+        localStorage.setItem('service_types', JSON.stringify(INITIAL_SERVICE_TYPES));
+        localStorage.setItem('vehicle_db', JSON.stringify(DEFAULT_VEHICLE_DB));
+        localStorage.setItem('team_members', JSON.stringify([]));
+        localStorage.setItem('inventory_products', JSON.stringify([]));
+        localStorage.setItem('service_appointments', JSON.stringify([]));
+        localStorage.setItem('currentScreen', 'dashboard');
+        localStorage.setItem('isAuthenticated', 'false');
+        localStorage.setItem('demo_data_version', DEMO_DATA_VERSION);
+
+        setServices([]);
+        setServiceTypes(INITIAL_SERVICE_TYPES);
+        setVehicleDb(DEFAULT_VEHICLE_DB);
+        setCurrentScreen('dashboard');
+        setIsAuthenticated(false);
+        setActiveServiceId(null);
+        setSelectedBase(null);
+      }
+    } catch (e) {}
+  }, []);
 
   useEffect(() => {
     try {
@@ -94,9 +125,42 @@ export default function App() {
       return false;
     }
   });
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>(MOCK_NOTIFICATIONS);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
+  const [clockNow, setClockNow] = useState(() => Date.now());
+  const [currentDateKey, setCurrentDateKey] = useState(() => getTodayDate());
+
+  useEffect(() => {
+    const interval = window.setInterval(() => {
+      setClockNow(Date.now());
+      setCurrentDateKey(getTodayDate());
+    }, 60000);
+
+    return () => window.clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
+    setServices(prev =>
+      prev
+        .map(service => {
+          const scheduledDate = service.scheduledDate
+            || service.startTime?.slice(0, 10)
+            || service.endTime?.slice(0, 10)
+            || currentDateKey;
+          const scheduledTime = service.scheduledTime
+            || service.startTime?.slice(11, 16)
+            || '08:00';
+
+          return {
+            ...service,
+            scheduledDate,
+            scheduledTime,
+          };
+        })
+        .filter(service => (service.scheduledDate || currentDateKey) >= currentDateKey)
+    );
+  }, [currentDateKey]);
 
   const handleMarkAsRead = (id: string) => {
     setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
@@ -161,47 +225,66 @@ export default function App() {
     setServices(newServices);
   };
 
+  const navigateTo = (screen: Screen) => {
+    setCurrentScreen(normalizeScreen(screen));
+  };
+
   const handleNavigateWithService = (screen: Screen, serviceId?: string) => {
     if (serviceId) setActiveServiceId(serviceId);
-    setCurrentScreen(screen);
+    navigateTo(screen);
   };
 
   const handleLogout = () => {
     setIsAuthenticated(false);
-    setCurrentScreen('login');
+    setActiveServiceId(null);
+    setSelectedBase(null);
+    navigateTo('login');
   };
 
-  const handleLogin = (email: string) => {
+  const handleLogin = () => {
     setIsAuthenticated(true);
-    setCurrentScreen('dashboard');
+    navigateTo('dashboard');
   };
+
+  const updateActiveServiceStatus = (status: Service['status']) => {
+    if (!activeServiceId) {
+      navigateTo('scheduling');
+      return;
+    }
+
+    updateServiceStatus(activeServiceId, status);
+  };
+
+  const activeService = services.find((service) => service.id === activeServiceId) || null;
+  const activeServiceElapsedMinutes = getElapsedMinutes(activeService?.startTime, clockNow);
 
   const renderScreen = () => {
     if (!isAuthenticated) return <Login onLogin={handleLogin} />;
 
     switch (currentScreen) {
-      case 'dashboard': return <Dashboard onNavigate={setCurrentScreen} services={services} />;
-      case 'checkin': return <CheckIn onNavigate={setCurrentScreen} onAddService={addService} serviceTypes={serviceTypes} vehicleDb={vehicleDb} />;
-      case 'inspection-pre': return <InspectionPre onNavigate={setCurrentScreen} onStartWash={(washers) => {
+      case 'dashboard': return <Dashboard onNavigate={navigateTo} services={services} />;
+      case 'checkin': return <CheckIn onNavigate={navigateTo} onAddService={addService} serviceTypes={serviceTypes} vehicleDb={vehicleDb} />;
+      case 'inspection-pre': return <InspectionPre elapsedMinutes={activeServiceElapsedMinutes} onNavigate={navigateTo} onStartWash={(washers) => {
         if (activeServiceId) {
           updateServiceWashers(activeServiceId, washers);
           updateServiceStatus(activeServiceId, 'in_progress');
         }
       }} />;
-      case 'inspection-post': return <InspectionPost onNavigate={setCurrentScreen} onCompleteWash={() => updateServiceStatus(activeServiceId || '1', 'waiting_payment')} />;
-      case 'payment': return <Payment onNavigate={setCurrentScreen} onPaymentComplete={() => updateServiceStatus(activeServiceId || '1', 'completed')} />;
-      case 'history': return <ServiceHistory onNavigate={setCurrentScreen} />;
-      case 'customer-history': return <CustomerHistory onNavigate={setCurrentScreen} />;
+      case 'inspection-post': return <InspectionPost elapsedMinutes={activeServiceElapsedMinutes} onNavigate={navigateTo} onCompleteWash={() => updateActiveServiceStatus('waiting_payment')} />;
+      case 'payment': return <Payment elapsedMinutes={activeServiceElapsedMinutes} onNavigate={navigateTo} onPaymentComplete={() => updateActiveServiceStatus('completed')} />;
+      case 'history': return <ServiceHistory onNavigate={navigateTo} />;
+      case 'customer-history': return <CustomerHistory onNavigate={navigateTo} />;
+      case 'queue':
       case 'scheduling': 
         if (!selectedBase) {
-          return <Filiais onNavigate={setCurrentScreen} onSelectBase={(baseId) => {
+          return <Filiais onNavigate={navigateTo} onSelectBase={(baseId) => {
             setSelectedBase(baseId);
           }} />;
         }
-        return <Scheduling onNavigate={handleNavigateWithService} services={services} onUpdateStatus={updateServiceStatus} onReorder={reorderServices} serviceTypes={serviceTypes} vehicleDb={vehicleDb} selectedBase={selectedBase} onClearBase={() => {
+        return <Scheduling currentDateKey={currentDateKey} onNavigate={handleNavigateWithService} services={services} onAddService={addService} onReorder={reorderServices} serviceTypes={serviceTypes} vehicleDb={vehicleDb} onClearBase={() => {
           setSelectedBase(null);
         }} />;
-      case 'inventory': return <Inventory onNavigate={setCurrentScreen} />;
+      case 'inventory': return <Inventory onNavigate={navigateTo} />;
       case 'washing': return (
         <div className="p-4">
           <QueueSection 
@@ -217,8 +300,8 @@ export default function App() {
           />
         </div>
       );
-      case 'settings': return <Settings onNavigate={setCurrentScreen} serviceTypes={serviceTypes} onUpdateServiceTypes={setServiceTypes} vehicleDb={vehicleDb} onUpdateVehicleDb={setVehicleDb} />;
-      default: return <Dashboard onNavigate={setCurrentScreen} services={services} />;
+      case 'settings': return <Settings onNavigate={navigateTo} serviceTypes={serviceTypes} onUpdateServiceTypes={setServiceTypes} vehicleDb={vehicleDb} onUpdateVehicleDb={setVehicleDb} />;
+      default: return <Dashboard onNavigate={navigateTo} services={services} />;
     }
   };
 
@@ -228,7 +311,7 @@ export default function App() {
         {isAuthenticated && (
           <Sidebar 
             currentScreen={currentScreen} 
-            onNavigate={setCurrentScreen} 
+            onNavigate={navigateTo} 
             onLogout={handleLogout} 
             isOpen={isSidebarOpen}
             onToggle={() => setIsSidebarOpen(!isSidebarOpen)}
@@ -253,13 +336,12 @@ export default function App() {
                 <h2 className="text-xl font-black text-slate-900 tracking-tight capitalize">
                   {currentScreen === 'dashboard' ? 'Painel' : 
                    currentScreen === 'checkin' ? 'Check-in' :
-                   currentScreen === 'queue' ? 'Fila de Lavagem' :
+                   currentScreen === 'queue' || currentScreen === 'scheduling' ? 'Agenda & Fila' :
                    currentScreen === 'inspection-pre' ? 'Inspeção Pré' :
                    currentScreen === 'inspection-post' ? 'Inspeção Pós' :
                    currentScreen === 'payment' ? 'Pagamento' :
                    currentScreen === 'history' ? 'Histórico' :
                    currentScreen === 'customer-history' ? 'Histórico Clientes' :
-                   currentScreen === 'scheduling' ? 'Agenda & Fila' :
                    currentScreen === 'inventory' ? 'Estoque' :
                    currentScreen === 'settings' ? 'Configurações' : currentScreen.replace('-', ' ')}
                 </h2>
@@ -268,7 +350,7 @@ export default function App() {
 
               <div className="flex items-center gap-2">
                 <button 
-                  onClick={() => setCurrentScreen('settings')}
+                  onClick={() => navigateTo('settings')}
                   className="p-2.5 rounded-xl bg-white text-slate-500 hover:text-primary transition-all active:scale-95 border border-slate-100 shadow-sm"
                 >
                   <SettingsIcon className="w-5 h-5" />
@@ -306,19 +388,19 @@ export default function App() {
             <nav className="lg:hidden fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-md border-t border-slate-100 px-2 pb-8 pt-3 flex items-center justify-around z-50 transition-colors">
               <NavButton 
                 active={currentScreen === 'dashboard'} 
-                onClick={() => setCurrentScreen('dashboard')}
+                onClick={() => navigateTo('dashboard')}
                 icon={<LayoutDashboard className="w-6 h-6" />}
                 label="Painel"
               />
               <NavButton 
-                active={currentScreen === 'scheduling'} 
-                onClick={() => setCurrentScreen('scheduling')}
+                active={currentScreen === 'scheduling' || currentScreen === 'queue'} 
+                onClick={() => navigateTo('scheduling')}
                 icon={<Droplets className="w-6 h-6" />}
                 label="Agenda & Fila"
               />
               <NavButton 
                 active={currentScreen === 'inventory'} 
-                onClick={() => setCurrentScreen('inventory')}
+                onClick={() => navigateTo('inventory')}
                 icon={<Package className="w-6 h-6" />}
                 label="Estoque"
               />

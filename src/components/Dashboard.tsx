@@ -41,7 +41,7 @@ export default function Dashboard({ onNavigate, services }: { onNavigate: (scree
         const advice = await getWeatherRecommendation();
         setWeatherAdvice(advice);
       } catch (error: any) {
-        setWeatherAdvice(error.message || 'Erro ao carregar clima.');
+        setWeatherAdvice('Mantenha panos de microfibra secos e priorize a lavagem pela manha para evitar marcas na pintura.');
       }
     };
     fetchWeather();

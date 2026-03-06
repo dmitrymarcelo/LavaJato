@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+﻿import React, { useState } from 'react';
 import { Shield, UserCog, CheckCircle2, XCircle, Save, Info, Lock, Eye, Edit3, Trash2, BarChart3, Users, UserPlus, Star, Clock, MoreVertical, Search, Filter, ShieldCheck, Car, Bike, Truck, Ship, Plus, Upload, FileSpreadsheet, Download } from 'lucide-react';
 import { Screen, TeamMember, INITIAL_TEAM, VehicleCategory, VehicleType, ServiceTypeOption, VehicleRegistration } from '../types';
 import { motion, AnimatePresence } from 'motion/react';
+import { digitsOnly, formatCpf, generateId, isValidCpf, validateStrongPassword } from '../utils/app';
 
 interface Permission {
   id: string;
@@ -53,6 +54,7 @@ export default function Settings({
   const [editingService, setEditingService] = useState<{ vehicle: VehicleType, service: ServiceTypeOption } | null>(null);
   const [isAddingVehicle, setIsAddingVehicle] = useState(false);
   const [newVehicle, setNewVehicle] = useState<Partial<VehicleRegistration>>({ type: 'car' });
+  const newVehicleCpfError = newVehicle.thirdPartyCpf ? (!isValidCpf(newVehicle.thirdPartyCpf) ? 'CPF invalido.' : null) : null;
 
   const filteredTeam = team.filter(member => 
     member.role === activeRole && (
@@ -85,6 +87,7 @@ export default function Settings({
   const [newMemberRegistration, setNewMemberRegistration] = useState('');
   const [newMemberPassword, setNewMemberPassword] = useState('');
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
+  const newMemberPasswordError = newMemberPassword ? validateStrongPassword(newMemberPassword) : null;
 
   // Load saved data on mount
   React.useEffect(() => {
@@ -101,8 +104,13 @@ export default function Settings({
       return;
     }
 
+    if (newMemberPasswordError) {
+      alert(newMemberPasswordError);
+      return;
+    }
+
     const newMember: TeamMember = {
-      id: Math.random().toString(36).substr(2, 9),
+      id: generateId(),
       name: newMemberName,
       registration: newMemberRegistration,
       password: newMemberPassword,
@@ -110,7 +118,7 @@ export default function Settings({
       rating: 5.0,
       servicesCount: 0,
       status: 'offline',
-      avatar: `https://i.pravatar.cc/150?u=${Math.random()}`,
+      avatar: `https://i.pravatar.cc/150?u=${generateId()}`,
       efficiency: '100%'
     };
 
@@ -167,7 +175,7 @@ export default function Settings({
     if (!serviceTypes || !onUpdateServiceTypes) return;
     
     const newService: ServiceTypeOption = {
-      id: Math.random().toString(36).substr(2, 9),
+      id: generateId(),
       label: 'Novo Serviço',
       price: 0
     };
@@ -186,10 +194,18 @@ export default function Settings({
       alert('Preencha placa, cliente e modelo.');
       return;
     }
+
+    if ((newVehicle.thirdPartyName || newVehicle.thirdPartyCpf) && newVehicleCpfError) {
+      alert(newVehicleCpfError);
+      return;
+    }
     
     if (onUpdateVehicleDb) {
       const currentDb = vehicleDb || [];
-      onUpdateVehicleDb([...currentDb, newVehicle as VehicleRegistration]);
+      onUpdateVehicleDb([...currentDb, {
+        ...newVehicle,
+        thirdPartyCpf: newVehicle.thirdPartyCpf ? digitsOnly(newVehicle.thirdPartyCpf) : undefined
+      } as VehicleRegistration]);
       setIsAddingVehicle(false);
       setNewVehicle({ type: 'car' });
       alert('Veículo cadastrado com sucesso!');
@@ -667,7 +683,10 @@ export default function Settings({
                     type="text" 
                     placeholder="Ex: 1001"
                     value={newMemberRegistration}
-                    onChange={(e) => setNewMemberRegistration(e.target.value)}
+                    onChange={(e) => setNewMemberRegistration(digitsOnly(e.target.value))}
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    maxLength={12}
                     className="w-full h-14 px-4 bg-slate-50 border border-slate-100 rounded-2xl outline-none focus:border-primary transition-all text-slate-900"
                   />
                 </div>
@@ -678,14 +697,20 @@ export default function Settings({
                     placeholder="••••••••"
                     value={newMemberPassword}
                     onChange={(e) => setNewMemberPassword(e.target.value)}
+                    minLength={12}
+                    autoComplete="new-password"
                     className="w-full h-14 px-4 bg-slate-50 border border-slate-100 rounded-2xl outline-none focus:border-primary transition-all text-slate-900"
                   />
+                  <p className={`text-[10px] font-bold ml-1 ${newMemberPasswordError ? 'text-rose-500' : 'text-slate-400'}`}>
+                    {newMemberPasswordError || 'Senha forte: 12+ caracteres, maiuscula, minuscula, numero e simbolo.'}
+                  </p>
                 </div>
                 
                 <div className="pt-2">
                   <button 
                     onClick={handleAddMember}
-                    className="w-full bg-primary text-white font-bold py-4 rounded-2xl shadow-lg shadow-primary/20 active:scale-[0.98] transition-all"
+                    disabled={!!newMemberPasswordError}
+                    className="w-full bg-primary text-white font-bold py-4 rounded-2xl shadow-lg shadow-primary/20 active:scale-[0.98] transition-all disabled:opacity-70"
                   >
                     Confirmar Cadastro
                   </button>
@@ -764,11 +789,18 @@ export default function Settings({
                       <input 
                         type="text"
                         value={newVehicle.thirdPartyCpf || ''}
-                        onChange={(e) => setNewVehicle({...newVehicle, thirdPartyCpf: e.target.value})}
+                        onChange={(e) => setNewVehicle({...newVehicle, thirdPartyCpf: formatCpf(e.target.value)})}
                         placeholder="CPF do Terceiro"
+                        inputMode="numeric"
+                        maxLength={14}
                         className="w-full rounded-xl border border-slate-200 bg-white h-12 px-4 text-slate-900 font-medium focus:border-primary focus:ring-0 transition-all shadow-sm text-sm"
                       />
                     </div>
+                  )}
+                  {(newVehicle.thirdPartyName !== undefined || newVehicle.thirdPartyCpf !== undefined) && (
+                    <p className={`text-[10px] font-bold ml-1 ${newVehicleCpfError ? 'text-rose-500' : 'text-slate-400'}`}>
+                      {newVehicleCpfError || 'CPF valido em formato 000.000.000-00.'}
+                    </p>
                   )}
                 </div>
                 <div className="space-y-1">
@@ -837,3 +869,4 @@ export default function Settings({
     </div>
   );
 }
+

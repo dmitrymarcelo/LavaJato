@@ -7,6 +7,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Camera, CheckCircle2, Lock, Info, RefreshCw, ChevronLeft, PlayCircle, AlertCircle, Users, User } from 'lucide-react';
 import { motion } from 'motion/react';
 import { Screen, TeamMember, INITIAL_TEAM } from '../types';
+import { formatElapsedMinutes } from '../utils/app';
 
 const PHOTO_TYPES = [
   { id: 'front', label: 'Frente' },
@@ -16,7 +17,7 @@ const PHOTO_TYPES = [
   { id: 'interior', label: 'Interior' }
 ];
 
-export default function InspectionPre({ onNavigate, onStartWash }: { onNavigate: (screen: Screen) => void, onStartWash: (washers: string[]) => void }) {
+export default function InspectionPre({ onNavigate, onStartWash, elapsedMinutes = 0 }: { onNavigate: (screen: Screen) => void, onStartWash: (washers: string[]) => void, elapsedMinutes?: number }) {
   const [photos, setPhotos] = useState<Record<string, string>>({});
   const [activePhotoId, setActivePhotoId] = useState<string | null>(null);
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
@@ -94,6 +95,16 @@ export default function InspectionPre({ onNavigate, onStartWash }: { onNavigate:
       />
 
       <main className="max-w-md mx-auto p-4 space-y-6 pb-40">
+        <div className="flex items-center">
+          <button
+            onClick={() => onNavigate('scheduling')}
+            className="flex items-center gap-2 text-slate-500 hover:text-primary transition-colors font-bold text-sm"
+          >
+            <ChevronLeft className="w-5 h-5" />
+            Voltar
+          </button>
+        </div>
+
         {/* Vehicle Details Card */}
         <section className="space-y-3">
           <h2 className="text-[10px] font-bold uppercase tracking-[0.1em] text-slate-500">Detalhes do Veículo</h2>
@@ -101,12 +112,16 @@ export default function InspectionPre({ onNavigate, onStartWash }: { onNavigate:
             <div className="flex items-center justify-center rounded-xl bg-primary/10 text-primary shrink-0 w-14 h-14">
               <Camera className="w-8 h-8" />
             </div>
-            <div className="flex flex-col justify-center">
+            <div className="flex flex-col justify-center flex-1">
               <p className="text-lg font-bold leading-tight">Sedan Luxo • Preto</p>
               <div className="flex items-center gap-2 mt-1">
                 <span className="bg-slate-50 px-2 py-0.5 rounded text-xs font-bold tracking-wider text-slate-700 border border-slate-100">ABC-1234</span>
                 <span className="text-slate-400 text-[10px] uppercase font-bold">• Check-in 14:30</span>
               </div>
+            </div>
+            <div className="shrink-0 bg-amber-500 text-white px-3 py-2 rounded-xl shadow-lg">
+              <p className="text-[10px] font-black uppercase tracking-widest">Tempo</p>
+              <p className="text-sm font-black">{formatElapsedMinutes(elapsedMinutes)}</p>
             </div>
           </div>
         </section>

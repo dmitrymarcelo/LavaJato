@@ -4,9 +4,10 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { Calendar as CalendarIcon, Clock, User, Car, Plus, ChevronRight, ChevronLeft, Search, Filter, CheckCircle2, AlertCircle, Camera, Image as ImageIcon, PlayCircle, History, Zap, WashingMachine, ChevronUp, ChevronDown, Truck, Bike, Ship, Building2 } from 'lucide-react';
+import { Calendar as CalendarIcon, Clock, User, Car, Plus, ChevronRight, ChevronLeft, CheckCircle2, AlertCircle, PlayCircle, History, Zap, WashingMachine, ChevronUp, ChevronDown, Truck, Bike, Ship } from 'lucide-react';
 import { Screen, Service, VehicleCategory, VehicleType, VehicleRegistration } from '../types';
 import { motion, AnimatePresence } from 'motion/react';
+import { addDays, digitsOnly, formatCpf, generateId, getTodayDate, isValidCpf } from '../utils/app';
 
 interface Appointment {
   id: string;
@@ -22,6 +23,10 @@ interface Appointment {
   thirdPartyCpf?: string;
 }
 
+const TODAY = getTodayDate();
+
+const APPOINTMENTS_STORAGE_KEY = 'service_appointments';
+
 const MOCK_APPOINTMENTS: Appointment[] = [
   { id: '1', customer: 'João Silva', vehicle: 'Toyota Corolla', plate: 'ABC-1234', service: 'Lavagem Completa', date: '2026-03-01', time: '09:00', status: 'confirmed', photo: 'https://images.unsplash.com/photo-1549317661-bd32c8ce0db2?w=400&q=80' },
   { id: '2', customer: 'Maria Santos', vehicle: 'Honda Civic', plate: 'XYZ-9876', service: 'Lavagem Simples', date: '2026-03-01', time: '10:30', status: 'confirmed' },
@@ -30,28 +35,41 @@ const MOCK_APPOINTMENTS: Appointment[] = [
 ];
 
 export default function Scheduling({ 
+  currentDateKey,
   onNavigate,
   services,
-  onUpdateStatus,
+  onAddService,
   onReorder,
   serviceTypes,
   vehicleDb,
-  selectedBase,
   onClearBase
 }: { 
+  currentDateKey: string,
   onNavigate: (screen: Screen, serviceId?: string) => void,
   services: Service[],
-  onUpdateStatus: (id: string, status: Service['status']) => void,
+  onAddService: (service: Service) => void,
   onReorder: (newServices: Service[]) => void,
   serviceTypes: Record<VehicleType, VehicleCategory>,
   vehicleDb?: VehicleRegistration[],
-  selectedBase?: string | null,
   onClearBase?: () => void
 }) {
   const [isAdding, setIsAdding] = useState(false);
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
-  const [appointments, setAppointments] = useState<Appointment[]>(MOCK_APPOINTMENTS);
-  const [filterDate, setFilterDate] = useState(new Date().toISOString().split('T')[0]);
+  const [appointments, setAppointments] = useState<Appointment[]>(() => {
+    try {
+      const saved = localStorage.getItem(APPOINTMENTS_STORAGE_KEY);
+      if (saved) {
+        return JSON.parse(saved);
+      }
+    } catch (e) {}
+
+    return MOCK_APPOINTMENTS.map((appointment, index) => ({
+      ...appointment,
+      date: addDays(TODAY, index === 3 ? 1 : 0),
+    }));
+  });
+  const [filterDate, setFilterDate] = useState(currentDateKey);
+  const [appointmentDate, setAppointmentDate] = useState(currentDateKey);
   const [activeTab, setActiveTab] = useState<'appointments' | 'waiting' | 'washing' | 'completed'>('appointments');
   const [timers, setTimers] = useState<Record<string, number>>({
     '1': 12,
@@ -70,6 +88,32 @@ export default function Scheduling({
   const [thirdPartyName, setThirdPartyName] = useState('');
   const [thirdPartyCpf, setThirdPartyCpf] = useState('');
   const [isVehicleFound, setIsVehicleFound] = useState(false);
+  const thirdPartyCpfError = thirdPartyCpf ? (!isValidCpf(thirdPartyCpf) ? 'CPF invalido.' : null) : null;
+
+  useEffect(() => {
+    setSelectedTime(null);
+  }, [appointmentDate]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(APPOINTMENTS_STORAGE_KEY, JSON.stringify(appointments));
+    } catch (e) {}
+  }, [appointments]);
+
+  useEffect(() => {
+    setAppointments(prev => prev.filter(appointment => appointment.date >= currentDateKey));
+  }, [currentDateKey]);
+
+  const pendingAppointmentsForDate = appointments.filter((appointment) => {
+    const relatedService = services.find(service => service.id === appointment.id);
+    return appointment.date === filterDate && (!relatedService || relatedService.status === 'pending');
+  });
+
+  const waitingServices = services.filter(service => service.status === 'pending' && service.scheduledDate === currentDateKey);
+  const washingServices = services.filter(service => service.status === 'in_progress' && service.scheduledDate === currentDateKey);
+  const completedServices = services.filter(service =>
+    (service.status === 'waiting_payment' || service.status === 'completed') && service.scheduledDate === currentDateKey
+  );
 
   const handlePlateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newPlate = e.target.value.toUpperCase();
@@ -138,12 +182,7 @@ export default function Scheduling({
     onReorder(newServices);
   };
 
-  // Generate next 7 days
-  const nextDays = Array.from({ length: 7 }, (_, i) => {
-    const d = new Date('2026-03-01T00:00:00');
-    d.setDate(d.getDate() + i);
-    return d.toISOString().split('T')[0];
-  });
+  const nextDays = Array.from({ length: 7 }, (_, index) => addDays(currentDateKey, index));
 
   const isDateInNextDays = nextDays.includes(filterDate);
 
@@ -159,7 +198,7 @@ export default function Scheduling({
     const isFull = count >= MAX_CAPACITY;
     
     const now = new Date();
-    const todayStr = now.toLocaleDateString('en-CA'); // YYYY-MM-DD
+    const todayStr = getTodayDate();
     const isPastDate = date < todayStr;
     const isToday = date === todayStr;
     
@@ -181,8 +220,7 @@ export default function Scheduling({
       return;
     }
 
-    const date = formData.get('date') as string;
-    const { isFull, isPast } = getSlotStatus(date, selectedTime);
+    const { isFull, isPast } = getSlotStatus(appointmentDate, selectedTime);
 
     if (isFull) {
       alert('Este horário está lotado.');
@@ -194,23 +232,44 @@ export default function Scheduling({
       return;
     }
     
+    if (isThirdParty && thirdPartyCpfError) {
+      alert(thirdPartyCpfError);
+      return;
+    }
+
     const newApt: Appointment = {
-      id: Math.random().toString(36).substr(2, 9),
+      id: generateId(),
       customer: customer,
       vehicle: vehicleModel,
       plate: plate,
       service: formData.get('service') as string,
-      date: date,
+      date: appointmentDate,
       time: selectedTime,
       status: 'confirmed',
       thirdPartyName: isThirdParty ? thirdPartyName : undefined,
-      thirdPartyCpf: isThirdParty ? thirdPartyCpf : undefined
+      thirdPartyCpf: isThirdParty ? digitsOnly(thirdPartyCpf) : undefined
     };
+
+    onAddService({
+      id: newApt.id,
+      plate: newApt.plate,
+      model: newApt.vehicle,
+      type: newApt.service,
+      scheduledDate: newApt.date,
+      scheduledTime: newApt.time,
+      status: 'pending',
+      price: serviceTypes[vehicleType].services.find(service => service.label === newApt.service)?.price || 0,
+      customer: newApt.customer,
+      thirdPartyName: newApt.thirdPartyName,
+      thirdPartyCpf: newApt.thirdPartyCpf,
+      image: newApt.photo || 'https://images.unsplash.com/photo-1549317661-bd32c8ce0db2?q=80&w=400&auto=format&fit=crop'
+    });
 
     setAppointments(prev => [...prev, newApt]);
     alert('Agendamento realizado com sucesso!');
     setIsAdding(false);
     setSelectedTime(null);
+    setAppointmentDate(currentDateKey);
     setPlate('');
     setCustomer('');
     setVehicleModel('');
@@ -220,7 +279,7 @@ export default function Scheduling({
     setThirdPartyCpf('');
   };
 
-  const isPastDate = filterDate < new Date().toISOString().split('T')[0];
+  const isPastDate = filterDate < currentDateKey;
 
   return (
     <div className="flex flex-col min-h-full bg-white pb-24">
@@ -250,25 +309,25 @@ export default function Scheduling({
             onClick={() => setActiveTab('appointments')}
             className={`flex flex-col items-center justify-center border-b-4 pb-3 pt-4 transition-all active:scale-95 shrink-0 ${activeTab === 'appointments' ? 'border-primary text-primary' : 'border-transparent text-slate-400'}`}
           >
-            <p className="text-sm font-bold">Agendamentos ({appointments.filter(a => a.date === filterDate).length})</p>
+            <p className="text-sm font-bold">Agendamentos ({pendingAppointmentsForDate.length})</p>
           </button>
           <button 
             onClick={() => setActiveTab('waiting')}
             className={`flex flex-col items-center justify-center border-b-4 pb-3 pt-4 transition-all active:scale-95 shrink-0 ${activeTab === 'waiting' ? 'border-primary text-primary' : 'border-transparent text-slate-400'}`}
           >
-            <p className="text-sm font-bold">Aguardando ({services.filter(s => s.status === 'pending' || s.status === 'waiting_payment').length})</p>
+            <p className="text-sm font-bold">Aguardando ({waitingServices.length})</p>
           </button>
           <button 
             onClick={() => setActiveTab('washing')}
             className={`flex flex-col items-center justify-center border-b-4 pb-3 pt-4 transition-all active:scale-95 shrink-0 ${activeTab === 'washing' ? 'border-primary text-primary' : 'border-transparent text-slate-400'}`}
           >
-            <p className="text-sm font-bold">Em Lavagem ({services.filter(s => s.status === 'in_progress').length})</p>
+            <p className="text-sm font-bold">Em Lavagem ({washingServices.length})</p>
           </button>
           <button 
             onClick={() => setActiveTab('completed')}
             className={`flex flex-col items-center justify-center border-b-4 pb-3 pt-4 transition-all active:scale-95 shrink-0 ${activeTab === 'completed' ? 'border-primary text-primary' : 'border-transparent text-slate-400'}`}
           >
-            <p className="text-sm font-bold">Concluído ({services.filter(s => s.status === 'completed').length})</p>
+            <p className="text-sm font-bold">Concluído ({completedServices.length})</p>
           </button>
         </div>
       </nav>
@@ -332,11 +391,11 @@ export default function Scheduling({
               <div className="flex items-center justify-between px-1">
                 <h3 className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Horários Agendados</h3>
                 <span className="text-[10px] font-black text-primary bg-primary/10 px-2 py-1 rounded-full uppercase border border-primary/10">
-                  {appointments.filter(a => a.date === filterDate).length} Serviços
+                  {pendingAppointmentsForDate.length} Serviços
                 </span>
               </div>
 
-              {appointments.filter(a => a.date === filterDate).map((apt, index) => (
+              {pendingAppointmentsForDate.map((apt, index) => (
                 <motion.div
                   key={apt.id}
                   initial={{ opacity: 0, y: 10 }}
@@ -367,7 +426,7 @@ export default function Scheduling({
                       <StatusSelector 
                         status={isPastDate ? 'completed' : apt.status} 
                         onStatusChange={(newStatus) => handleStatusChange(apt.id, newStatus)} 
-                        readOnly={isPastDate}
+                        readOnly
                       />
                     </div>
                     {apt.thirdPartyName && (
@@ -391,7 +450,7 @@ export default function Scheduling({
                 </motion.div>
               ))}
 
-              {appointments.filter(a => a.date === filterDate).length === 0 && (
+              {pendingAppointmentsForDate.length === 0 && (
                 <div className="py-12 text-center space-y-3">
                   <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mx-auto text-slate-200">
                     <CalendarIcon className="w-8 h-8" />
@@ -419,7 +478,7 @@ export default function Scheduling({
             >
               <QueueSection 
                 title="Aguardando" 
-                services={services.filter(s => s.status === 'pending' || s.status === 'waiting_payment')} 
+                services={waitingServices} 
                 timers={timers}
                 onAction={handleAction}
                 onMove={moveService}
@@ -436,7 +495,7 @@ export default function Scheduling({
             >
               <QueueSection 
                 title="Em Lavagem" 
-                services={services.filter(s => s.status === 'in_progress')} 
+                services={washingServices} 
                 timers={timers}
                 onAction={handleAction}
                 onMove={moveService}
@@ -453,7 +512,7 @@ export default function Scheduling({
             >
               <QueueSection 
                 title="Concluído" 
-                services={services.filter(s => s.status === 'completed')} 
+                services={completedServices} 
                 timers={timers}
                 onAction={handleAction}
                 onMove={moveService}
@@ -558,11 +617,16 @@ export default function Scheduling({
                             <input 
                               type="text"
                               value={thirdPartyCpf}
-                              onChange={(e) => setThirdPartyCpf(e.target.value)}
+                              onChange={(e) => setThirdPartyCpf(formatCpf(e.target.value))}
                               placeholder="CPF do Terceiro"
+                              inputMode="numeric"
+                              maxLength={14}
                               className="w-full rounded-xl border border-slate-200 bg-white h-10 px-3 text-slate-900 font-medium focus:border-primary focus:ring-0 transition-all shadow-sm text-sm"
                             />
                           </div>
+                          <p className={`mt-2 text-[10px] font-bold ml-1 ${thirdPartyCpfError ? 'text-rose-500' : 'text-slate-400'}`}>
+                            {thirdPartyCpfError || 'CPF valido em formato 000.000.000-00.'}
+                          </p>
                         </div>
                       )}
                     </div>
@@ -637,18 +701,18 @@ export default function Scheduling({
                     <input 
                       name="date"
                       type="date" 
-                      defaultValue={new Date().toLocaleDateString('en-CA')}
-                      min={new Date().toLocaleDateString('en-CA')}
+                      value={appointmentDate}
+                      min={currentDateKey}
+                      onChange={(e) => setAppointmentDate(e.target.value)}
                       className="w-full h-14 px-4 bg-slate-50 border border-slate-100 rounded-2xl focus:border-primary outline-none text-slate-900"
                       required
                     />
                   </div>
                   <div className="space-y-1">
                     <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400 ml-1">Hora</label>
-                    <div className="grid grid-cols-3 gap-2">
+                      <div className="grid grid-cols-3 gap-2">
                       {TIME_SLOTS.map(time => {
-                        const date = (document.querySelector('input[name="date"]') as HTMLInputElement)?.value || new Date().toISOString().split('T')[0];
-                        const { isFull, isPast, count } = getSlotStatus(date, time);
+                        const { isFull, isPast, count } = getSlotStatus(appointmentDate, time);
                         const isSelected = selectedTime === time;
                         const isDisabled = isFull || isPast;
 
