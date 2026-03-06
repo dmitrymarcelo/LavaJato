@@ -28,6 +28,7 @@ function toCamelProduct(row) {
     lastRestock: row.last_restock,
     status: row.status,
     image: row.image,
+    manualOutputs: Array.isArray(row.manual_outputs) ? row.manual_outputs : [],
   };
 }
 
@@ -274,8 +275,8 @@ app.put('/api/products', async (req, res) => {
     await query(
       `
       INSERT INTO products (
-        id, name, category, quantity, min_quantity, unit, price, last_restock, status, image
-      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+        id, name, category, quantity, min_quantity, unit, price, last_restock, status, image, manual_outputs
+      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
       `,
       [
         product.id,
@@ -288,6 +289,7 @@ app.put('/api/products', async (req, res) => {
         product.lastRestock || null,
         product.status,
         product.image || null,
+        JSON.stringify(Array.isArray(product.manualOutputs) ? product.manualOutputs : []),
       ]
     );
   }

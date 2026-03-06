@@ -3,23 +3,55 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect } from 'react';
-import { Calendar as CalendarIcon, Clock, User, Car, Plus, ChevronRight, ChevronLeft, CheckCircle2, AlertCircle, PlayCircle, History, Zap, WashingMachine, ChevronUp, ChevronDown, Truck, Bike, Ship } from 'lucide-react';
-import { Screen, Service, VehicleCategory, VehicleType, VehicleRegistration } from '../types';
+import React, { useEffect, useState } from 'react';
+import {
+  AlertCircle,
+  Calendar as CalendarIcon,
+  Car,
+  CheckCircle2,
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  ChevronUp,
+  Clock,
+  History,
+  PlayCircle,
+  Plus,
+  User,
+  WashingMachine,
+  Zap,
+} from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { addDays, digitsOnly, formatCpf, generateId, getTodayDate, isValidCpf } from '../utils/app';
+import { Screen, Service, VehicleCategory, VehicleType, VehicleRegistration } from '../types';
 import { Appointment } from '../services/api';
+import { addDays, digitsOnly, formatCpf, generateId, getElapsedMinutes, getTodayDate } from '../utils/app';
 
-const TODAY = getTodayDate();
+const TIME_SLOTS = ['07:00', '09:00', '11:00', '13:00', '15:00', '17:00'];
+const MAX_CAPACITY = 2;
+const DEFAULT_SERVICE_IMAGE = 'https://images.unsplash.com/photo-1549317661-bd32c8ce0db2?q=80&w=400&auto=format&fit=crop';
 
-const MOCK_APPOINTMENTS: Appointment[] = [
-  { id: '1', customer: 'João Silva', vehicle: 'Toyota Corolla', plate: 'ABC-1234', service: 'Lavagem Completa', date: '2026-03-01', time: '09:00', status: 'confirmed', photo: 'https://images.unsplash.com/photo-1549317661-bd32c8ce0db2?w=400&q=80' },
-  { id: '2', customer: 'Maria Santos', vehicle: 'Honda Civic', plate: 'XYZ-9876', service: 'Lavagem Simples', date: '2026-03-01', time: '10:30', status: 'confirmed' },
-  { id: '3', customer: 'Pedro Oliveira', vehicle: 'Jeep Compass', plate: 'LUV-2024', service: 'Lavagem Detalhada', date: '2026-03-01', time: '14:00', status: 'pending', photo: 'https://images.unsplash.com/photo-1533473359331-0135ef1b58bf?w=400&q=80' },
-  { id: '4', customer: 'Ana Costa', vehicle: 'VW Polo', plate: 'DEF-5678', service: 'Lavagem Completa', date: '2026-03-02', time: '08:30', status: 'confirmed' },
-];
+const normalizePlate = (value: string) => value.toUpperCase().replace(/[^A-Z0-9]/g, '');
 
-export default function Scheduling({ 
+const getVehicleTypeLabel = (type: VehicleType) => {
+  if (type === 'motorcycle') return 'Moto';
+  if (type === 'truck') return 'Caminhao';
+  if (type === 'boat') return 'Embarcacao';
+  return 'Carro';
+};
+
+const getServiceStartReference = (service: Service, currentDateKey: string) => {
+  if (service.startTime) {
+    return service.startTime;
+  }
+
+  if (service.scheduledDate && service.scheduledTime) {
+    return `${service.scheduledDate}T${service.scheduledTime}:00`;
+  }
+
+  return `${currentDateKey}T00:00:00`;
+};
+
+export default function Scheduling({
   currentDateKey,
   appointments: appointmentsProp,
   onUpdateAppointments,
@@ -29,40 +61,27 @@ export default function Scheduling({
   onReorder,
   serviceTypes,
   vehicleDb,
-  onClearBase
-}: { 
-  currentDateKey: string,
-  appointments: Appointment[],
-  onUpdateAppointments: (appointments: Appointment[]) => Promise<void> | void,
-  onNavigate: (screen: Screen, serviceId?: string) => void,
-  services: Service[],
-  onAddService: (service: Service) => void,
-  onReorder: (newServices: Service[]) => void,
-  serviceTypes: Record<VehicleType, VehicleCategory>,
-  vehicleDb?: VehicleRegistration[],
-  onClearBase?: () => void
+  onClearBase,
+}: {
+  currentDateKey: string;
+  appointments: Appointment[];
+  onUpdateAppointments: (appointments: Appointment[]) => Promise<void> | void;
+  onNavigate: (screen: Screen, serviceId?: string) => void;
+  services: Service[];
+  onAddService: (service: Service) => void;
+  onReorder: (newServices: Service[]) => void;
+  serviceTypes: Record<VehicleType, VehicleCategory>;
+  vehicleDb?: VehicleRegistration[];
+  onClearBase?: () => void;
 }) {
   const [isAdding, setIsAdding] = useState(false);
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
-  const [appointments, setAppointments] = useState<Appointment[]>(
-    appointmentsProp.length
-      ? appointmentsProp
-      : MOCK_APPOINTMENTS.map((appointment, index) => ({
-          ...appointment,
-          date: addDays(TODAY, index === 3 ? 1 : 0),
-        }))
-  );
+  const [appointments, setAppointments] = useState<Appointment[]>(appointmentsProp);
   const [filterDate, setFilterDate] = useState(currentDateKey);
   const [appointmentDate, setAppointmentDate] = useState(currentDateKey);
   const [activeTab, setActiveTab] = useState<'appointments' | 'waiting' | 'washing' | 'completed'>('appointments');
-  const [timers, setTimers] = useState<Record<string, number>>({
-    '1': 12,
-    '2': 45,
-    '3': 8,
-    '4': 22
-  });
+  const [clockNow, setClockNow] = useState(() => Date.now());
 
-  // Form State
   const [plate, setPlate] = useState('');
   const [customer, setCustomer] = useState('');
   const [vehicleModel, setVehicleModel] = useState('');
@@ -72,21 +91,27 @@ export default function Scheduling({
   const [thirdPartyName, setThirdPartyName] = useState('');
   const [thirdPartyCpf, setThirdPartyCpf] = useState('');
   const [isVehicleFound, setIsVehicleFound] = useState(false);
-  const thirdPartyCpfError = thirdPartyCpf ? (!isValidCpf(thirdPartyCpf) ? 'CPF invalido.' : null) : null;
+
+  const resetAppointmentForm = () => {
+    setIsAdding(false);
+    setAppointmentDate(currentDateKey);
+    setSelectedTime(null);
+    setPlate('');
+    setCustomer('');
+    setVehicleModel('');
+    setVehicleType('car');
+    setIsThirdParty(false);
+    setThirdPartyName('');
+    setThirdPartyCpf('');
+    setIsVehicleFound(false);
+  };
 
   useEffect(() => {
     setSelectedTime(null);
   }, [appointmentDate]);
 
   useEffect(() => {
-    setAppointments(
-      appointmentsProp.length
-        ? appointmentsProp
-        : MOCK_APPOINTMENTS.map((appointment, index) => ({
-            ...appointment,
-            date: addDays(TODAY, index === 3 ? 1 : 0),
-          }))
-    );
+    setAppointments(appointmentsProp);
   }, [appointmentsProp]);
 
   useEffect(() => {
@@ -95,203 +120,201 @@ export default function Scheduling({
       setAppointments(nextAppointments);
       void onUpdateAppointments(nextAppointments);
     }
-  }, [currentDateKey]);
+  }, [appointments, currentDateKey, onUpdateAppointments]);
 
-  const pendingAppointmentsForDate = appointments.filter((appointment) => {
+  useEffect(() => {
+    const interval = window.setInterval(() => {
+      setClockNow(Date.now());
+    }, 60000);
+
+    return () => window.clearInterval(interval);
+  }, []);
+
+  const pendingAppointmentsForDate = appointments.filter(appointment => {
     const relatedService = services.find(service => service.id === appointment.id);
     return appointment.date === filterDate && (!relatedService || relatedService.status === 'pending');
   });
 
   const waitingServices = services.filter(service => service.status === 'pending' && service.scheduledDate === currentDateKey);
   const washingServices = services.filter(service => service.status === 'in_progress' && service.scheduledDate === currentDateKey);
-  const completedServices = services.filter(service =>
-    (service.status === 'waiting_payment' || service.status === 'completed') && service.scheduledDate === currentDateKey
+  const completedServices = services.filter(
+    service => (service.status === 'waiting_payment' || service.status === 'completed') && service.scheduledDate === currentDateKey
   );
 
-  const handlePlateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const newPlate = e.target.value.toUpperCase();
-    setPlate(newPlate);
-    
-    if (vehicleDb) {
-      const vehicle = vehicleDb.find(v => v.plate === newPlate);
-      if (vehicle) {
-        setIsVehicleFound(true);
-        setCustomer(vehicle.customer);
-        setVehicleModel(vehicle.model);
-        setVehicleType(vehicle.type);
-        if (vehicle.thirdPartyName || vehicle.thirdPartyCpf) {
-          setIsThirdParty(true);
-          setThirdPartyName(vehicle.thirdPartyName || '');
-          setThirdPartyCpf(vehicle.thirdPartyCpf || '');
-        } else {
-          setIsThirdParty(false);
-          setThirdPartyName('');
-          setThirdPartyCpf('');
-        }
-      } else {
-        setIsVehicleFound(false);
-        setIsThirdParty(false);
-        setThirdPartyName('');
-        setThirdPartyCpf('');
-      }
+  const timers = Object.fromEntries(
+    services.map(service => [
+      service.id,
+      getElapsedMinutes(getServiceStartReference(service, currentDateKey), clockNow),
+    ])
+  );
+
+  const nextDays = Array.from({ length: 7 }, (_, index) => addDays(currentDateKey, index));
+  const isDateInNextDays = nextDays.includes(filterDate);
+  const isPastDate = filterDate < currentDateKey;
+
+  const handlePlateChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const nextPlate = event.target.value.toUpperCase();
+    setPlate(nextPlate);
+
+    const matchedVehicle = vehicleDb?.find(vehicle => normalizePlate(vehicle.plate) === normalizePlate(nextPlate));
+
+    if (!matchedVehicle) {
+      setIsVehicleFound(false);
+      setCustomer('');
+      setVehicleModel('');
+      setVehicleType('car');
+      setIsThirdParty(false);
+      setThirdPartyName('');
+      setThirdPartyCpf('');
+      return;
+    }
+
+    setIsVehicleFound(true);
+    setCustomer(matchedVehicle.customer);
+    setVehicleModel(matchedVehicle.model);
+    setVehicleType(matchedVehicle.type);
+
+    if (matchedVehicle.thirdPartyName || matchedVehicle.thirdPartyCpf) {
+      setIsThirdParty(true);
+      setThirdPartyName(matchedVehicle.thirdPartyName || '');
+      setThirdPartyCpf(matchedVehicle.thirdPartyCpf || '');
+    } else {
+      setIsThirdParty(false);
+      setThirdPartyName('');
+      setThirdPartyCpf('');
     }
   };
-
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setTimers(prev => {
-        const next = { ...prev };
-        Object.keys(next).forEach(key => {
-          next[key] = next[key] + 1;
-        });
-        return next;
-      });
-    }, 60000);
-    return () => clearInterval(interval);
-  }, []);
 
   const handleAction = (service: Service) => {
     if (service.status === 'pending') {
       onNavigate('inspection-pre', service.id);
-    } else if (service.status === 'in_progress') {
+      return;
+    }
+
+    if (service.status === 'in_progress') {
       onNavigate('inspection-post', service.id);
-    } else if (service.status === 'waiting_payment') {
+      return;
+    }
+
+    if (service.status === 'waiting_payment') {
       onNavigate('payment', service.id);
     }
   };
 
   const moveService = (id: string, direction: 'up' | 'down') => {
-    const index = services.findIndex(s => s.id === id);
+    const index = services.findIndex(service => service.id === id);
     if (index === -1) return;
 
-    const newServices = [...services];
     const targetIndex = direction === 'up' ? index - 1 : index + 1;
-
     if (targetIndex < 0 || targetIndex >= services.length) return;
     if (services[index].status !== services[targetIndex].status) return;
 
-    const [moved] = newServices.splice(index, 1);
-    newServices.splice(targetIndex, 0, moved);
-    onReorder(newServices);
+    const nextServices = [...services];
+    const [moved] = nextServices.splice(index, 1);
+    nextServices.splice(targetIndex, 0, moved);
+    onReorder(nextServices);
   };
 
-  const nextDays = Array.from({ length: 7 }, (_, index) => addDays(currentDateKey, index));
-
-  const isDateInNextDays = nextDays.includes(filterDate);
-
   const handleStatusChange = (id: string, newStatus: Appointment['status']) => {
-    const nextAppointments = appointments.map(apt => apt.id === id ? { ...apt, status: newStatus } : apt);
+    const nextAppointments = appointments.map(appointment =>
+      appointment.id === id ? { ...appointment, status: newStatus } : appointment
+    );
     setAppointments(nextAppointments);
     void onUpdateAppointments(nextAppointments);
   };
 
-  const TIME_SLOTS = ['07:00', '09:00', '11:00', '13:00', '15:00', '17:00'];
-  const MAX_CAPACITY = 2;
-
   const getSlotStatus = (date: string, time: string) => {
-    const count = appointments.filter(a => a.date === date && a.time === time && a.status !== 'cancelled').length;
+    const count = appointments.filter(appointment => appointment.date === date && appointment.time === time && appointment.status !== 'cancelled').length;
     const isFull = count >= MAX_CAPACITY;
-    
-    const now = new Date();
-    const todayStr = getTodayDate();
-    const isPastDate = date < todayStr;
-    const isToday = date === todayStr;
-    
-    const [slotHour, slotMinute] = time.split(':').map(Number);
-    const isPastTime = isToday && (now.getHours() > slotHour || (now.getHours() === slotHour && now.getMinutes() >= slotMinute));
-    
-    const isPast = isPastDate || isPastTime;
 
-    return { isFull, isPast, count };
+    const todayStr = getTodayDate();
+    const isPastSlotDate = date < todayStr;
+
+    return {
+      count,
+      isFull,
+      isPast: isPastSlotDate,
+    };
   };
 
-  const handleAddAppointment = (e: React.FormEvent) => {
-    e.preventDefault();
-    const form = e.target as HTMLFormElement;
-    const formData = new FormData(form);
-    
+  const handleAddAppointment = (event: React.FormEvent) => {
+    event.preventDefault();
+
+    if (!isVehicleFound) {
+      alert('Cadastre a placa na base de veiculos antes de criar o agendamento.');
+      return;
+    }
+
     if (!selectedTime) {
-      alert('Por favor, selecione um horário.');
+      alert('Selecione um horario.');
       return;
     }
 
     const { isFull, isPast } = getSlotStatus(appointmentDate, selectedTime);
-
     if (isFull) {
-      alert('Este horário está lotado.');
+      alert('Este horario esta lotado.');
       return;
     }
 
     if (isPast) {
-      alert('Não é possível agendar em horários passados.');
-      return;
-    }
-    
-    if (isThirdParty && thirdPartyCpfError) {
-      alert(thirdPartyCpfError);
+      alert('Nao e possivel agendar em horarios passados.');
       return;
     }
 
-    const newApt: Appointment = {
+    const formData = new FormData(event.target as HTMLFormElement);
+    const selectedService = formData.get('service') as string;
+
+    const newAppointment: Appointment = {
       id: generateId(),
-      customer: customer,
+      customer,
       vehicle: vehicleModel,
-      plate: plate,
-      service: formData.get('service') as string,
+      plate,
+      service: selectedService,
       date: appointmentDate,
       time: selectedTime,
       status: 'confirmed',
       thirdPartyName: isThirdParty ? thirdPartyName : undefined,
-      thirdPartyCpf: isThirdParty ? digitsOnly(thirdPartyCpf) : undefined
+      thirdPartyCpf: isThirdParty ? digitsOnly(thirdPartyCpf) : undefined,
     };
 
     onAddService({
-      id: newApt.id,
-      plate: newApt.plate,
-      model: newApt.vehicle,
-      type: newApt.service,
-      scheduledDate: newApt.date,
-      scheduledTime: newApt.time,
+      id: newAppointment.id,
+      plate: newAppointment.plate,
+      model: newAppointment.vehicle,
+      type: newAppointment.service,
+      scheduledDate: newAppointment.date,
+      scheduledTime: newAppointment.time,
       status: 'pending',
-      price: serviceTypes[vehicleType].services.find(service => service.label === newApt.service)?.price || 0,
-      customer: newApt.customer,
-      thirdPartyName: newApt.thirdPartyName,
-      thirdPartyCpf: newApt.thirdPartyCpf,
-      image: newApt.photo || 'https://images.unsplash.com/photo-1549317661-bd32c8ce0db2?q=80&w=400&auto=format&fit=crop'
+      price: serviceTypes[vehicleType].services.find(service => service.label === newAppointment.service)?.price || 0,
+      customer: newAppointment.customer,
+      thirdPartyName: newAppointment.thirdPartyName,
+      thirdPartyCpf: newAppointment.thirdPartyCpf,
+      image: DEFAULT_SERVICE_IMAGE,
     });
 
-    const nextAppointments = [...appointments, newApt];
+    const nextAppointments = [...appointments, newAppointment];
     setAppointments(nextAppointments);
     void onUpdateAppointments(nextAppointments);
-    alert('Agendamento realizado com sucesso!');
-    setIsAdding(false);
-    setSelectedTime(null);
-    setAppointmentDate(currentDateKey);
-    setPlate('');
-    setCustomer('');
-    setVehicleModel('');
-    setVehicleType('car');
-    setIsThirdParty(false);
-    setThirdPartyName('');
-    setThirdPartyCpf('');
+    alert('Agendamento realizado com sucesso.');
+    resetAppointmentForm();
   };
-
-  const isPastDate = filterDate < currentDateKey;
 
   return (
     <div className="flex flex-col min-h-full bg-white pb-24">
-      {/* Header Info */}
       <div className="px-4 pt-6 pb-2 flex justify-between items-center">
-        <button 
-          onClick={onClearBase}
+        <button
+          onClick={() => onClearBase?.()}
           className="flex items-center gap-2 text-slate-500 hover:text-primary transition-colors font-bold text-sm"
         >
           <ChevronLeft className="w-5 h-5" />
           Voltar
         </button>
         {!isPastDate && (
-          <button 
-            onClick={() => setIsAdding(true)}
+          <button
+            onClick={() => {
+              resetAppointmentForm();
+              setIsAdding(true);
+            }}
             className="bg-primary text-white p-3 rounded-2xl shadow-xl shadow-primary/20 active:scale-95 transition-transform"
           >
             <Plus className="w-7 h-7" />
@@ -299,82 +322,83 @@ export default function Scheduling({
         )}
       </div>
 
-      {/* Tab Navigation */}
       <nav className="sticky top-0 z-20 bg-white/80 backdrop-blur-md border-b border-slate-100">
         <div className="flex px-4 gap-6 overflow-x-auto no-scrollbar">
-          <button 
+          <button
             onClick={() => setActiveTab('appointments')}
             className={`flex flex-col items-center justify-center border-b-4 pb-3 pt-4 transition-all active:scale-95 shrink-0 ${activeTab === 'appointments' ? 'border-primary text-primary' : 'border-transparent text-slate-400'}`}
           >
             <p className="text-sm font-bold">Agendamentos ({pendingAppointmentsForDate.length})</p>
           </button>
-          <button 
+          <button
             onClick={() => setActiveTab('waiting')}
             className={`flex flex-col items-center justify-center border-b-4 pb-3 pt-4 transition-all active:scale-95 shrink-0 ${activeTab === 'waiting' ? 'border-primary text-primary' : 'border-transparent text-slate-400'}`}
           >
             <p className="text-sm font-bold">Aguardando ({waitingServices.length})</p>
           </button>
-          <button 
+          <button
             onClick={() => setActiveTab('washing')}
             className={`flex flex-col items-center justify-center border-b-4 pb-3 pt-4 transition-all active:scale-95 shrink-0 ${activeTab === 'washing' ? 'border-primary text-primary' : 'border-transparent text-slate-400'}`}
           >
             <p className="text-sm font-bold">Em Lavagem ({washingServices.length})</p>
           </button>
-          <button 
+          <button
             onClick={() => setActiveTab('completed')}
             className={`flex flex-col items-center justify-center border-b-4 pb-3 pt-4 transition-all active:scale-95 shrink-0 ${activeTab === 'completed' ? 'border-primary text-primary' : 'border-transparent text-slate-400'}`}
           >
-            <p className="text-sm font-bold">Concluído ({completedServices.length})</p>
+            <p className="text-sm font-bold">Concluido ({completedServices.length})</p>
           </button>
         </div>
       </nav>
 
-      {/* Date Selector (Only for Appointments) */}
       {activeTab === 'appointments' && (
         <div className="flex items-center gap-3 px-4 py-4 overflow-x-auto no-scrollbar">
-          <button 
+          <button
             onClick={() => setIsCalendarOpen(true)}
             className={`relative shrink-0 flex flex-col items-center justify-center min-w-[72px] h-[84px] p-4 rounded-2xl border transition-all active:scale-95 ${
-              !isDateInNextDays 
-                ? 'bg-primary border-primary text-white shadow-xl shadow-primary/20' 
+              !isDateInNextDays
+                ? 'bg-primary border-primary text-white shadow-xl shadow-primary/20'
                 : 'bg-white border-slate-100 text-primary shadow-sm'
             }`}
           >
-              {!isDateInNextDays ? (
-                <>
-                  <span className="text-[10px] font-bold uppercase tracking-widest opacity-70 mb-1">
-                    {new Date(filterDate + 'T00:00:00').toLocaleDateString('pt-BR', { weekday: 'short' })}
-                  </span>
-                  <span className="text-xl font-black">{new Date(filterDate + 'T00:00:00').getDate()}</span>
-                </>
-              ) : (
-                <>
-                  <CalendarIcon className="w-6 h-6 mb-1" />
-                  <span className="text-[10px] font-bold uppercase tracking-widest">Outro</span>
-                </>
-              )}
+            {!isDateInNextDays ? (
+              <>
+                <span className="text-[10px] font-bold uppercase tracking-widest opacity-70 mb-1">
+                  {new Date(`${filterDate}T00:00:00`).toLocaleDateString('pt-BR', { weekday: 'short' })}
+                </span>
+                <span className="text-xl font-black">{new Date(`${filterDate}T00:00:00`).getDate()}</span>
+              </>
+            ) : (
+              <>
+                <CalendarIcon className="w-6 h-6 mb-1" />
+                <span className="text-[10px] font-bold uppercase tracking-widest">Outro</span>
+              </>
+            )}
           </button>
 
-          {nextDays.map((date, idx) => (
+          {nextDays.map((date, index) => (
             <button
               key={date}
               onClick={() => setFilterDate(date)}
               className={`flex flex-col items-center min-w-[72px] p-4 rounded-2xl border transition-all active:scale-95 ${
-                filterDate === date 
-                  ? 'bg-primary border-primary text-white shadow-xl shadow-primary/20' 
+                filterDate === date
+                  ? 'bg-primary border-primary text-white shadow-xl shadow-primary/20'
                   : 'bg-white border-slate-100 text-slate-600 shadow-sm'
               }`}
             >
               <span className="text-[10px] font-bold uppercase tracking-widest opacity-70 mb-1">
-                {idx === 0 ? 'Hoje' : new Date(date + 'T00:00:00').toLocaleDateString('pt-BR', { weekday: 'short' })}
+                {index === 0 ? 'Hoje' : new Date(`${date}T00:00:00`).toLocaleDateString('pt-BR', { weekday: 'short' })}
               </span>
-              <span className="text-xl font-black">{idx === 0 ? new Date(date + 'T00:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }) : new Date(date + 'T00:00:00').getDate()}</span>
+              <span className="text-xl font-black">
+                {index === 0
+                  ? new Date(`${date}T00:00:00`).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })
+                  : new Date(`${date}T00:00:00`).getDate()}
+              </span>
             </button>
           ))}
         </div>
       )}
 
-      {/* Content Area */}
       <div className="px-4 space-y-4 mt-2">
         <AnimatePresence mode="wait">
           {activeTab === 'appointments' && (
@@ -386,15 +410,15 @@ export default function Scheduling({
               className="space-y-4"
             >
               <div className="flex items-center justify-between px-1">
-                <h3 className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Horários Agendados</h3>
+                <h3 className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Horarios agendados</h3>
                 <span className="text-[10px] font-black text-primary bg-primary/10 px-2 py-1 rounded-full uppercase border border-primary/10">
-                  {pendingAppointmentsForDate.length} Serviços
+                  {pendingAppointmentsForDate.length} Servicos
                 </span>
               </div>
 
-              {pendingAppointmentsForDate.map((apt, index) => (
+              {pendingAppointmentsForDate.map((appointment, index) => (
                 <motion.div
-                  key={apt.id}
+                  key={appointment.id}
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: index * 0.05 }}
@@ -402,43 +426,50 @@ export default function Scheduling({
                   className="bg-white rounded-2xl p-4 border border-slate-100 shadow-sm flex gap-4 items-center group cursor-pointer active:scale-[0.98] transition-transform"
                 >
                   <div className="flex flex-col items-center justify-center bg-slate-50 rounded-xl min-w-[75px] h-[75px] border border-slate-100 overflow-hidden relative">
-                    {apt.photo ? (
-                      <img src={apt.photo} alt="Veículo" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                    {appointment.photo ? (
+                      <img src={appointment.photo} alt="Veiculo" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
                     ) : (
                       <>
                         <Clock className="w-4 h-4 text-primary mb-1" />
-                        <span className="text-base font-black text-slate-900 tracking-tight">{apt.time}</span>
+                        <span className="text-base font-black text-slate-900 tracking-tight">{appointment.time}</span>
                       </>
                     )}
-                    {apt.photo && (
+                    {appointment.photo && (
                       <div className="absolute bottom-0 left-0 right-0 bg-black/60 py-0.5 flex justify-center">
-                        <span className="text-[9px] font-black text-white">{apt.time}</span>
+                        <span className="text-[9px] font-black text-white">{appointment.time}</span>
                       </div>
                     )}
                   </div>
 
                   <div className="flex-1 min-w-0">
                     <div className="flex justify-between items-start">
-                      <h4 className="font-black text-slate-900 truncate text-base">{apt.customer}</h4>
-                      <StatusSelector 
-                        status={isPastDate ? 'completed' : apt.status} 
-                        onStatusChange={(newStatus) => handleStatusChange(apt.id, newStatus)} 
+                      <h4 className="font-black text-slate-900 truncate text-base">{appointment.customer}</h4>
+                      <StatusSelector
+                        status={isPastDate ? 'completed' : appointment.status}
+                        onStatusChange={newStatus => handleStatusChange(appointment.id, newStatus)}
                         readOnly
                       />
                     </div>
-                    {apt.thirdPartyName && (
+
+                    {appointment.thirdPartyName && (
                       <div className="flex items-center gap-2 mt-0.5">
                         <User className="w-3 h-3 text-slate-400" />
-                        <p className="text-[10px] text-slate-500 font-medium">Terceiro: <span className="font-bold text-slate-700">{apt.thirdPartyName}</span></p>
+                        <p className="text-[10px] text-slate-500 font-medium">
+                          Terceiro: <span className="font-bold text-slate-700">{appointment.thirdPartyName}</span>
+                        </p>
                       </div>
                     )}
+
                     <div className="flex items-center gap-2 mt-1">
                       <Car className="w-3 h-3 text-slate-400" />
-                      <p className="text-xs text-slate-500 truncate font-medium">{apt.vehicle} • <span className="font-bold text-slate-900">{apt.plate}</span></p>
+                      <p className="text-xs text-slate-500 truncate font-medium">
+                        {appointment.vehicle} • <span className="font-bold text-slate-900">{appointment.plate}</span>
+                      </p>
                     </div>
+
                     <div className="mt-2">
                       <span className="text-[10px] font-black uppercase tracking-widest text-primary bg-primary/5 px-2 py-0.5 rounded border border-primary/5">
-                        {apt.service}
+                        {appointment.service}
                       </span>
                     </div>
                   </div>
@@ -454,8 +485,11 @@ export default function Scheduling({
                   </div>
                   <p className="text-slate-400 text-sm font-medium">Nenhum agendamento para este dia.</p>
                   {!isPastDate && (
-                    <button 
-                      onClick={() => setIsAdding(true)}
+                    <button
+                      onClick={() => {
+                        resetAppointmentForm();
+                        setIsAdding(true);
+                      }}
                       className="text-primary text-sm font-bold hover:underline active:scale-95 transition-transform"
                     >
                       Agendar agora
@@ -467,59 +501,25 @@ export default function Scheduling({
           )}
 
           {activeTab === 'waiting' && (
-            <motion.div
-              key="waiting-tab"
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: 20 }}
-            >
-              <QueueSection 
-                title="Aguardando" 
-                services={waitingServices} 
-                timers={timers}
-                onAction={handleAction}
-                onMove={moveService}
-              />
+            <motion.div key="waiting-tab" initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }}>
+              <QueueSection title="Aguardando" services={waitingServices} timers={timers} onAction={handleAction} onMove={moveService} />
             </motion.div>
           )}
 
           {activeTab === 'washing' && (
-            <motion.div
-              key="washing-tab"
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: 20 }}
-            >
-              <QueueSection 
-                title="Em Lavagem" 
-                services={washingServices} 
-                timers={timers}
-                onAction={handleAction}
-                onMove={moveService}
-              />
+            <motion.div key="washing-tab" initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }}>
+              <QueueSection title="Em Lavagem" services={washingServices} timers={timers} onAction={handleAction} onMove={moveService} />
             </motion.div>
           )}
 
           {activeTab === 'completed' && (
-            <motion.div
-              key="completed-tab"
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: 20 }}
-            >
-              <QueueSection 
-                title="Concluído" 
-                services={completedServices} 
-                timers={timers}
-                onAction={handleAction}
-                onMove={moveService}
-              />
+            <motion.div key="completed-tab" initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }}>
+              <QueueSection title="Concluido" services={completedServices} timers={timers} onAction={handleAction} onMove={moveService} />
             </motion.div>
           )}
         </AnimatePresence>
       </div>
 
-      {/* Add Appointment Modal */}
       <AnimatePresence>
         {isAdding && (
           <motion.div
@@ -529,272 +529,202 @@ export default function Scheduling({
             className="fixed inset-0 z-[100] bg-black/40 backdrop-blur-sm flex items-end justify-center p-4"
           >
             <motion.div
-              initial={{ y: "100%" }}
+              initial={{ y: '100%' }}
               animate={{ y: 0 }}
-              exit={{ y: "100%" }}
-              transition={{ type: "spring", damping: 25, stiffness: 200 }}
+              exit={{ y: '100%' }}
+              transition={{ type: 'spring', damping: 25, stiffness: 200 }}
               className="bg-white w-full max-w-[400px] rounded-t-[32px] p-6 shadow-2xl space-y-6"
             >
               <div className="flex justify-between items-center">
                 <h3 className="text-xl font-black text-slate-900">Novo Agendamento</h3>
-                <button onClick={() => setIsAdding(false)} className="text-slate-400 hover:text-slate-600 font-bold">Fechar</button>
+                <button onClick={resetAppointmentForm} className="text-slate-400 hover:text-slate-600 font-bold">
+                  Fechar
+                </button>
               </div>
 
               <form onSubmit={handleAddAppointment} className="space-y-4">
                 <div className="space-y-1">
                   <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400 ml-1">Placa</label>
-                  <input 
+                  <input
                     name="plate"
-                    type="text" 
+                    type="text"
                     placeholder="ABC-1234"
                     value={plate}
                     onChange={handlePlateChange}
                     className="w-full h-14 px-4 bg-slate-50 border border-slate-100 rounded-2xl focus:border-primary outline-none text-slate-900 font-bold uppercase"
                     required
                   />
-                         {isVehicleFound ? (
-                  <div className="bg-emerald-50 border border-emerald-100 rounded-2xl p-4 space-y-3">
-                    <div className="flex items-center gap-2 text-emerald-600 mb-2">
-                      <CheckCircle2 className="w-5 h-5" />
-                      <span className="font-bold text-sm">Veículo Encontrado</span>
+                </div>
+
+                {plate && !isVehicleFound && (
+                  <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 text-amber-700">
+                    <div className="flex items-center gap-2 mb-1">
+                      <AlertCircle className="w-5 h-5" />
+                      <span className="font-bold text-sm">Placa nao cadastrada</span>
                     </div>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <p className="text-[10px] font-bold uppercase tracking-widest text-emerald-600/60">Centro de Custo</p>
-                        <p className="font-bold text-emerald-900">{customer}</p>
-                      </div>
-                      <div>
-                        <p className="text-[10px] font-bold uppercase tracking-widest text-emerald-600/60">Veículo</p>
-                        <p className="font-bold text-emerald-900">{vehicleModel}</p>
-                      </div>
-                      <div>
-                        <p className="text-[10px] font-bold uppercase tracking-widest text-emerald-600/60">Tipo</p>
-                        <p className="font-bold text-emerald-900 capitalize">{
-                          vehicleType === 'car' ? 'Carro' : 
-                          vehicleType === 'motorcycle' ? 'Moto' : 
-                          vehicleType === 'truck' ? 'Caminhão' : 'Embarcação'
-                        }</p>
-                      </div>
-                    </div>
-                    {isThirdParty && (
-                      <div className="pt-3 border-t border-emerald-200/50">
-                        <p className="text-[10px] font-bold uppercase tracking-widest text-emerald-600/60 mb-1">Dados do Terceiro</p>
-                        <p className="font-bold text-emerald-900 text-sm">{thirdPartyName} <span className="text-emerald-700 font-medium ml-2">{thirdPartyCpf}</span></p>
-                      </div>
-                    )}
+                    <p className="text-xs font-medium leading-relaxed">
+                      Centro de custo, veiculo e tipo so aparecem automaticamente para placas ja cadastradas.
+                    </p>
                   </div>
-                ) : (
+                )}
+
+                {isVehicleFound && (
                   <>
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400 ml-1">Centro de Custo</label>
-                      <div className="relative">
-                        <User className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
-                        <input 
-                          name="customer"
-                          type="text" 
-                          placeholder="Nome do cliente"
-                          value={customer}
-                          onChange={(e) => setCustomer(e.target.value)}
-                          className="w-full h-14 pl-12 pr-4 bg-slate-50 border border-slate-100 rounded-2xl focus:border-primary focus:ring-0 transition-all outline-none text-slate-900"
-                          required
-                        />
+                    <div className="bg-emerald-50 border border-emerald-100 rounded-2xl p-4 space-y-3">
+                      <div className="flex items-center gap-2 text-emerald-600 mb-2">
+                        <CheckCircle2 className="w-5 h-5" />
+                        <span className="font-bold text-sm">Veiculo encontrado</span>
+                      </div>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <p className="text-[10px] font-bold uppercase tracking-widest text-emerald-600/60">Centro de Custo</p>
+                          <p className="font-bold text-emerald-900">{customer}</p>
+                        </div>
+                        <div>
+                          <p className="text-[10px] font-bold uppercase tracking-widest text-emerald-600/60">Veiculo</p>
+                          <p className="font-bold text-emerald-900">{vehicleModel}</p>
+                        </div>
+                        <div>
+                          <p className="text-[10px] font-bold uppercase tracking-widest text-emerald-600/60">Tipo de Veiculo</p>
+                          <p className="font-bold text-emerald-900">{getVehicleTypeLabel(vehicleType)}</p>
+                        </div>
+                        <div>
+                          <p className="text-[10px] font-bold uppercase tracking-widest text-emerald-600/60">Placa Base</p>
+                          <p className="font-bold text-emerald-900">{plate}</p>
+                        </div>
                       </div>
 
                       {isThirdParty && (
-                        <div className="mt-2 p-3 bg-slate-50 border border-slate-100 rounded-xl">
-                          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-2">Dados do Terceiro</p>
-                          <div className="grid grid-cols-2 gap-3">
-                            <input 
-                              type="text"
-                              value={thirdPartyName}
-                              onChange={(e) => setThirdPartyName(e.target.value)}
-                              placeholder="Nome do Terceiro"
-                              className="w-full rounded-xl border border-slate-200 bg-white h-10 px-3 text-slate-900 font-medium focus:border-primary focus:ring-0 transition-all shadow-sm text-sm"
-                            />
-                            <input 
-                              type="text"
-                              value={thirdPartyCpf}
-                              onChange={(e) => setThirdPartyCpf(formatCpf(e.target.value))}
-                              placeholder="CPF do Terceiro"
-                              inputMode="numeric"
-                              maxLength={14}
-                              className="w-full rounded-xl border border-slate-200 bg-white h-10 px-3 text-slate-900 font-medium focus:border-primary focus:ring-0 transition-all shadow-sm text-sm"
-                            />
-                          </div>
-                          <p className={`mt-2 text-[10px] font-bold ml-1 ${thirdPartyCpfError ? 'text-rose-500' : 'text-slate-400'}`}>
-                            {thirdPartyCpfError || 'CPF valido em formato 000.000.000-00.'}
+                        <div className="pt-3 border-t border-emerald-200/50">
+                          <p className="text-[10px] font-bold uppercase tracking-widest text-emerald-600/60 mb-1">Dados do Terceiro</p>
+                          <p className="font-bold text-emerald-900 text-sm">
+                            {thirdPartyName}
+                            {thirdPartyCpf && <span className="text-emerald-700 font-medium ml-2">{formatCpf(thirdPartyCpf)}</span>}
                           </p>
                         </div>
                       )}
                     </div>
 
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400 ml-1">Veículo</label>
-                      <div className="relative">
-                        <Car className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
-                        <input 
-                          name="vehicle"
-                          type="text" 
-                          placeholder="Ex: Corolla"
-                          value={vehicleModel}
-                          onChange={(e) => setVehicleModel(e.target.value)}
-                          className="w-full h-14 pl-12 pr-4 bg-slate-50 border border-slate-100 rounded-2xl focus:border-primary outline-none text-slate-900"
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400 ml-1">Data</label>
+                        <input
+                          name="date"
+                          type="date"
+                          value={appointmentDate}
+                          min={currentDateKey}
+                          onChange={event => setAppointmentDate(event.target.value)}
+                          className="w-full h-14 px-4 bg-slate-50 border border-slate-100 rounded-2xl focus:border-primary outline-none text-slate-900"
                           required
                         />
                       </div>
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400 ml-1">Hora</label>
+                        <div className="grid grid-cols-3 gap-2">
+                          {TIME_SLOTS.map(time => {
+                            const { isFull, isPast, count } = getSlotStatus(appointmentDate, time);
+                            const isSelected = selectedTime === time;
+
+                            return (
+                              <button
+                                key={time}
+                                type="button"
+                                onClick={() => {
+                                  if (isFull) {
+                                    alert('Horario cheio. Nao e possivel agendar mais veiculos neste horario.');
+                                    return;
+                                  }
+
+                                  if (isPast) {
+                                    alert('Nao e possivel agendar em horarios passados.');
+                                    return;
+                                  }
+
+                                  setSelectedTime(time);
+                                }}
+                                className={`py-2 rounded-xl text-xs font-bold transition-all relative ${
+                                  isSelected
+                                    ? 'bg-primary text-white shadow-lg shadow-primary/30 scale-105'
+                                    : isFull
+                                      ? 'bg-rose-50 text-rose-300 border border-rose-100 cursor-not-allowed'
+                                      : isPast
+                                        ? 'bg-slate-50 text-slate-300 cursor-not-allowed'
+                                        : 'bg-white border border-slate-200 text-slate-600 hover:border-primary hover:text-primary'
+                                }`}
+                              >
+                                {time}
+                                {isFull && (
+                                  <span className="absolute -top-1 -right-1 w-4 h-4 bg-rose-500 text-white text-[10px] flex items-center justify-center rounded-full border border-white shadow-sm">
+                                    !
+                                  </span>
+                                )}
+                                {!isFull && !isPast && count > 0 && (
+                                  <span className="absolute -top-1 -right-1 w-4 h-4 bg-amber-500 text-white text-[8px] flex items-center justify-center rounded-full border border-white">
+                                    {count}
+                                  </span>
+                                )}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
                     </div>
 
                     <div className="space-y-1">
-                      <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400 ml-1">Tipo de Veículo</label>
-                      <div className="grid grid-cols-4 gap-2">
-                        <button
-                          type="button"
-                          onClick={() => setVehicleType('car')}
-                          className={`flex flex-col items-center justify-center gap-1 p-2 rounded-xl border transition-all active:scale-95 ${
-                            vehicleType === 'car' ? 'bg-primary text-white border-primary shadow-lg shadow-primary/20' : 'bg-white border-slate-200 text-slate-400'
-                          }`}
-                        >
-                          <Car className="w-5 h-5" />
-                          <span className="text-[8px] font-bold uppercase">Carro</span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setVehicleType('motorcycle')}
-                          className={`flex flex-col items-center justify-center gap-1 p-2 rounded-xl border transition-all active:scale-95 ${
-                            vehicleType === 'motorcycle' ? 'bg-primary text-white border-primary shadow-lg shadow-primary/20' : 'bg-white border-slate-200 text-slate-400'
-                          }`}
-                        >
-                          <Bike className="w-5 h-5" />
-                          <span className="text-[8px] font-bold uppercase">Moto</span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setVehicleType('truck')}
-                          className={`flex flex-col items-center justify-center gap-1 p-2 rounded-xl border transition-all active:scale-95 ${
-                            vehicleType === 'truck' ? 'bg-primary text-white border-primary shadow-lg shadow-primary/20' : 'bg-white border-slate-200 text-slate-400'
-                          }`}
-                        >
-                          <Truck className="w-5 h-5" />
-                          <span className="text-[8px] font-bold uppercase">Caminhão</span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setVehicleType('boat')}
-                          className={`flex flex-col items-center justify-center gap-1 p-2 rounded-xl border transition-all active:scale-95 ${
-                            vehicleType === 'boat' ? 'bg-primary text-white border-primary shadow-lg shadow-primary/20' : 'bg-white border-slate-200 text-slate-400'
-                          }`}
-                        >
-                          <Ship className="w-5 h-5" />
-                          <span className="text-[8px] font-bold uppercase">Barco</span>
-                        </button>
-                      </div>
+                      <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400 ml-1">Servico</label>
+                      <select
+                        name="service"
+                        className="w-full h-14 px-4 bg-slate-50 border border-slate-100 rounded-2xl focus:border-primary outline-none appearance-none text-slate-900"
+                      >
+                        {serviceTypes[vehicleType].services.map(service => (
+                          <option key={service.id} value={service.label}>
+                            {service.label} - R$ {service.price},00
+                          </option>
+                        ))}
+                      </select>
                     </div>
+
+                    <button
+                      type="submit"
+                      className="w-full bg-primary text-white font-bold py-4 rounded-2xl shadow-lg shadow-primary/20 active:scale-[0.98] transition-all flex items-center justify-center gap-2"
+                    >
+                      <CheckCircle2 className="w-5 h-5" />
+                      <span>Confirmar Agendamento</span>
+                    </button>
                   </>
-                )}            </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400 ml-1">Data</label>
-                    <input 
-                      name="date"
-                      type="date" 
-                      value={appointmentDate}
-                      min={currentDateKey}
-                      onChange={(e) => setAppointmentDate(e.target.value)}
-                      className="w-full h-14 px-4 bg-slate-50 border border-slate-100 rounded-2xl focus:border-primary outline-none text-slate-900"
-                      required
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400 ml-1">Hora</label>
-                      <div className="grid grid-cols-3 gap-2">
-                      {TIME_SLOTS.map(time => {
-                        const { isFull, isPast, count } = getSlotStatus(appointmentDate, time);
-                        const isSelected = selectedTime === time;
-                        const isDisabled = isFull || isPast;
-
-                        return (
-                          <button
-                            key={time}
-                            type="button"
-                            onClick={() => {
-                              if (isFull) {
-                                alert('Horário cheio! Não é possível agendar mais veículos neste horário.');
-                                return;
-                              }
-                              if (isPast) {
-                                alert('Não é possível agendar em horários passados.');
-                                return;
-                              }
-                              setSelectedTime(time);
-                            }}
-                            className={`py-2 rounded-xl text-xs font-bold transition-all relative ${
-                              isSelected 
-                                ? 'bg-primary text-white shadow-lg shadow-primary/30 scale-105' 
-                                : isFull
-                                  ? 'bg-rose-50 text-rose-300 border border-rose-100 cursor-not-allowed'
-                                  : isPast
-                                    ? 'bg-slate-50 text-slate-300 cursor-not-allowed'
-                                    : 'bg-white border border-slate-200 text-slate-600 hover:border-primary hover:text-primary'
-                            }`}
-                          >
-                            {time}
-                            {isFull && (
-                              <span className="absolute -top-1 -right-1 w-4 h-4 bg-rose-500 text-white text-[10px] flex items-center justify-center rounded-full border border-white shadow-sm">
-                                !
-                              </span>
-                            )}
-                            {!isFull && !isPast && count > 0 && (
-                              <span className="absolute -top-1 -right-1 w-4 h-4 bg-amber-500 text-white text-[8px] flex items-center justify-center rounded-full border border-white">
-                                {count}
-                              </span>
-                            )}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="space-y-1">
-                  <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400 ml-1">Serviço</label>
-                  <select name="service" className="w-full h-14 px-4 bg-slate-50 border border-slate-100 rounded-2xl focus:border-primary outline-none appearance-none text-slate-900">
-                    {serviceTypes[vehicleType].services.map((service) => (
-                      <option key={service.id} value={service.label}>
-                        {service.label} - R$ {service.price},00
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <button 
-                  type="submit"
-                  className="w-full bg-primary text-white font-bold py-4 rounded-2xl shadow-lg shadow-primary/20 active:scale-[0.98] transition-all flex items-center justify-center gap-2"
-                >
-                  <CheckCircle2 className="w-5 h-5" />
-                  <span>Confirmar Agendamento</span>
-                </button>
+                )}
               </form>
             </motion.div>
           </motion.div>
         )}
       </AnimatePresence>
-      <CalendarModal 
-        isOpen={isCalendarOpen} 
-        onClose={() => setIsCalendarOpen(false)} 
-        onSelect={setFilterDate} 
-        selectedDate={filterDate} 
+
+      <CalendarModal
+        isOpen={isCalendarOpen}
+        onClose={() => setIsCalendarOpen(false)}
+        onSelect={setFilterDate}
+        selectedDate={filterDate}
       />
     </div>
   );
 }
 
-function CalendarModal({ isOpen, onClose, onSelect, selectedDate }: { isOpen: boolean, onClose: () => void, onSelect: (date: string) => void, selectedDate: string }) {
-  const [currentDate, setCurrentDate] = useState(new Date(selectedDate + 'T00:00:00'));
+function CalendarModal({
+  isOpen,
+  onClose,
+  onSelect,
+  selectedDate,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  onSelect: (date: string) => void;
+  selectedDate: string;
+}) {
+  const [currentDate, setCurrentDate] = useState(new Date(`${selectedDate}T00:00:00`));
 
   useEffect(() => {
     if (isOpen) {
-      setCurrentDate(new Date(selectedDate + 'T00:00:00'));
+      setCurrentDate(new Date(`${selectedDate}T00:00:00`));
     }
   }, [isOpen, selectedDate]);
 
@@ -809,7 +739,7 @@ function CalendarModal({ isOpen, onClose, onSelect, selectedDate }: { isOpen: bo
   };
 
   const { days, firstDay } = getDaysInMonth(currentDate);
-  
+
   const handlePrevMonth = () => {
     setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1));
   };
@@ -821,17 +751,17 @@ function CalendarModal({ isOpen, onClose, onSelect, selectedDate }: { isOpen: bo
   const handleSelectDay = (day: number) => {
     const year = currentDate.getFullYear();
     const month = String(currentDate.getMonth() + 1).padStart(2, '0');
-    const d = String(day).padStart(2, '0');
-    onSelect(`${year}-${month}-${d}`);
+    const safeDay = String(day).padStart(2, '0');
+    onSelect(`${year}-${month}-${safeDay}`);
     onClose();
   };
 
-  const months = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
+  const months = ['Janeiro', 'Fevereiro', 'Marco', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
   const weekDays = ['D', 'S', 'T', 'Q', 'Q', 'S', 'S'];
 
   return (
     <div className="fixed inset-0 z-[150] bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
-      <motion.div 
+      <motion.div
         initial={{ opacity: 0, scale: 0.9 }}
         animate={{ opacity: 1, scale: 1 }}
         exit={{ opacity: 0, scale: 0.9 }}
@@ -865,15 +795,15 @@ function CalendarModal({ isOpen, onClose, onSelect, selectedDate }: { isOpen: bo
         </div>
 
         <div className="grid grid-cols-7 gap-2">
-          {Array.from({ length: firstDay }).map((_, i) => (
-            <div key={`empty-${i}`} />
+          {Array.from({ length: firstDay }).map((_, index) => (
+            <div key={`empty-${index}`} />
           ))}
-          {Array.from({ length: days }).map((_, i) => {
-            const day = i + 1;
+          {Array.from({ length: days }).map((_, index) => {
+            const day = index + 1;
             const dateStr = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
             const isSelected = dateStr === selectedDate;
             const isToday = dateStr === new Date().toISOString().split('T')[0];
-            const isPast = new Date(dateStr) < new Date(new Date().setHours(0,0,0,0));
+            const isPast = new Date(dateStr) < new Date(new Date().setHours(0, 0, 0, 0));
 
             return (
               <button
@@ -881,8 +811,8 @@ function CalendarModal({ isOpen, onClose, onSelect, selectedDate }: { isOpen: bo
                 onClick={() => !isPast && handleSelectDay(day)}
                 disabled={isPast}
                 className={`aspect-square rounded-xl flex items-center justify-center text-sm font-bold transition-all active:scale-90 ${
-                  isSelected 
-                    ? 'bg-primary text-white shadow-lg shadow-primary/30' 
+                  isSelected
+                    ? 'bg-primary text-white shadow-lg shadow-primary/30'
                     : isToday
                       ? 'bg-slate-100 text-primary border border-primary/20'
                       : isPast
@@ -900,25 +830,25 @@ function CalendarModal({ isOpen, onClose, onSelect, selectedDate }: { isOpen: bo
   );
 }
 
-export function QueueSection({ 
-  title, 
-  services, 
-  timers, 
-  onAction, 
-  onMove 
-}: { 
-  title: string, 
-  services: Service[], 
-  timers: Record<string, number>,
-  onAction: (s: Service) => void,
-  onMove: (id: string, dir: 'up' | 'down') => void
+export function QueueSection({
+  title,
+  services,
+  timers,
+  onAction,
+  onMove,
+}: {
+  title: string;
+  services: Service[];
+  timers: Record<string, number>;
+  onAction: (service: Service) => void;
+  onMove: (id: string, direction: 'up' | 'down') => void;
 }) {
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between px-1">
         <h3 className="text-[10px] font-bold uppercase tracking-widest text-slate-400">{title}</h3>
         <span className="text-[10px] font-black text-slate-400 bg-slate-100 px-2 py-1 rounded-full uppercase border border-slate-100">
-          {services.length} Veículos
+          {services.length} Veiculos
         </span>
       </div>
 
@@ -926,11 +856,11 @@ export function QueueSection({
         <AnimatePresence mode="popLayout">
           {services.length === 0 ? (
             <div className="col-span-full py-8 text-center bg-slate-50/50 rounded-2xl border border-dashed border-slate-100">
-              <p className="text-xs text-slate-400 font-medium">Nenhum veículo nesta etapa</p>
+              <p className="text-xs text-slate-400 font-medium">Nenhum veiculo nesta etapa</p>
             </div>
           ) : (
             services.map((service, index) => (
-              <motion.div 
+              <motion.div
                 key={service.id}
                 layout
                 initial={{ opacity: 0, scale: 0.95 }}
@@ -939,19 +869,31 @@ export function QueueSection({
                 className="flex flex-col rounded-2xl overflow-hidden shadow-sm bg-white border border-slate-100 transition-transform hover:shadow-md"
               >
                 <div className="relative h-32 w-full bg-slate-100">
-                  <img alt={service.model} className="w-full h-full object-cover" src={service.image} />
-                  
+                  {service.image ? (
+                    <img alt={service.model} className="w-full h-full object-cover" src={service.image} />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center text-slate-300">
+                      <Car className="w-10 h-10" />
+                    </div>
+                  )}
+
                   {title === 'Aguardando' && (
                     <div className="absolute left-2 top-1/2 -translate-y-1/2 flex flex-col gap-1 z-10">
-                      <button 
-                        onClick={(e) => { e.stopPropagation(); onMove(service.id, 'up'); }}
+                      <button
+                        onClick={event => {
+                          event.stopPropagation();
+                          onMove(service.id, 'up');
+                        }}
                         className="w-7 h-7 bg-white/90 rounded-full flex items-center justify-center shadow-md active:scale-90 transition-all disabled:opacity-30"
                         disabled={index === 0}
                       >
                         <ChevronUp className="w-4 h-4 text-slate-600" />
                       </button>
-                      <button 
-                        onClick={(e) => { e.stopPropagation(); onMove(service.id, 'down'); }}
+                      <button
+                        onClick={event => {
+                          event.stopPropagation();
+                          onMove(service.id, 'down');
+                        }}
                         className="w-7 h-7 bg-white/90 rounded-full flex items-center justify-center shadow-md active:scale-90 transition-all disabled:opacity-30"
                         disabled={index === services.length - 1}
                       >
@@ -977,7 +919,7 @@ export function QueueSection({
                     </div>
                   </div>
                 </div>
-                
+
                 <div className="p-3 space-y-3 flex-1 flex flex-col">
                   <div className="flex flex-col gap-2 flex-1">
                     <div className="flex items-center justify-between">
@@ -986,7 +928,7 @@ export function QueueSection({
                         <h3 className="text-sm font-black text-slate-900 truncate">{service.model}</h3>
                       </div>
                     </div>
-                    
+
                     <div className="space-y-2">
                       <div className="space-y-0.5">
                         <p className="text-[8px] font-bold uppercase text-slate-400 tracking-widest">Cliente</p>
@@ -998,7 +940,7 @@ export function QueueSection({
                         )}
                       </div>
                       <div className="space-y-0.5">
-                        <p className="text-[8px] font-bold uppercase text-slate-400 tracking-widest">Serviço</p>
+                        <p className="text-[8px] font-bold uppercase text-slate-400 tracking-widest">Servico</p>
                         <div className="flex items-center gap-1.5 bg-slate-50 p-1.5 rounded-lg border border-slate-100">
                           <WashingMachine className="text-primary w-3.5 h-3.5" />
                           <p className="text-[10px] font-bold text-slate-600 truncate">{service.type}</p>
@@ -1006,14 +948,17 @@ export function QueueSection({
                       </div>
                     </div>
                   </div>
-                  
-                  <button 
+
+                  <button
                     onClick={() => onAction(service)}
                     className={`w-full font-black py-3 rounded-xl flex items-center justify-center gap-2 transition-all active:scale-[0.98] shadow-md mt-auto ${
-                      service.status === 'pending' ? 'bg-primary text-white shadow-primary/20' :
-                      service.status === 'in_progress' ? 'bg-emerald-500 text-white shadow-emerald-200' :
-                      service.status === 'waiting_payment' ? 'bg-amber-500 text-white shadow-amber-200' :
-                      'bg-slate-100 text-slate-400 shadow-none cursor-default'
+                      service.status === 'pending'
+                        ? 'bg-primary text-white shadow-primary/20'
+                        : service.status === 'in_progress'
+                          ? 'bg-emerald-500 text-white shadow-emerald-200'
+                          : service.status === 'waiting_payment'
+                            ? 'bg-amber-500 text-white shadow-amber-200'
+                            : 'bg-slate-100 text-slate-400 shadow-none cursor-default'
                     }`}
                   >
                     <PlayCircle className="w-5 h-5" />
@@ -1034,7 +979,15 @@ export function QueueSection({
   );
 }
 
-function StatusSelector({ status, onStatusChange, readOnly }: { status: Appointment['status'], onStatusChange: (newStatus: Appointment['status']) => void, readOnly?: boolean }) {
+function StatusSelector({
+  status,
+  onStatusChange,
+  readOnly,
+}: {
+  status: Appointment['status'];
+  onStatusChange: (newStatus: Appointment['status']) => void;
+  readOnly?: boolean;
+}) {
   const [isOpen, setIsOpen] = useState(false);
 
   const configs = {
@@ -1049,9 +1002,11 @@ function StatusSelector({ status, onStatusChange, readOnly }: { status: Appointm
   return (
     <div className="relative">
       <button
-        onClick={(e) => {
-          e.stopPropagation();
-          if (!readOnly) setIsOpen(!isOpen);
+        onClick={event => {
+          event.stopPropagation();
+          if (!readOnly) {
+            setIsOpen(!isOpen);
+          }
         }}
         disabled={readOnly}
         className={`flex items-center gap-1 ${config.color} ${config.bg} px-2 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider border border-current/10 ${!readOnly ? 'active:scale-95 transition-all' : 'cursor-default opacity-80'}`}
@@ -1070,21 +1025,21 @@ function StatusSelector({ status, onStatusChange, readOnly }: { status: Appointm
               exit={{ opacity: 0, scale: 0.9, y: -10 }}
               className="absolute right-0 mt-2 w-32 bg-white rounded-xl shadow-xl border border-slate-100 z-[120] overflow-hidden"
             >
-              {(Object.keys(configs) as Array<Appointment['status']>).map((s) => (
+              {(Object.keys(configs) as Array<Appointment['status']>).map(nextStatus => (
                 <button
-                  key={s}
+                  key={nextStatus}
                   type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onStatusChange(s);
+                  onClick={event => {
+                    event.stopPropagation();
+                    onStatusChange(nextStatus);
                     setIsOpen(false);
                   }}
                   className={`w-full flex items-center gap-2 px-3 py-2 text-[10px] font-bold uppercase tracking-wider hover:bg-slate-50 transition-colors ${
-                    status === s ? configs[s].color : 'text-slate-500'
+                    status === nextStatus ? configs[nextStatus].color : 'text-slate-500'
                   }`}
                 >
-                  {configs[s].icon}
-                  {configs[s].label}
+                  {configs[nextStatus].icon}
+                  {configs[nextStatus].label}
                 </button>
               ))}
             </motion.div>

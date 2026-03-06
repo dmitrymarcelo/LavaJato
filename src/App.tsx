@@ -14,7 +14,7 @@ import {
   Package
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Screen, Service, Notification, MOCK_NOTIFICATIONS, INITIAL_SERVICE_TYPES, VehicleCategory, VehicleType, VehicleRegistration, Product, TeamMember } from './types';
+import { Screen, Service, Notification, INITIAL_SERVICE_TYPES, VehicleCategory, VehicleType, VehicleRegistration, Product, TeamMember } from './types';
 import { getCarCareTips } from './services/geminiService';
 
 // Components
@@ -69,7 +69,7 @@ export default function App() {
     }
   });
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const [notifications, setNotifications] = useState<Notification[]>(MOCK_NOTIFICATIONS);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const [clockNow, setClockNow] = useState(() => Date.now());
   const [currentDateKey, setCurrentDateKey] = useState(() => getTodayDate());
@@ -187,6 +187,14 @@ export default function App() {
     await api.saveServices(next);
   };
 
+  const persistServicesWithUpdater = (updater: (current: Service[]) => Service[]) => {
+    setServices(current => {
+      const next = updater(current);
+      void api.saveServices(next);
+      return next;
+    });
+  };
+
   const persistAppointments = async (next: Appointment[]) => {
     setAppointments(next);
     await api.saveAppointments(next);
@@ -203,15 +211,15 @@ export default function App() {
   };
 
   const updateServiceStatus = (id: string, status: Service['status']) => {
-    void persistServices(services.map(s => s.id === id ? { ...s, status } : s));
+    persistServicesWithUpdater(current => current.map(s => s.id === id ? { ...s, status } : s));
   };
 
   const updateServiceWashers = (id: string, washers: string[]) => {
-    void persistServices(services.map(s => s.id === id ? { ...s, washers } : s));
+    persistServicesWithUpdater(current => current.map(s => s.id === id ? { ...s, washers } : s));
   };
 
   const addService = (service: Service) => {
-    void persistServices([service, ...services]);
+    persistServicesWithUpdater(current => [service, ...current]);
   };
 
   const reorderServices = (newServices: Service[]) => {
@@ -258,7 +266,7 @@ export default function App() {
     if (backendError) return <div className="min-h-screen flex items-center justify-center p-6 text-center text-rose-600 font-bold">{backendError}</div>;
 
     switch (currentScreen) {
-      case 'dashboard': return <Dashboard onNavigate={navigateTo} services={services} />;
+      case 'dashboard': return <Dashboard onNavigate={navigateTo} services={services} team={team} />;
       case 'checkin': return <CheckIn onNavigate={navigateTo} onAddService={addService} serviceTypes={serviceTypes} vehicleDb={vehicleDb} />;
       case 'inspection-pre': return <InspectionPre teamMembers={team} elapsedMinutes={activeServiceElapsedMinutes} onNavigate={navigateTo} onStartWash={(washers) => {
         if (activeServiceId) {
@@ -297,7 +305,7 @@ export default function App() {
         </div>
       );
       case 'settings': return <Settings onNavigate={navigateTo} serviceTypes={serviceTypes} onUpdateServiceTypes={persistServiceTypes} vehicleDb={vehicleDb} onUpdateVehicleDb={persistVehicleDb} team={team} onUpdateTeam={persistTeam} />;
-      default: return <Dashboard onNavigate={navigateTo} services={services} />;
+      default: return <Dashboard onNavigate={navigateTo} services={services} team={team} />;
     }
   };
 

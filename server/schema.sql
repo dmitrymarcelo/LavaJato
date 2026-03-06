@@ -83,9 +83,13 @@ CREATE TABLE IF NOT EXISTS products (
     last_restock DATE,
     status TEXT NOT NULL,
     image TEXT,
+    manual_outputs JSONB NOT NULL DEFAULT '[]'::jsonb,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+ALTER TABLE products
+    ADD COLUMN IF NOT EXISTS manual_outputs JSONB NOT NULL DEFAULT '[]'::jsonb;
 
 CREATE INDEX IF NOT EXISTS idx_services_status_date ON services (status, scheduled_date);
 CREATE INDEX IF NOT EXISTS idx_appointments_date_status ON appointments (date, status);

@@ -9,11 +9,12 @@ import {
   Trash2, 
   Edit3, 
   X,
-  Save
+  Save,
+  MinusCircle
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Screen, Product } from '../types';
-import { generateId } from '../utils/app';
+import { Screen, Product, ProductOutput } from '../types';
+import { generateId, getTodayDate } from '../utils/app';
 
 const INITIAL_PRODUCTS: Product[] = [
   {
@@ -26,7 +27,8 @@ const INITIAL_PRODUCTS: Product[] = [
     price: 45.90,
     lastRestock: '2024-02-28',
     status: 'ok',
-    image: 'https://images.unsplash.com/photo-1600456548090-7d1b3f0bbea5?q=80&w=200&auto=format&fit=crop'
+    image: 'https://images.unsplash.com/photo-1600456548090-7d1b3f0bbea5?q=80&w=200&auto=format&fit=crop',
+    manualOutputs: [],
   },
   {
     id: '2',
@@ -38,7 +40,8 @@ const INITIAL_PRODUCTS: Product[] = [
     price: 89.90,
     lastRestock: '2024-01-15',
     status: 'critical',
-    image: 'https://images.unsplash.com/photo-1626806819282-2c1dc01a5e0c?q=80&w=200&auto=format&fit=crop'
+    image: 'https://images.unsplash.com/photo-1626806819282-2c1dc01a5e0c?q=80&w=200&auto=format&fit=crop',
+    manualOutputs: [],
   },
   {
     id: '3',
@@ -50,7 +53,8 @@ const INITIAL_PRODUCTS: Product[] = [
     price: 32.50,
     lastRestock: '2024-02-10',
     status: 'low',
-    image: 'https://images.unsplash.com/photo-1625043484555-47841a752840?q=80&w=200&auto=format&fit=crop'
+    image: 'https://images.unsplash.com/photo-1625043484555-47841a752840?q=80&w=200&auto=format&fit=crop',
+    manualOutputs: [],
   },
   {
     id: '4',
@@ -62,7 +66,8 @@ const INITIAL_PRODUCTS: Product[] = [
     price: 12.00,
     lastRestock: '2024-02-25',
     status: 'ok',
-    image: 'https://images.unsplash.com/photo-1584622650111-993a426fbf0a?q=80&w=200&auto=format&fit=crop'
+    image: 'https://images.unsplash.com/photo-1584622650111-993a426fbf0a?q=80&w=200&auto=format&fit=crop',
+    manualOutputs: [],
   },
   {
     id: '5',
@@ -74,17 +79,36 @@ const INITIAL_PRODUCTS: Product[] = [
     price: 55.00,
     lastRestock: '2024-02-20',
     status: 'ok',
-    image: 'https://images.unsplash.com/photo-1585751119414-ef2636f8aede?q=80&w=200&auto=format&fit=crop'
+    image: 'https://images.unsplash.com/photo-1585751119414-ef2636f8aede?q=80&w=200&auto=format&fit=crop',
+    manualOutputs: [],
   }
 ];
+
+const getProductStatus = (quantity: number, minQuantity: number): Product['status'] => {
+  if (quantity <= minQuantity / 2) return 'critical';
+  if (quantity <= minQuantity) return 'low';
+  return 'ok';
+};
+
+const getTodayConsumption = (product: Product) =>
+  (product.manualOutputs || [])
+    .filter(output => output.createdAt.slice(0, 10) === getTodayDate())
+    .reduce((total, output) => total + output.quantity, 0);
+
+const getLastOutput = (product: Product) =>
+  [...(product.manualOutputs || [])]
+    .sort((left, right) => right.createdAt.localeCompare(left.createdAt))[0] || null;
 
 export default function Inventory({ onNavigate, products = INITIAL_PRODUCTS, onUpdateProducts }: { onNavigate: (screen: Screen) => void, products?: Product[], onUpdateProducts?: (products: Product[]) => Promise<void> | void }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [isAdding, setIsAdding] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [manualOutputProduct, setManualOutputProduct] = useState<Product | null>(null);
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const [filterStatus, setFilterStatus] = useState<'all' | 'ok' | 'low' | 'critical'>('all');
   const [productImage, setProductImage] = useState('');
+  const [manualOutputQuantity, setManualOutputQuantity] = useState('');
+  const [manualOutputNote, setManualOutputNote] = useState('Consumo diario');
 
   useEffect(() => {
     setProductImage(editingProduct?.image || '');
@@ -97,11 +121,21 @@ export default function Inventory({ onNavigate, products = INITIAL_PRODUCTS, onU
     return matchesSearch && matchesStatus;
   });
 
+  const todayOutputCount = products.reduce((total, product) => total + (product.manualOutputs || []).filter(output => output.createdAt.slice(0, 10) === getTodayDate()).length, 0);
+  const productsUsedToday = products.filter(product => getTodayConsumption(product) > 0).length;
+
   const handleDelete = async (id: string) => {
     if (confirm('Tem certeza que deseja remover este produto?')) {
       await onUpdateProducts?.(products.filter(p => p.id !== id));
       setOpenMenuId(null);
     }
+  };
+
+  const openManualOutput = (product: Product) => {
+    setManualOutputProduct(product);
+    setManualOutputQuantity('');
+    setManualOutputNote('Consumo diario');
+    setOpenMenuId(null);
   };
 
   const handleSaveProduct = async (e: React.FormEvent) => {
@@ -112,10 +146,6 @@ export default function Inventory({ onNavigate, products = INITIAL_PRODUCTS, onU
     const quantity = Number(formData.get('quantity'));
     const minQuantity = Number(formData.get('minQuantity'));
     
-    let status: Product['status'] = 'ok';
-    if (quantity <= minQuantity / 2) status = 'critical';
-    else if (quantity <= minQuantity) status = 'low';
-
     const productData: Product = {
       id: editingProduct ? editingProduct.id : generateId(),
       name: formData.get('name') as string,
@@ -125,8 +155,9 @@ export default function Inventory({ onNavigate, products = INITIAL_PRODUCTS, onU
       unit: formData.get('unit') as string,
       price: Number(formData.get('price')),
       lastRestock: new Date().toISOString().split('T')[0],
-      status,
-      image: productImage || editingProduct?.image || `https://images.unsplash.com/photo-1600456548090-7d1b3f0bbea5?q=80&w=200&auto=format&fit=crop&seed=${Math.random()}`
+      status: getProductStatus(quantity, minQuantity),
+      image: productImage || editingProduct?.image || `https://images.unsplash.com/photo-1600456548090-7d1b3f0bbea5?q=80&w=200&auto=format&fit=crop&seed=${Math.random()}`,
+      manualOutputs: editingProduct?.manualOutputs || []
     };
 
     if (editingProduct) {
@@ -138,6 +169,49 @@ export default function Inventory({ onNavigate, products = INITIAL_PRODUCTS, onU
     setIsAdding(false);
     setEditingProduct(null);
     setProductImage('');
+  };
+
+  const handleManualOutput = async (event: React.FormEvent) => {
+    event.preventDefault();
+
+    if (!manualOutputProduct) return;
+
+    const quantity = Number(manualOutputQuantity);
+    if (!Number.isInteger(quantity) || quantity <= 0) {
+      alert('Informe uma quantidade inteira maior que zero.');
+      return;
+    }
+
+    if (quantity > manualOutputProduct.quantity) {
+      alert('A baixa manual nao pode ser maior que o estoque atual.');
+      return;
+    }
+
+    const manualOutput: ProductOutput = {
+      id: generateId(),
+      quantity,
+      note: manualOutputNote.trim() || undefined,
+      createdAt: new Date().toISOString(),
+    };
+
+    const nextProducts = products.map(product => {
+      if (product.id !== manualOutputProduct.id) {
+        return product;
+      }
+
+      const nextQuantity = product.quantity - quantity;
+      return {
+        ...product,
+        quantity: nextQuantity,
+        status: getProductStatus(nextQuantity, product.minQuantity),
+        manualOutputs: [manualOutput, ...(product.manualOutputs || [])],
+      };
+    });
+
+    await onUpdateProducts?.(nextProducts);
+    setManualOutputProduct(null);
+    setManualOutputQuantity('');
+    setManualOutputNote('Consumo diario');
   };
 
   const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -186,7 +260,7 @@ export default function Inventory({ onNavigate, products = INITIAL_PRODUCTS, onU
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 px-6 mt-6">
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 px-6 mt-6">
         <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm">
           <div className="flex items-center gap-3 mb-2">
             <div className="p-2 bg-blue-50 text-blue-600 rounded-xl">
@@ -222,6 +296,16 @@ export default function Inventory({ onNavigate, products = INITIAL_PRODUCTS, onU
             <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Crítico</span>
           </div>
           <p className="text-2xl font-black text-slate-900">{products.filter(p => p.status === 'critical').length}</p>
+        </div>
+        <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm">
+          <div className="flex items-center gap-3 mb-2">
+            <div className="p-2 bg-slate-100 text-slate-700 rounded-xl">
+              <MinusCircle className="w-5 h-5" />
+            </div>
+            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Baixas Hoje</span>
+          </div>
+          <p className="text-2xl font-black text-slate-900">{todayOutputCount}</p>
+          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mt-1">{productsUsedToday} produtos com consumo</p>
         </div>
       </div>
 
@@ -304,6 +388,26 @@ export default function Inventory({ onNavigate, products = INITIAL_PRODUCTS, onU
                         <p className="text-sm font-medium text-slate-600">{new Date(product.lastRestock).toLocaleDateString('pt-BR')}</p>
                       </div>
                     </div>
+                    <div className="mt-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                      <div>
+                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Consumo Hoje</p>
+                        <p className="text-xs font-bold text-slate-700">
+                          {getTodayConsumption(product)} {product.unit}
+                        </p>
+                        {getLastOutput(product) && (
+                          <p className="text-[10px] text-slate-400 mt-0.5">
+                            Ultima baixa: {new Date(getLastOutput(product)!.createdAt).toLocaleString('pt-BR')}
+                          </p>
+                        )}
+                      </div>
+                      <button
+                        onClick={() => openManualOutput(product)}
+                        className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-700 hover:border-primary hover:text-primary transition-colors"
+                      >
+                        <MinusCircle className="w-4 h-4" />
+                        Baixa Manual
+                      </button>
+                    </div>
                   </div>
 
                   <div className="relative">
@@ -328,6 +432,13 @@ export default function Inventory({ onNavigate, products = INITIAL_PRODUCTS, onU
                           >
                             <Edit3 className="w-3.5 h-3.5" />
                             Editar
+                          </button>
+                          <button 
+                            onClick={() => openManualOutput(product)}
+                            className="w-full text-left px-4 py-3 text-xs font-bold text-slate-600 hover:bg-slate-50 flex items-center gap-2"
+                          >
+                            <MinusCircle className="w-3.5 h-3.5" />
+                            Baixa Manual
                           </button>
                           <button 
                             onClick={() => handleDelete(product.id)}
@@ -491,6 +602,80 @@ export default function Inventory({ onNavigate, products = INITIAL_PRODUCTS, onU
                     <span>Salvar Produto</span>
                   </button>
                 </div>
+              </form>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {manualOutputProduct && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[110] bg-black/40 backdrop-blur-sm flex items-end justify-center p-4 sm:items-center"
+          >
+            <motion.div
+              initial={{ y: '100%' }}
+              animate={{ y: 0 }}
+              exit={{ y: '100%' }}
+              transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+              className="bg-white w-full max-w-md rounded-3xl p-6 shadow-2xl space-y-6"
+            >
+              <div className="flex justify-between items-center border-b border-slate-100 pb-4">
+                <div>
+                  <h3 className="text-xl font-black text-slate-900">Baixa Manual</h3>
+                  <p className="text-xs text-slate-500 mt-1">{manualOutputProduct.name}</p>
+                </div>
+                <button onClick={() => setManualOutputProduct(null)} className="p-2 hover:bg-slate-100 rounded-full transition-colors">
+                  <X className="w-5 h-5 text-slate-500" />
+                </button>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Estoque Atual</p>
+                  <p className="text-lg font-black text-slate-900 mt-1">{manualOutputProduct.quantity} {manualOutputProduct.unit}</p>
+                </div>
+                <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Consumo Hoje</p>
+                  <p className="text-lg font-black text-slate-900 mt-1">{getTodayConsumption(manualOutputProduct)} {manualOutputProduct.unit}</p>
+                </div>
+              </div>
+
+              <form onSubmit={handleManualOutput} className="space-y-4">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400 ml-1">Quantidade Consumida</label>
+                  <input
+                    type="number"
+                    min="1"
+                    step="1"
+                    value={manualOutputQuantity}
+                    onChange={event => setManualOutputQuantity(event.target.value)}
+                    className="w-full h-12 px-4 bg-slate-50 border border-slate-100 rounded-xl outline-none focus:border-primary transition-all text-slate-900"
+                    required
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400 ml-1">Observacao</label>
+                  <textarea
+                    value={manualOutputNote}
+                    onChange={event => setManualOutputNote(event.target.value)}
+                    rows={3}
+                    placeholder="Ex: consumo do turno da tarde"
+                    className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl outline-none focus:border-primary transition-all text-slate-900 resize-none"
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  className="w-full bg-slate-900 text-white font-bold py-4 rounded-2xl shadow-lg active:scale-[0.98] transition-all flex items-center justify-center gap-2"
+                >
+                  <MinusCircle className="w-5 h-5" />
+                  <span>Registrar Baixa</span>
+                </button>
               </form>
             </motion.div>
           </motion.div>

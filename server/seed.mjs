@@ -47,6 +47,7 @@ const defaultProducts = [
     last_restock: '2024-02-28',
     status: 'ok',
     image: 'https://images.unsplash.com/photo-1600456548090-7d1b3f0bbea5?q=80&w=200&auto=format&fit=crop',
+    manual_outputs: [],
   },
   {
     id: 'prod-2',
@@ -59,6 +60,7 @@ const defaultProducts = [
     last_restock: '2024-01-15',
     status: 'critical',
     image: 'https://images.unsplash.com/photo-1626806819282-2c1dc01a5e0c?q=80&w=200&auto=format&fit=crop',
+    manual_outputs: [],
   },
 ];
 
@@ -126,8 +128,8 @@ export async function seedDatabase() {
       await client.query(
         `
         INSERT INTO products (
-          id, name, category, quantity, min_quantity, unit, price, last_restock, status, image
-        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+          id, name, category, quantity, min_quantity, unit, price, last_restock, status, image, manual_outputs
+        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
         ON CONFLICT (id) DO NOTHING
         `,
         [
@@ -141,6 +143,7 @@ export async function seedDatabase() {
           product.last_restock,
           product.status,
           product.image,
+          JSON.stringify(product.manual_outputs || []),
         ]
       );
     }

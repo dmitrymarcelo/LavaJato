@@ -1,6 +1,6 @@
 ﻿import React, { useState } from 'react';
 import { Shield, UserCog, CheckCircle2, XCircle, Save, Info, Lock, Eye, Edit3, Trash2, BarChart3, Users, UserPlus, Star, Clock, MoreVertical, Search, Filter, ShieldCheck, Car, Bike, Truck, Ship, Plus, Upload, FileSpreadsheet, Download } from 'lucide-react';
-import { Screen, TeamMember, INITIAL_TEAM, VehicleCategory, VehicleType, ServiceTypeOption, VehicleRegistration } from '../types';
+import { Screen, TeamMember, VehicleCategory, VehicleType, ServiceTypeOption, VehicleRegistration } from '../types';
 import { motion, AnimatePresence } from 'motion/react';
 import { digitsOnly, formatCpf, generateId, isValidCpf, validateStrongPassword } from '../utils/app';
 
@@ -51,7 +51,7 @@ export default function Settings({
   const [activeRole, setActiveRole] = useState<string>('Administrador');
   const [activeTab, setActiveTab] = useState<'access' | 'services' | 'database'>('access');
   const [isSaving, setIsSaving] = useState(false);
-  const [team, setTeam] = useState<TeamMember[]>(teamProp || INITIAL_TEAM);
+  const [team, setTeam] = useState<TeamMember[]>(teamProp ?? []);
   const [isAddingMember, setIsAddingMember] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [dbSearchQuery, setDbSearchQuery] = useState('');
@@ -90,6 +90,7 @@ export default function Settings({
   const [newMemberName, setNewMemberName] = useState('');
   const [newMemberRegistration, setNewMemberRegistration] = useState('');
   const [newMemberPassword, setNewMemberPassword] = useState('');
+  const [newMemberAvatar, setNewMemberAvatar] = useState('');
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const newMemberPasswordError = newMemberPassword ? validateStrongPassword(newMemberPassword) : null;
 
@@ -98,13 +99,35 @@ export default function Settings({
     const savedRules = localStorage.getItem('access_rules');
     if (savedRules) setRules(JSON.parse(savedRules));
     
-    setTeam(teamProp || INITIAL_TEAM);
+    setTeam(teamProp ?? []);
   }, [teamProp]);
 
-  React.useEffect(() => {
-    const savedTeam = localStorage.getItem('team_members');
-    if (!teamProp?.length && savedTeam) setTeam(JSON.parse(savedTeam));
-  }, []);
+  const resetMemberForm = () => {
+    setNewMemberName('');
+    setNewMemberRegistration('');
+    setNewMemberPassword('');
+    setNewMemberAvatar('');
+    setIsAddingMember(false);
+  };
+
+  const handleMemberAvatarUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      alert('Selecione um arquivo de imagem valido.');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === 'string') {
+        setNewMemberAvatar(reader.result);
+      }
+    };
+    reader.readAsDataURL(file);
+    event.target.value = '';
+  };
 
   const handleAddMember = async () => {
     if (!newMemberName.trim() || !newMemberRegistration.trim() || !newMemberPassword.trim()) {
@@ -126,7 +149,7 @@ export default function Settings({
       rating: 5.0,
       servicesCount: 0,
       status: 'active',
-      avatar: `https://i.pravatar.cc/150?u=${generateId()}`,
+      avatar: newMemberAvatar || `https://i.pravatar.cc/150?u=${generateId()}`,
       efficiency: '100%'
     };
 
@@ -134,10 +157,7 @@ export default function Settings({
     setTeam(updatedTeam);
     await onUpdateTeam?.(updatedTeam);
     
-    setNewMemberName('');
-    setNewMemberRegistration('');
-    setNewMemberPassword('');
-    setIsAddingMember(false);
+    resetMemberForm();
     alert('Colaborador adicionado com sucesso!');
   };
 
@@ -409,7 +429,13 @@ export default function Settings({
                     <p className="text-xs text-slate-500">Gerencie os colaboradores vinculados a este nível de acesso.</p>
                   </div>
                   <button 
-                    onClick={() => setIsAddingMember(true)}
+                    onClick={() => {
+                      setNewMemberName('');
+                      setNewMemberRegistration('');
+                      setNewMemberPassword('');
+                      setNewMemberAvatar('');
+                      setIsAddingMember(true);
+                    }}
                     className="bg-primary text-white px-4 py-2 rounded-xl font-bold text-xs flex items-center gap-2 active:scale-95 transition-all shadow-lg shadow-primary/20"
                   >
                     <UserPlus className="w-4 h-4" />
@@ -671,7 +697,7 @@ export default function Settings({
             >
               <div className="flex justify-between items-center">
                 <h3 className="text-xl font-black text-slate-900">Novo {activeRole}</h3>
-                <button onClick={() => setIsAddingMember(false)} className="text-slate-400 hover:text-slate-600 font-bold">Fechar</button>
+                <button onClick={resetMemberForm} className="text-slate-400 hover:text-slate-600 font-bold">Fechar</button>
               </div>
 
               <div className="space-y-4">
@@ -684,6 +710,35 @@ export default function Settings({
                     onChange={(e) => setNewMemberName(e.target.value)}
                     className="w-full h-14 px-4 bg-slate-50 border border-slate-100 rounded-2xl outline-none focus:border-primary transition-all text-slate-900"
                   />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400 ml-1">Foto do Colaborador</label>
+                  <div className="flex items-center gap-4 rounded-2xl border border-slate-100 bg-slate-50 p-4">
+                    <div className="w-16 h-16 rounded-2xl overflow-hidden border border-slate-200 bg-white shadow-sm shrink-0">
+                      <img
+                        src={newMemberAvatar || 'https://i.pravatar.cc/150?u=preview-member'}
+                        alt="Preview do colaborador"
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+                    <div className="flex-1 space-y-2">
+                      <label className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-600 cursor-pointer hover:border-primary hover:text-primary transition-colors">
+                        <Upload className="w-4 h-4" />
+                        <span>Carregar Foto</span>
+                        <input type="file" accept="image/*" className="hidden" onChange={handleMemberAvatarUpload} />
+                      </label>
+                      <p className="text-[10px] text-slate-400">Use uma foto do dispositivo para identificar o colaborador nas etapas do processo.</p>
+                      {newMemberAvatar && (
+                        <button
+                          type="button"
+                          onClick={() => setNewMemberAvatar('')}
+                          className="text-[10px] font-bold uppercase tracking-widest text-rose-500"
+                        >
+                          Remover Foto
+                        </button>
+                      )}
+                    </div>
+                  </div>
                 </div>
                 <div className="space-y-1">
                   <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400 ml-1">Matrícula</label>

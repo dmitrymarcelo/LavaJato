@@ -39,6 +39,14 @@ export interface Product {
   lastRestock: string;
   status: 'ok' | 'low' | 'critical';
   image?: string;
+  manualOutputs?: ProductOutput[];
+}
+
+export interface ProductOutput {
+  id: string;
+  quantity: number;
+  note?: string;
+  createdAt: string;
 }
 
 export interface Service {
