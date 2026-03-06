@@ -54,6 +54,8 @@ export interface Service {
   plate: string;
   model: string;
   type: string;
+  baseId?: string;
+  baseName?: string;
   scheduledDate?: string;
   scheduledTime?: string;
   status: 'pending' | 'in_progress' | 'completed' | 'waiting_payment';

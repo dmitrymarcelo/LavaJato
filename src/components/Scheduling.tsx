@@ -61,6 +61,8 @@ export default function Scheduling({
   onReorder,
   serviceTypes,
   vehicleDb,
+  selectedBaseId,
+  selectedBaseName,
   onClearBase,
 }: {
   currentDateKey: string;
@@ -72,6 +74,8 @@ export default function Scheduling({
   onReorder: (newServices: Service[]) => void;
   serviceTypes: Record<VehicleType, VehicleCategory>;
   vehicleDb?: VehicleRegistration[];
+  selectedBaseId?: string | null;
+  selectedBaseName?: string | null;
   onClearBase?: () => void;
 }) {
   const [isAdding, setIsAdding] = useState(false);
@@ -282,6 +286,8 @@ export default function Scheduling({
       plate: newAppointment.plate,
       model: newAppointment.vehicle,
       type: newAppointment.service,
+      baseId: selectedBaseId || undefined,
+      baseName: selectedBaseName || undefined,
       scheduledDate: newAppointment.date,
       scheduledTime: newAppointment.time,
       status: 'pending',

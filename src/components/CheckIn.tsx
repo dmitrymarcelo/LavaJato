@@ -12,12 +12,16 @@ export default function CheckIn({
   onNavigate,
   onAddService,
   serviceTypes,
-  vehicleDb
+  vehicleDb,
+  selectedBaseId,
+  selectedBaseName,
 }: {
   onNavigate: (screen: Screen) => void,
   onAddService: (service: Service) => void,
   serviceTypes: Record<VehicleType, VehicleCategory>,
-  vehicleDb?: VehicleRegistration[]
+  vehicleDb?: VehicleRegistration[],
+  selectedBaseId?: string | null,
+  selectedBaseName?: string | null,
 }) {
   const [plate, setPlate] = useState('');
   const [customer, setCustomer] = useState('');
@@ -70,6 +74,8 @@ export default function CheckIn({
       plate: plate.toUpperCase(),
       model,
       type: selectedService.label,
+      baseId: selectedBaseId || undefined,
+      baseName: selectedBaseName || undefined,
       scheduledDate: now.toISOString().slice(0, 10),
       scheduledTime: now.toISOString().slice(11, 16),
       status: 'pending',

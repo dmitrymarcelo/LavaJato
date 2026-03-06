@@ -38,6 +38,8 @@ CREATE TABLE IF NOT EXISTS services (
     plate TEXT NOT NULL,
     model TEXT NOT NULL,
     type TEXT NOT NULL,
+    base_id TEXT,
+    base_name TEXT,
     scheduled_date DATE,
     scheduled_time TIME,
     status TEXT NOT NULL,
@@ -55,6 +57,12 @@ CREATE TABLE IF NOT EXISTS services (
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+ALTER TABLE services
+    ADD COLUMN IF NOT EXISTS base_id TEXT;
+
+ALTER TABLE services
+    ADD COLUMN IF NOT EXISTS base_name TEXT;
 
 CREATE TABLE IF NOT EXISTS appointments (
     id TEXT PRIMARY KEY,

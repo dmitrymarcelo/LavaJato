@@ -38,6 +38,8 @@ function toCamelService(row) {
     plate: row.plate,
     model: row.model,
     type: row.type,
+    baseId: row.base_id,
+    baseName: row.base_name,
     scheduledDate: row.scheduled_date,
     scheduledTime: row.scheduled_time?.slice?.(0, 5) || row.scheduled_time,
     status: row.status,
@@ -201,15 +203,17 @@ app.put('/api/services', async (req, res) => {
     await query(
       `
       INSERT INTO services (
-        id, plate, model, type, scheduled_date, scheduled_time, status, price, priority, customer,
+        id, plate, model, type, base_id, base_name, scheduled_date, scheduled_time, status, price, priority, customer,
         third_party_name, third_party_cpf, observations, washer, washers, start_time, end_time, image
-      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15::jsonb,$16,$17,$18)
+      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17::jsonb,$18,$19,$20)
       `,
       [
         service.id,
         service.plate,
         service.model,
         service.type,
+        service.baseId || null,
+        service.baseName || null,
         service.scheduledDate || null,
         service.scheduledTime || null,
         service.status,

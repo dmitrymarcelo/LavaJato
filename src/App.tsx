@@ -36,6 +36,7 @@ import Settings from './components/Settings';
 import Inventory from './components/Inventory';
 import { getElapsedMinutes, getTodayDate } from './utils/app';
 import { api, Appointment } from './services/api';
+import { getBaseById } from './data/bases';
 
 export default function App() {
   const normalizeScreen = (screen: Screen): Screen => screen === 'queue' ? 'scheduling' : screen;
@@ -259,6 +260,7 @@ export default function App() {
 
   const activeService = services.find((service) => service.id === activeServiceId) || null;
   const activeServiceElapsedMinutes = getElapsedMinutes(activeService?.startTime, clockNow);
+  const selectedBaseInfo = getBaseById(selectedBase);
 
   const renderScreen = () => {
     if (!isAuthenticated) return <Login onLogin={handleLogin} />;
@@ -267,7 +269,7 @@ export default function App() {
 
     switch (currentScreen) {
       case 'dashboard': return <Dashboard onNavigate={navigateTo} services={services} team={team} />;
-      case 'checkin': return <CheckIn onNavigate={navigateTo} onAddService={addService} serviceTypes={serviceTypes} vehicleDb={vehicleDb} />;
+      case 'checkin': return <CheckIn onNavigate={navigateTo} onAddService={addService} serviceTypes={serviceTypes} vehicleDb={vehicleDb} selectedBaseId={selectedBaseInfo?.id} selectedBaseName={selectedBaseInfo?.name} />;
       case 'inspection-pre': return <InspectionPre teamMembers={team} elapsedMinutes={activeServiceElapsedMinutes} onNavigate={navigateTo} onStartWash={(washers) => {
         if (activeServiceId) {
           updateServiceWashers(activeServiceId, washers);
@@ -285,7 +287,7 @@ export default function App() {
             setSelectedBase(baseId);
           }} />;
         }
-        return <Scheduling currentDateKey={currentDateKey} appointments={appointments} onUpdateAppointments={persistAppointments} onNavigate={handleNavigateWithService} services={services} onAddService={addService} onReorder={reorderServices} serviceTypes={serviceTypes} vehicleDb={vehicleDb} onClearBase={() => {
+        return <Scheduling currentDateKey={currentDateKey} appointments={appointments} onUpdateAppointments={persistAppointments} onNavigate={handleNavigateWithService} services={services} onAddService={addService} onReorder={reorderServices} serviceTypes={serviceTypes} vehicleDb={vehicleDb} selectedBaseId={selectedBaseInfo?.id} selectedBaseName={selectedBaseInfo?.name} onClearBase={() => {
           setSelectedBase(null);
         }} />;
       case 'inventory': return <Inventory onNavigate={navigateTo} products={products} onUpdateProducts={persistProducts} />;

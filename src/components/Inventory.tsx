@@ -123,6 +123,19 @@ export default function Inventory({ onNavigate, products = INITIAL_PRODUCTS, onU
 
   const todayOutputCount = products.reduce((total, product) => total + (product.manualOutputs || []).filter(output => output.createdAt.slice(0, 10) === getTodayDate()).length, 0);
   const productsUsedToday = products.filter(product => getTodayConsumption(product) > 0).length;
+  const outputEntries = products
+    .flatMap(product =>
+      (product.manualOutputs || []).map(output => ({
+        ...output,
+        productId: product.id,
+        productName: product.name,
+        unit: product.unit,
+        currentQuantity: product.quantity,
+      }))
+    )
+    .sort((left, right) => right.createdAt.localeCompare(left.createdAt));
+  const outputEntriesToday = outputEntries.filter(output => output.createdAt.slice(0, 10) === getTodayDate());
+  const outputQuantityToday = outputEntriesToday.reduce((total, output) => total + output.quantity, 0);
 
   const handleDelete = async (id: string) => {
     if (confirm('Tem certeza que deseja remover este produto?')) {
@@ -335,6 +348,48 @@ export default function Inventory({ onNavigate, products = INITIAL_PRODUCTS, onU
               {status === 'all' ? 'Todos' : status === 'ok' ? 'Regular' : status === 'low' ? 'Baixo' : 'Crítico'}
             </button>
           ))}
+        </div>
+      </div>
+
+      <div className="px-6 mt-6">
+        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+          <div className="p-5 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div>
+              <h3 className="text-lg font-black text-slate-900">Controle de Saidas</h3>
+              <p className="text-xs text-slate-500">Historico das baixas manuais registradas no estoque.</p>
+            </div>
+            <div className="text-right">
+              <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Saida do dia</p>
+              <p className="text-lg font-black text-slate-900">{outputQuantityToday}</p>
+            </div>
+          </div>
+
+          <div className="divide-y divide-slate-100">
+            {outputEntries.length === 0 ? (
+              <div className="p-6 text-sm text-slate-400 font-medium">Nenhuma baixa manual registrada ainda.</div>
+            ) : (
+              outputEntries.slice(0, 8).map(output => (
+                <div key={output.id} className="p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-black text-slate-900">{output.productName}</p>
+                    <p className="text-xs text-slate-500 mt-1">
+                      {output.note || 'Baixa manual'} • {new Date(output.createdAt).toLocaleString('pt-BR')}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-4">
+                    <div className="text-right">
+                      <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Saida</p>
+                      <p className="text-sm font-black text-rose-600">-{output.quantity} {output.unit}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Saldo Atual</p>
+                      <p className="text-sm font-black text-slate-900">{output.currentQuantity} {output.unit}</p>
+                    </div>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
         </div>
       </div>
 

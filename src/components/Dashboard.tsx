@@ -19,6 +19,7 @@ import { motion } from 'motion/react';
 import { Screen, Service, TeamMember } from '../types';
 import { addDays, getElapsedMinutes, getTodayDate } from '../utils/app';
 import { getWeatherRecommendation } from '../services/geminiService';
+import { BASES } from '../data/bases';
 
 const currencyFormatter = new Intl.NumberFormat('pt-BR', {
   style: 'currency',
@@ -100,13 +101,14 @@ export default function Dashboard({
 
   const pendingPayments = services.filter(service => service.status === 'waiting_payment').length;
   const growthLabel = formatGrowth(currentRevenue, previousRevenue);
-  const chartDates = Array.from({ length: 5 }, (_, index) => addDays(todayKey, index - 4));
-  const chartPoints = chartDates.map(date => ({
-    date,
-    label: new Date(`${date}T00:00:00`).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }),
-    value: servicesInCurrentWindow.filter(service => getServiceDateKey(service) === date).length,
-  }));
-  const maxChartValue = Math.max(1, ...chartPoints.map(point => point.value));
+  const demandByBase = [...BASES, { id: 'sem-base', name: 'Sem base', responsible: '', vehicles: 0, budget: '0', spent: '0', status: 'warning' as const }]
+    .map(base => ({
+      id: base.id,
+      name: base.name,
+      value: services.filter(service => service.status === 'in_progress' && (service.baseId || 'sem-base') === base.id).length,
+    }))
+    .filter(base => base.id !== 'sem-base' || base.value > 0);
+  const maxDemandValue = Math.max(1, ...demandByBase.map(item => item.value));
 
   const topWashers = [...team]
     .filter(member => member.role.toLowerCase().includes('lavador'))
@@ -183,26 +185,25 @@ export default function Dashboard({
       <div className="px-4 grid grid-cols-1 md:grid-cols-2 gap-6">
         <section className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
           <div className="flex justify-between items-center mb-6">
-            <h3 className="text-slate-900 font-black text-lg tracking-tight">Movimento real</h3>
+            <h3 className="text-slate-900 font-black text-lg tracking-tight">Picos de Demanda</h3>
             <div className="flex items-center gap-2 text-[10px] text-slate-500 font-bold uppercase tracking-wider">
               <BarChart3 className="w-4 h-4" />
-              Ultimos 5 dias
+              Em lavagem por base
             </div>
           </div>
-          <div className="relative h-40 w-full flex items-end justify-between gap-3 px-2">
-            {chartPoints.map(point => (
-              <div key={point.date} className="flex-1 flex items-end">
-                <ChartBar height={`${Math.max(8, (point.value / maxChartValue) * 100)}%`} active={point.value === maxChartValue && point.value > 0} />
+          <div className="space-y-4">
+            {demandByBase.map(base => (
+              <div key={base.id} className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-bold text-slate-700">{base.name}</span>
+                  <span className="text-xs font-black text-slate-900">{base.value} em lavagem</span>
+                </div>
+                <ChartBar height={`${Math.max(10, (base.value / maxDemandValue) * 100)}%`} active={base.value === maxDemandValue && base.value > 0} horizontal />
               </div>
             ))}
           </div>
-          <div className="flex justify-between mt-4 text-[10px] text-slate-400 font-black px-1 uppercase tracking-widest">
-            {chartPoints.map(point => (
-              <span key={point.date}>{point.label}</span>
-            ))}
-          </div>
-          {servicesInCurrentWindow.length === 0 && (
-            <p className="mt-4 text-xs text-slate-400 font-medium">Sem lavagens registradas no periodo selecionado.</p>
+          {demandByBase.every(base => base.value === 0) && (
+            <p className="mt-4 text-xs text-slate-400 font-medium">Nenhum veiculo em lavagem por base neste momento.</p>
           )}
         </section>
 
@@ -344,7 +345,15 @@ function MetricCard({
   );
 }
 
-function ChartBar({ height, active }: { height: string; active?: boolean }) {
+function ChartBar({ height, active, horizontal }: { height: string; active?: boolean; horizontal?: boolean }) {
+  if (horizontal) {
+    return (
+      <div className="w-full h-3 bg-slate-100 rounded-full overflow-hidden">
+        <div className={`${active ? 'bg-primary' : 'bg-primary/40'} h-full rounded-full transition-all duration-500`} style={{ width: height }} />
+      </div>
+    );
+  }
+
   return (
     <div className={`flex-1 ${active ? 'bg-primary' : 'bg-primary/20'} rounded-t-lg transition-all duration-500`} style={{ height }} />
   );
