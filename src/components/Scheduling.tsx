@@ -24,7 +24,7 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 import { Screen, Service, VehicleCategory, VehicleType, VehicleRegistration } from '../types';
 import { Appointment } from '../services/api';
-import { addDays, digitsOnly, formatCpf, generateId, getElapsedMinutes, getTodayDate } from '../utils/app';
+import { addDays, digitsOnly, formatCpf, generateId, getElapsedMinutes, getTodayDate, normalizeDateKey } from '../utils/app';
 
 const TIME_SLOTS = ['07:00', '09:00', '11:00', '13:00', '15:00', '17:00'];
 const ACTIVE_APPOINTMENT_STATUSES: Appointment['status'][] = ['confirmed', 'pending'];
@@ -147,13 +147,13 @@ export default function Scheduling({
 
   const pendingAppointmentsForDate = appointments.filter(appointment => {
     const relatedService = services.find(service => service.id === appointment.id);
-    return appointment.date === filterDate && isActiveAppointment(appointment) && (!relatedService || relatedService.status === 'pending');
+    return normalizeDateKey(appointment.date) === filterDate && isActiveAppointment(appointment) && (!relatedService || relatedService.status === 'pending');
   });
 
-  const waitingServices = services.filter(service => service.status === 'pending' && service.scheduledDate === currentDateKey);
-  const washingServices = services.filter(service => service.status === 'in_progress' && service.scheduledDate === currentDateKey);
+  const waitingServices = services.filter(service => service.status === 'pending' && normalizeDateKey(service.scheduledDate) === currentDateKey);
+  const washingServices = services.filter(service => service.status === 'in_progress' && normalizeDateKey(service.scheduledDate) === currentDateKey);
   const completedServices = services.filter(
-    service => (service.status === 'waiting_payment' || service.status === 'completed') && service.scheduledDate === currentDateKey
+    service => (service.status === 'waiting_payment' || service.status === 'completed') && normalizeDateKey(service.scheduledDate) === currentDateKey
   );
 
   const timers = Object.fromEntries(
@@ -256,7 +256,7 @@ export default function Scheduling({
 
   const getSlotStatus = (date: string, time: string, nextVehicleType?: VehicleType) => {
     const sameSlotAppointments = appointments.filter(
-      appointment => appointment.date === date && appointment.time === time && isActiveAppointment(appointment)
+      appointment => normalizeDateKey(appointment.date) === date && appointment.time === time && isActiveAppointment(appointment)
     );
     const truckCount = sameSlotAppointments.filter(appointment => isTruckType(resolveAppointmentVehicleType(appointment))).length;
     const otherCount = sameSlotAppointments.length - truckCount;
@@ -303,7 +303,7 @@ export default function Scheduling({
     const duplicatePlateInSlot = appointments.some(
       appointment =>
         normalizePlate(appointment.plate) === normalizePlate(plate) &&
-        appointment.date === appointmentDate &&
+        normalizeDateKey(appointment.date) === appointmentDate &&
         appointment.time === selectedTime &&
         isActiveAppointment(appointment)
     );
@@ -367,6 +367,8 @@ export default function Scheduling({
     try {
       await onUpdateAppointments(nextAppointments);
       await onAddService(newService);
+      setFilterDate(appointmentDate);
+      setActiveTab(appointmentDate === currentDateKey ? 'waiting' : 'appointments');
       alert('Agendamento realizado com sucesso.');
       resetAppointmentForm();
     } catch (error) {

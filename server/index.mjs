@@ -36,6 +36,32 @@ function toCamelProduct(row) {
   };
 }
 
+function toDateKey(value) {
+  if (!value) {
+    return null;
+  }
+
+  if (value instanceof Date) {
+    return value.toISOString().slice(0, 10);
+  }
+
+  const normalized = String(value).trim();
+  if (!normalized) {
+    return null;
+  }
+
+  if (/^\d{4}-\d{2}-\d{2}$/.test(normalized)) {
+    return normalized;
+  }
+
+  const parsed = new Date(normalized);
+  if (Number.isNaN(parsed.getTime())) {
+    return normalized.slice(0, 10);
+  }
+
+  return parsed.toISOString().slice(0, 10);
+}
+
 function toCamelService(row) {
   return {
     id: row.id,
@@ -45,7 +71,7 @@ function toCamelService(row) {
     type: row.type,
     baseId: row.base_id,
     baseName: row.base_name,
-    scheduledDate: row.scheduled_date,
+    scheduledDate: toDateKey(row.scheduled_date),
     scheduledTime: row.scheduled_time?.slice?.(0, 5) || row.scheduled_time,
     status: row.status,
     price: Number(row.price),
@@ -101,7 +127,7 @@ function toCamelAppointment(row) {
     plate: row.plate,
     vehicleType: row.vehicle_type,
     service: row.service,
-    date: row.date,
+    date: toDateKey(row.date),
     time: row.time?.slice?.(0, 5) || row.time,
     status: row.status,
     photo: row.photo,

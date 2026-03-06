@@ -34,7 +34,7 @@ import CustomerHistory from './components/CustomerHistory';
 import Scheduling, { QueueSection } from './components/Scheduling';
 import Settings from './components/Settings';
 import Inventory from './components/Inventory';
-import { getElapsedMinutes, getTodayDate } from './utils/app';
+import { getElapsedMinutes, getTodayDate, normalizeDateKey } from './utils/app';
 import { api, ApiError, Appointment } from './services/api';
 import { getBaseById } from './data/bases';
 
@@ -216,8 +216,14 @@ export default function App() {
       const data = await api.bootstrap();
       setServiceTypes(data.serviceTypes || INITIAL_SERVICE_TYPES);
       setVehicleDb(data.vehicleDb || []);
-      setServices(data.services || []);
-      setAppointments(data.appointments || []);
+      setServices((data.services || []).map(service => ({
+        ...service,
+        scheduledDate: normalizeDateKey(service.scheduledDate),
+      })));
+      setAppointments((data.appointments || []).map(appointment => ({
+        ...appointment,
+        date: normalizeDateKey(appointment.date),
+      })));
       setProducts(data.products || []);
       setTeam(data.team || []);
     } catch (error: any) {
@@ -551,7 +557,7 @@ export default function App() {
     let hasAppointmentChanges = false;
 
     const nextServices = services.map((service) => {
-      if ((service.scheduledDate || currentDateKey) < currentDateKey && service.status === 'pending') {
+      if (normalizeDateKey(service.scheduledDate || currentDateKey) < currentDateKey && service.status === 'pending') {
         hasServiceChanges = true;
         return {
           ...service,
@@ -593,7 +599,7 @@ export default function App() {
         };
       }
 
-      if (appointment.date < currentDateKey && !['completed', 'cancelled', 'no_show'].includes(appointment.status)) {
+      if (normalizeDateKey(appointment.date) < currentDateKey && !['completed', 'cancelled', 'no_show'].includes(appointment.status)) {
         hasAppointmentChanges = true;
         return {
           ...appointment,

@@ -16,6 +16,32 @@ export function addDays(baseDate: string, days: number) {
   return date.toLocaleDateString('en-CA');
 }
 
+export function normalizeDateKey(value?: string | Date | null) {
+  if (!value) {
+    return '';
+  }
+
+  if (value instanceof Date) {
+    return value.toISOString().slice(0, 10);
+  }
+
+  const normalized = String(value).trim();
+  if (!normalized) {
+    return '';
+  }
+
+  if (/^\d{4}-\d{2}-\d{2}$/.test(normalized)) {
+    return normalized;
+  }
+
+  const parsed = new Date(normalized);
+  if (Number.isNaN(parsed.getTime())) {
+    return normalized.slice(0, 10);
+  }
+
+  return parsed.toISOString().slice(0, 10);
+}
+
 export function digitsOnly(value: string) {
   return value.replace(/\D/g, '');
 }
