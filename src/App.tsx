@@ -14,7 +14,7 @@ import {
   Package
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Screen, Service, Notification, MOCK_NOTIFICATIONS, INITIAL_SERVICE_TYPES, VehicleCategory, VehicleType, VehicleRegistration } from './types';
+import { Screen, Service, Notification, MOCK_NOTIFICATIONS, INITIAL_SERVICE_TYPES, VehicleCategory, VehicleType, VehicleRegistration, Product, TeamMember } from './types';
 import { getCarCareTips } from './services/geminiService';
 
 // Components
@@ -35,9 +35,7 @@ import Scheduling, { QueueSection } from './components/Scheduling';
 import Settings from './components/Settings';
 import Inventory from './components/Inventory';
 import { getElapsedMinutes, getTodayDate } from './utils/app';
-import { DEFAULT_VEHICLE_DB } from './data/vehicleSeed';
-
-const DEMO_DATA_VERSION = '2026-03-06-seed-v1';
+import { api, Appointment } from './services/api';
 
 export default function App() {
   const normalizeScreen = (screen: Screen): Screen => screen === 'queue' ? 'scheduling' : screen;
@@ -54,67 +52,12 @@ export default function App() {
   const [chatInput, setChatInput] = useState('');
   const [chatHistory, setChatHistory] = useState<{role: 'user' | 'ai', text: string}[]>([]);
   const [isTyping, setIsTyping] = useState(false);
-  const [services, setServices] = useState<Service[]>(() => {
-    try {
-      const saved = localStorage.getItem('services');
-      return saved ? JSON.parse(saved) : [];
-    } catch (e) {
-      return [];
-    }
-  });
-  const [serviceTypes, setServiceTypes] = useState<Record<VehicleType, VehicleCategory>>(() => {
-    try {
-      const saved = localStorage.getItem('service_types');
-      return saved ? JSON.parse(saved) : INITIAL_SERVICE_TYPES;
-    } catch (e) {
-      return INITIAL_SERVICE_TYPES;
-    }
-  });
-  const [vehicleDb, setVehicleDb] = useState<VehicleRegistration[]>(() => {
-    try {
-      const saved = localStorage.getItem('vehicle_db');
-      return saved ? JSON.parse(saved) : DEFAULT_VEHICLE_DB;
-    } catch (e) {
-      return DEFAULT_VEHICLE_DB;
-    }
-  });
-
-  useEffect(() => {
-    try {
-      const currentVersion = localStorage.getItem('demo_data_version');
-      if (currentVersion !== DEMO_DATA_VERSION) {
-        localStorage.setItem('services', JSON.stringify([]));
-        localStorage.setItem('service_types', JSON.stringify(INITIAL_SERVICE_TYPES));
-        localStorage.setItem('vehicle_db', JSON.stringify(DEFAULT_VEHICLE_DB));
-        localStorage.setItem('team_members', JSON.stringify([]));
-        localStorage.setItem('inventory_products', JSON.stringify([]));
-        localStorage.setItem('service_appointments', JSON.stringify([]));
-        localStorage.setItem('currentScreen', 'dashboard');
-        localStorage.setItem('isAuthenticated', 'false');
-        localStorage.setItem('demo_data_version', DEMO_DATA_VERSION);
-
-        setServices([]);
-        setServiceTypes(INITIAL_SERVICE_TYPES);
-        setVehicleDb(DEFAULT_VEHICLE_DB);
-        setCurrentScreen('dashboard');
-        setIsAuthenticated(false);
-        setActiveServiceId(null);
-        setSelectedBase(null);
-      }
-    } catch (e) {}
-  }, []);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem('service_types', JSON.stringify(serviceTypes));
-    } catch (e) {}
-  }, [serviceTypes]);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem('vehicle_db', JSON.stringify(vehicleDb));
-    } catch (e) {}
-  }, [vehicleDb]);
+  const [services, setServices] = useState<Service[]>([]);
+  const [serviceTypes, setServiceTypes] = useState<Record<VehicleType, VehicleCategory>>(INITIAL_SERVICE_TYPES);
+  const [vehicleDb, setVehicleDb] = useState<VehicleRegistration[]>([]);
+  const [appointments, setAppointments] = useState<Appointment[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [team, setTeam] = useState<TeamMember[]>([]);
 
   const [activeServiceId, setActiveServiceId] = useState<string | null>(null);
   const [selectedBase, setSelectedBase] = useState<string | null>(null);
@@ -130,6 +73,8 @@ export default function App() {
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const [clockNow, setClockNow] = useState(() => Date.now());
   const [currentDateKey, setCurrentDateKey] = useState(() => getTodayDate());
+  const [isBootstrapping, setIsBootstrapping] = useState(false);
+  const [backendError, setBackendError] = useState<string | null>(null);
 
   useEffect(() => {
     const interval = window.setInterval(() => {
@@ -178,12 +123,6 @@ export default function App() {
 
   useEffect(() => {
     try {
-      localStorage.setItem('services', JSON.stringify(services));
-    } catch (e) {}
-  }, [services]);
-
-  useEffect(() => {
-    try {
       localStorage.setItem('currentScreen', currentScreen);
     } catch (e) {}
   }, [currentScreen]);
@@ -209,20 +148,74 @@ export default function App() {
     }
   };
 
+  const loadBootstrap = async () => {
+    setIsBootstrapping(true);
+    setBackendError(null);
+    try {
+      const data = await api.bootstrap();
+      setServiceTypes(data.serviceTypes || INITIAL_SERVICE_TYPES);
+      setVehicleDb(data.vehicleDb || []);
+      setServices(data.services || []);
+      setAppointments(data.appointments || []);
+      setProducts(data.products || []);
+      setTeam(data.team || []);
+    } catch (error: any) {
+      setBackendError(error.message || 'Nao foi possivel carregar os dados persistentes.');
+    } finally {
+      setIsBootstrapping(false);
+    }
+  };
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      loadBootstrap();
+    }
+  }, [isAuthenticated]);
+
+  const persistServiceTypes = async (next: Record<VehicleType, VehicleCategory>) => {
+    setServiceTypes(next);
+    await api.saveServiceTypes(next);
+  };
+
+  const persistVehicleDb = async (next: VehicleRegistration[]) => {
+    setVehicleDb(next);
+    await api.saveVehicles(next);
+  };
+
+  const persistServices = async (next: Service[]) => {
+    setServices(next);
+    await api.saveServices(next);
+  };
+
+  const persistAppointments = async (next: Appointment[]) => {
+    setAppointments(next);
+    await api.saveAppointments(next);
+  };
+
+  const persistProducts = async (next: Product[]) => {
+    setProducts(next);
+    await api.saveProducts(next);
+  };
+
+  const persistTeam = async (next: TeamMember[]) => {
+    setTeam(next);
+    await api.saveTeam(next);
+  };
+
   const updateServiceStatus = (id: string, status: Service['status']) => {
-    setServices(prev => prev.map(s => s.id === id ? { ...s, status } : s));
+    void persistServices(services.map(s => s.id === id ? { ...s, status } : s));
   };
 
   const updateServiceWashers = (id: string, washers: string[]) => {
-    setServices(prev => prev.map(s => s.id === id ? { ...s, washers } : s));
+    void persistServices(services.map(s => s.id === id ? { ...s, washers } : s));
   };
 
   const addService = (service: Service) => {
-    setServices(prev => [service, ...prev]);
+    void persistServices([service, ...services]);
   };
 
   const reorderServices = (newServices: Service[]) => {
-    setServices(newServices);
+    void persistServices(newServices);
   };
 
   const navigateTo = (screen: Screen) => {
@@ -241,7 +234,8 @@ export default function App() {
     navigateTo('login');
   };
 
-  const handleLogin = () => {
+  const handleLogin = async (registration: string, password: string) => {
+    await api.login(registration, password);
     setIsAuthenticated(true);
     navigateTo('dashboard');
   };
@@ -260,11 +254,13 @@ export default function App() {
 
   const renderScreen = () => {
     if (!isAuthenticated) return <Login onLogin={handleLogin} />;
+    if (isBootstrapping) return <div className="min-h-screen flex items-center justify-center text-slate-500 font-bold">Carregando dados persistentes...</div>;
+    if (backendError) return <div className="min-h-screen flex items-center justify-center p-6 text-center text-rose-600 font-bold">{backendError}</div>;
 
     switch (currentScreen) {
       case 'dashboard': return <Dashboard onNavigate={navigateTo} services={services} />;
       case 'checkin': return <CheckIn onNavigate={navigateTo} onAddService={addService} serviceTypes={serviceTypes} vehicleDb={vehicleDb} />;
-      case 'inspection-pre': return <InspectionPre elapsedMinutes={activeServiceElapsedMinutes} onNavigate={navigateTo} onStartWash={(washers) => {
+      case 'inspection-pre': return <InspectionPre teamMembers={team} elapsedMinutes={activeServiceElapsedMinutes} onNavigate={navigateTo} onStartWash={(washers) => {
         if (activeServiceId) {
           updateServiceWashers(activeServiceId, washers);
           updateServiceStatus(activeServiceId, 'in_progress');
@@ -281,10 +277,10 @@ export default function App() {
             setSelectedBase(baseId);
           }} />;
         }
-        return <Scheduling currentDateKey={currentDateKey} onNavigate={handleNavigateWithService} services={services} onAddService={addService} onReorder={reorderServices} serviceTypes={serviceTypes} vehicleDb={vehicleDb} onClearBase={() => {
+        return <Scheduling currentDateKey={currentDateKey} appointments={appointments} onUpdateAppointments={persistAppointments} onNavigate={handleNavigateWithService} services={services} onAddService={addService} onReorder={reorderServices} serviceTypes={serviceTypes} vehicleDb={vehicleDb} onClearBase={() => {
           setSelectedBase(null);
         }} />;
-      case 'inventory': return <Inventory onNavigate={navigateTo} />;
+      case 'inventory': return <Inventory onNavigate={navigateTo} products={products} onUpdateProducts={persistProducts} />;
       case 'washing': return (
         <div className="p-4">
           <QueueSection 
@@ -300,7 +296,7 @@ export default function App() {
           />
         </div>
       );
-      case 'settings': return <Settings onNavigate={navigateTo} serviceTypes={serviceTypes} onUpdateServiceTypes={setServiceTypes} vehicleDb={vehicleDb} onUpdateVehicleDb={setVehicleDb} />;
+      case 'settings': return <Settings onNavigate={navigateTo} serviceTypes={serviceTypes} onUpdateServiceTypes={persistServiceTypes} vehicleDb={vehicleDb} onUpdateVehicleDb={persistVehicleDb} team={team} onUpdateTeam={persistTeam} />;
       default: return <Dashboard onNavigate={navigateTo} services={services} />;
     }
   };

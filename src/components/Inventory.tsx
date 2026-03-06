@@ -78,25 +78,13 @@ const INITIAL_PRODUCTS: Product[] = [
   }
 ];
 
-export default function Inventory({ onNavigate }: { onNavigate: (screen: Screen) => void }) {
-  const [products, setProducts] = useState<Product[]>(() => {
-    try {
-      const saved = localStorage.getItem('inventory_products');
-      return saved ? JSON.parse(saved) : INITIAL_PRODUCTS;
-    } catch (e) {
-      return INITIAL_PRODUCTS;
-    }
-  });
+export default function Inventory({ onNavigate, products = INITIAL_PRODUCTS, onUpdateProducts }: { onNavigate: (screen: Screen) => void, products?: Product[], onUpdateProducts?: (products: Product[]) => Promise<void> | void }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [isAdding, setIsAdding] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const [filterStatus, setFilterStatus] = useState<'all' | 'ok' | 'low' | 'critical'>('all');
   const [productImage, setProductImage] = useState('');
-
-  useEffect(() => {
-    localStorage.setItem('inventory_products', JSON.stringify(products));
-  }, [products]);
 
   useEffect(() => {
     setProductImage(editingProduct?.image || '');
@@ -109,14 +97,14 @@ export default function Inventory({ onNavigate }: { onNavigate: (screen: Screen)
     return matchesSearch && matchesStatus;
   });
 
-  const handleDelete = (id: string) => {
+  const handleDelete = async (id: string) => {
     if (confirm('Tem certeza que deseja remover este produto?')) {
-      setProducts(prev => prev.filter(p => p.id !== id));
+      await onUpdateProducts?.(products.filter(p => p.id !== id));
       setOpenMenuId(null);
     }
   };
 
-  const handleSaveProduct = (e: React.FormEvent) => {
+  const handleSaveProduct = async (e: React.FormEvent) => {
     e.preventDefault();
     const form = e.target as HTMLFormElement;
     const formData = new FormData(form);
@@ -142,9 +130,9 @@ export default function Inventory({ onNavigate }: { onNavigate: (screen: Screen)
     };
 
     if (editingProduct) {
-      setProducts(prev => prev.map(p => p.id === editingProduct.id ? productData : p));
+      await onUpdateProducts?.(products.map(p => p.id === editingProduct.id ? productData : p));
     } else {
-      setProducts(prev => [...prev, productData]);
+      await onUpdateProducts?.([...products, productData]);
     }
 
     setIsAdding(false);

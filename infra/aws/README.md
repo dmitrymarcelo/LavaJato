@@ -1,33 +1,63 @@
 # AWS Quick Deploy
 
-Deploy automatico do frontend `LavaJato` em uma EC2 Amazon Linux 2023 com Nginx.
+Deploy automatico do `LavaJato` em uma unica EC2 com persistencia real:
 
-## O que este bootstrap faz
+- PostgreSQL em container Docker
+- API Node/Express em container Docker
+- Frontend Vite servido por Nginx em container Docker
 
-- instala `git`, `nginx`, `nodejs` e `npm`
-- clona `https://github.com/dmitrymarcelo/LavaJato.git`
-- faz checkout do branch `main`
-- executa `npm ci`
-- executa `npm run build`
-- publica o conteudo de `dist/` em `/usr/share/nginx/html`
-- configura fallback SPA para `index.html`
-- sobe o Nginx na porta `80`
+## Arquitetura
+
+- `postgres`: banco persistente com volume Docker
+- `api`: backend em `http://api:4000`
+- `web`: frontend publicado em `http://IP_PUBLICO/`
+- `web -> /api`: proxy reverso para a API
 
 ## Arquivos
 
-- `ec2-user-data.sh`: bootstrap completo da instancia
-- `ec2-assume-role.json`: trust policy para role da EC2
-- `ec2-bdm.json`: volume raiz gp3 de 20 GB
+- `ec2-user-data.sh`: bootstrap completo da EC2
+- `ec2-assume-role.json`: trust policy da role da EC2
+- `ec2-bdm.json`: volume raiz da instancia
 
-## Requisitos AWS
+## Requisitos na AWS
 
 - AMI Amazon Linux 2023
-- Security Group liberando:
-  - `80/tcp` para acesso web
-  - `22/tcp` apenas se voce precisar de SSH
-- IAM Role com pelo menos `AmazonSSMManagedInstanceCore`
+- Security Group com:
+  - `80/tcp` liberado
+  - `22/tcp` opcional
+- IAM Role com `AmazonSSMManagedInstanceCore`
 
-## Exemplo com AWS CLI
+## Como funciona o bootstrap
+
+1. instala Docker
+2. instala Docker Compose plugin
+3. clona `https://github.com/dmitrymarcelo/LavaJato.git`
+4. faz checkout do branch `main`
+5. executa `docker compose up -d --build`
+6. publica a aplicacao em `http://IP_PUBLICO/`
+
+## Banco de dados
+
+O PostgreSQL sobe com estes parametros padrao:
+
+```text
+database: lavajato
+user: postgres
+password: postgres
+```
+
+O volume Docker `postgres_data` garante persistencia entre reinicios da EC2.
+
+## Credencial inicial
+
+O seed do backend cria um usuario inicial:
+
+```text
+matricula: 1001
+senha: Admin@123456!
+```
+
+## Exemplo de criacao por AWS CLI
 
 ```bash
 aws iam create-role \
@@ -44,11 +74,7 @@ aws iam create-instance-profile \
 aws iam add-role-to-instance-profile \
   --instance-profile-name LavaJatoEc2Profile \
   --role-name LavaJatoEc2Role
-```
 
-Depois lance a instancia:
-
-```bash
 aws ec2 run-instances \
   --image-id ami-xxxxxxxx \
   --instance-type t3.small \
@@ -58,12 +84,4 @@ aws ec2 run-instances \
   --block-device-mappings file://infra/aws/ec2-bdm.json \
   --user-data file://infra/aws/ec2-user-data.sh \
   --tag-specifications 'ResourceType=instance,Tags=[{Key=Name,Value=LavaJatoDemo}]'
-```
-
-## Resultado
-
-Ao fim do bootstrap, o sistema fica disponivel no IP publico da EC2:
-
-```text
-http://SEU-IP-PUBLICO/
 ```

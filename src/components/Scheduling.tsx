@@ -8,24 +8,9 @@ import { Calendar as CalendarIcon, Clock, User, Car, Plus, ChevronRight, Chevron
 import { Screen, Service, VehicleCategory, VehicleType, VehicleRegistration } from '../types';
 import { motion, AnimatePresence } from 'motion/react';
 import { addDays, digitsOnly, formatCpf, generateId, getTodayDate, isValidCpf } from '../utils/app';
-
-interface Appointment {
-  id: string;
-  customer: string;
-  vehicle: string;
-  plate: string;
-  service: string;
-  date: string;
-  time: string;
-  status: 'confirmed' | 'pending' | 'cancelled' | 'completed';
-  photo?: string;
-  thirdPartyName?: string;
-  thirdPartyCpf?: string;
-}
+import { Appointment } from '../services/api';
 
 const TODAY = getTodayDate();
-
-const APPOINTMENTS_STORAGE_KEY = 'service_appointments';
 
 const MOCK_APPOINTMENTS: Appointment[] = [
   { id: '1', customer: 'João Silva', vehicle: 'Toyota Corolla', plate: 'ABC-1234', service: 'Lavagem Completa', date: '2026-03-01', time: '09:00', status: 'confirmed', photo: 'https://images.unsplash.com/photo-1549317661-bd32c8ce0db2?w=400&q=80' },
@@ -36,6 +21,8 @@ const MOCK_APPOINTMENTS: Appointment[] = [
 
 export default function Scheduling({ 
   currentDateKey,
+  appointments: appointmentsProp,
+  onUpdateAppointments,
   onNavigate,
   services,
   onAddService,
@@ -45,6 +32,8 @@ export default function Scheduling({
   onClearBase
 }: { 
   currentDateKey: string,
+  appointments: Appointment[],
+  onUpdateAppointments: (appointments: Appointment[]) => Promise<void> | void,
   onNavigate: (screen: Screen, serviceId?: string) => void,
   services: Service[],
   onAddService: (service: Service) => void,
@@ -55,19 +44,14 @@ export default function Scheduling({
 }) {
   const [isAdding, setIsAdding] = useState(false);
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
-  const [appointments, setAppointments] = useState<Appointment[]>(() => {
-    try {
-      const saved = localStorage.getItem(APPOINTMENTS_STORAGE_KEY);
-      if (saved) {
-        return JSON.parse(saved);
-      }
-    } catch (e) {}
-
-    return MOCK_APPOINTMENTS.map((appointment, index) => ({
-      ...appointment,
-      date: addDays(TODAY, index === 3 ? 1 : 0),
-    }));
-  });
+  const [appointments, setAppointments] = useState<Appointment[]>(
+    appointmentsProp.length
+      ? appointmentsProp
+      : MOCK_APPOINTMENTS.map((appointment, index) => ({
+          ...appointment,
+          date: addDays(TODAY, index === 3 ? 1 : 0),
+        }))
+  );
   const [filterDate, setFilterDate] = useState(currentDateKey);
   const [appointmentDate, setAppointmentDate] = useState(currentDateKey);
   const [activeTab, setActiveTab] = useState<'appointments' | 'waiting' | 'washing' | 'completed'>('appointments');
@@ -95,13 +79,22 @@ export default function Scheduling({
   }, [appointmentDate]);
 
   useEffect(() => {
-    try {
-      localStorage.setItem(APPOINTMENTS_STORAGE_KEY, JSON.stringify(appointments));
-    } catch (e) {}
-  }, [appointments]);
+    setAppointments(
+      appointmentsProp.length
+        ? appointmentsProp
+        : MOCK_APPOINTMENTS.map((appointment, index) => ({
+            ...appointment,
+            date: addDays(TODAY, index === 3 ? 1 : 0),
+          }))
+    );
+  }, [appointmentsProp]);
 
   useEffect(() => {
-    setAppointments(prev => prev.filter(appointment => appointment.date >= currentDateKey));
+    const nextAppointments = appointments.filter(appointment => appointment.date >= currentDateKey);
+    if (nextAppointments.length !== appointments.length) {
+      setAppointments(nextAppointments);
+      void onUpdateAppointments(nextAppointments);
+    }
   }, [currentDateKey]);
 
   const pendingAppointmentsForDate = appointments.filter((appointment) => {
@@ -187,7 +180,9 @@ export default function Scheduling({
   const isDateInNextDays = nextDays.includes(filterDate);
 
   const handleStatusChange = (id: string, newStatus: Appointment['status']) => {
-    setAppointments(prev => prev.map(apt => apt.id === id ? { ...apt, status: newStatus } : apt));
+    const nextAppointments = appointments.map(apt => apt.id === id ? { ...apt, status: newStatus } : apt);
+    setAppointments(nextAppointments);
+    void onUpdateAppointments(nextAppointments);
   };
 
   const TIME_SLOTS = ['07:00', '09:00', '11:00', '13:00', '15:00', '17:00'];
@@ -265,7 +260,9 @@ export default function Scheduling({
       image: newApt.photo || 'https://images.unsplash.com/photo-1549317661-bd32c8ce0db2?q=80&w=400&auto=format&fit=crop'
     });
 
-    setAppointments(prev => [...prev, newApt]);
+    const nextAppointments = [...appointments, newApt];
+    setAppointments(nextAppointments);
+    void onUpdateAppointments(nextAppointments);
     alert('Agendamento realizado com sucesso!');
     setIsAdding(false);
     setSelectedTime(null);

@@ -35,19 +35,23 @@ export default function Settings({
   serviceTypes, 
   onUpdateServiceTypes,
   vehicleDb,
-  onUpdateVehicleDb
+  onUpdateVehicleDb,
+  team: teamProp,
+  onUpdateTeam
 }: { 
   onNavigate: (screen: Screen) => void, 
   serviceTypes?: Record<VehicleType, VehicleCategory>, 
   onUpdateServiceTypes?: (types: Record<VehicleType, VehicleCategory>) => void,
   vehicleDb?: VehicleRegistration[],
-  onUpdateVehicleDb?: (db: VehicleRegistration[]) => void
+  onUpdateVehicleDb?: (db: VehicleRegistration[]) => Promise<void> | void,
+  team?: TeamMember[],
+  onUpdateTeam?: (team: TeamMember[]) => Promise<void> | void
 }) {
   const [rules, setRules] = useState<RoleRules[]>(INITIAL_RULES);
   const [activeRole, setActiveRole] = useState<string>('Administrador');
   const [activeTab, setActiveTab] = useState<'access' | 'services' | 'database'>('access');
   const [isSaving, setIsSaving] = useState(false);
-  const [team, setTeam] = useState<TeamMember[]>(INITIAL_TEAM);
+  const [team, setTeam] = useState<TeamMember[]>(teamProp || INITIAL_TEAM);
   const [isAddingMember, setIsAddingMember] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [dbSearchQuery, setDbSearchQuery] = useState('');
@@ -94,11 +98,15 @@ export default function Settings({
     const savedRules = localStorage.getItem('access_rules');
     if (savedRules) setRules(JSON.parse(savedRules));
     
+    setTeam(teamProp || INITIAL_TEAM);
+  }, [teamProp]);
+
+  React.useEffect(() => {
     const savedTeam = localStorage.getItem('team_members');
-    if (savedTeam) setTeam(JSON.parse(savedTeam));
+    if (!teamProp?.length && savedTeam) setTeam(JSON.parse(savedTeam));
   }, []);
 
-  const handleAddMember = () => {
+  const handleAddMember = async () => {
     if (!newMemberName.trim() || !newMemberRegistration.trim() || !newMemberPassword.trim()) {
       alert('Preencha todos os campos.');
       return;
@@ -124,7 +132,7 @@ export default function Settings({
 
     const updatedTeam = [...team, newMember];
     setTeam(updatedTeam);
-    localStorage.setItem('team_members', JSON.stringify(updatedTeam));
+    await onUpdateTeam?.(updatedTeam);
     
     setNewMemberName('');
     setNewMemberRegistration('');
@@ -133,11 +141,11 @@ export default function Settings({
     alert('Colaborador adicionado com sucesso!');
   };
 
-  const handleDeleteMember = (id: string) => {
+  const handleDeleteMember = async (id: string) => {
     if (confirm('Tem certeza que deseja remover este colaborador?')) {
       const updatedTeam = team.filter(m => m.id !== id);
       setTeam(updatedTeam);
-      localStorage.setItem('team_members', JSON.stringify(updatedTeam));
+      await onUpdateTeam?.(updatedTeam);
       setOpenMenuId(null);
     }
   };

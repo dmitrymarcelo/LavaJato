@@ -4,16 +4,17 @@ import { Lock, Mail, ArrowRight, CheckCircle2 } from 'lucide-react';
 import { digitsOnly, validateStrongPassword } from '../utils/app';
 
 interface LoginProps {
-  onLogin: () => void;
+  onLogin: (registration: string, password: string) => Promise<void>;
 }
 
 export default function Login({ onLogin }: LoginProps) {
   const [registration, setRegistration] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const passwordError = password ? validateStrongPassword(password) : null;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (passwordError) {
@@ -21,11 +22,14 @@ export default function Login({ onLogin }: LoginProps) {
     }
 
     setIsLoading(true);
-
-    setTimeout(() => {
+    setError(null);
+    try {
+      await onLogin(registration, password);
+    } catch (err: any) {
+      setError(err.message || 'Falha ao autenticar.');
+    } finally {
       setIsLoading(false);
-      onLogin();
-    }, 1500);
+    }
   };
 
   return (
@@ -117,6 +121,7 @@ export default function Login({ onLogin }: LoginProps) {
                 </>
               )}
             </button>
+            {error && <p className="text-sm font-bold text-rose-600 text-center">{error}</p>}
           </form>
         </motion.div>
       </div>

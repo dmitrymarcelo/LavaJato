@@ -17,7 +17,7 @@ const PHOTO_TYPES = [
   { id: 'interior', label: 'Interior' }
 ];
 
-export default function InspectionPre({ onNavigate, onStartWash, elapsedMinutes = 0 }: { onNavigate: (screen: Screen) => void, onStartWash: (washers: string[]) => void, elapsedMinutes?: number }) {
+export default function InspectionPre({ onNavigate, onStartWash, elapsedMinutes = 0, teamMembers: teamMembersProp = [] }: { onNavigate: (screen: Screen) => void, onStartWash: (washers: string[]) => void, elapsedMinutes?: number, teamMembers?: TeamMember[] }) {
   const [photos, setPhotos] = useState<Record<string, string>>({});
   const [activePhotoId, setActivePhotoId] = useState<string | null>(null);
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
@@ -25,6 +25,10 @@ export default function InspectionPre({ onNavigate, onStartWash, elapsedMinutes 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
+    if (teamMembersProp.length) {
+      setTeamMembers(teamMembersProp.filter((m: TeamMember) => m.status !== 'offline'));
+      return;
+    }
     const savedTeam = localStorage.getItem('team_members');
     if (savedTeam) {
       const parsedTeam = JSON.parse(savedTeam);
@@ -32,7 +36,7 @@ export default function InspectionPre({ onNavigate, onStartWash, elapsedMinutes 
     } else {
       setTeamMembers(INITIAL_TEAM.filter(m => m.status !== 'offline'));
     }
-  }, []);
+  }, [teamMembersProp]);
 
   const handlePhotoClick = (id: string) => {
     setActivePhotoId(id);
