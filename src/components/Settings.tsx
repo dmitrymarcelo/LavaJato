@@ -1,0 +1,839 @@
+import React, { useState } from 'react';
+import { Shield, UserCog, CheckCircle2, XCircle, Save, Info, Lock, Eye, Edit3, Trash2, BarChart3, Users, UserPlus, Star, Clock, MoreVertical, Search, Filter, ShieldCheck, Car, Bike, Truck, Ship, Plus, Upload, FileSpreadsheet, Download } from 'lucide-react';
+import { Screen, TeamMember, INITIAL_TEAM, VehicleCategory, VehicleType, ServiceTypeOption, VehicleRegistration } from '../types';
+import { motion, AnimatePresence } from 'motion/react';
+
+interface Permission {
+  id: string;
+  label: string;
+  description: string;
+  icon: React.ReactNode;
+}
+
+interface RoleRules {
+  role: string;
+  permissions: string[];
+}
+
+const PERMISSIONS: Permission[] = [
+  { id: 'view_analytics', label: 'Ver Relatórios', description: 'Acesso total ao módulo de produtividade e faturamento.', icon: <BarChart3 className="w-4 h-4" /> },
+  { id: 'manage_team', label: 'Gerenciar Equipe', description: 'Adicionar, editar ou remover membros da equipe.', icon: <UserCog className="w-4 h-4" /> },
+  { id: 'edit_services', label: 'Editar Serviços', description: 'Alterar preços ou tipos de serviços em andamento.', icon: <Edit3 className="w-4 h-4" /> },
+  { id: 'delete_services', label: 'Excluir Serviços', description: 'Remover registros de serviços do sistema.', icon: <Trash2 className="w-4 h-4" /> },
+  { id: 'bypass_inspection', label: 'Pular Inspeção', description: 'Permitir iniciar lavagem sem fotos obrigatórias.', icon: <Eye className="w-4 h-4" /> },
+  { id: 'manage_b2b', label: 'Filiais', description: 'Gerenciar contratos e frotas de empresas.', icon: <Shield className="w-4 h-4" /> },
+];
+
+const INITIAL_RULES: RoleRules[] = [
+  { role: 'Administrador', permissions: PERMISSIONS.map(p => p.id) },
+  { role: 'Lavador', permissions: [] },
+];
+
+export default function Settings({ 
+  onNavigate, 
+  serviceTypes, 
+  onUpdateServiceTypes,
+  vehicleDb,
+  onUpdateVehicleDb
+}: { 
+  onNavigate: (screen: Screen) => void, 
+  serviceTypes?: Record<VehicleType, VehicleCategory>, 
+  onUpdateServiceTypes?: (types: Record<VehicleType, VehicleCategory>) => void,
+  vehicleDb?: VehicleRegistration[],
+  onUpdateVehicleDb?: (db: VehicleRegistration[]) => void
+}) {
+  const [rules, setRules] = useState<RoleRules[]>(INITIAL_RULES);
+  const [activeRole, setActiveRole] = useState<string>('Administrador');
+  const [activeTab, setActiveTab] = useState<'access' | 'services' | 'database'>('access');
+  const [isSaving, setIsSaving] = useState(false);
+  const [team, setTeam] = useState<TeamMember[]>(INITIAL_TEAM);
+  const [isAddingMember, setIsAddingMember] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [dbSearchQuery, setDbSearchQuery] = useState('');
+  const [editingService, setEditingService] = useState<{ vehicle: VehicleType, service: ServiceTypeOption } | null>(null);
+  const [isAddingVehicle, setIsAddingVehicle] = useState(false);
+  const [newVehicle, setNewVehicle] = useState<Partial<VehicleRegistration>>({ type: 'car' });
+
+  const filteredTeam = team.filter(member => 
+    member.role === activeRole && (
+      member.name.toLowerCase().includes(searchQuery.toLowerCase())
+    )
+  );
+
+  const filteredDb = vehicleDb?.filter(v => 
+    v.plate.toLowerCase().includes(dbSearchQuery.toLowerCase()) ||
+    v.customer.toLowerCase().includes(dbSearchQuery.toLowerCase()) ||
+    v.model.toLowerCase().includes(dbSearchQuery.toLowerCase())
+  ) || [];
+
+  const togglePermission = (roleName: string, permissionId: string) => {
+    setRules(prev => prev.map(r => {
+      if (r.role === roleName) {
+        const hasPermission = r.permissions.includes(permissionId);
+        return {
+          ...r,
+          permissions: hasPermission 
+            ? r.permissions.filter(id => id !== permissionId)
+            : [...r.permissions, permissionId]
+        };
+      }
+      return r;
+    }));
+  };
+
+  const [newMemberName, setNewMemberName] = useState('');
+  const [newMemberRegistration, setNewMemberRegistration] = useState('');
+  const [newMemberPassword, setNewMemberPassword] = useState('');
+  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
+
+  // Load saved data on mount
+  React.useEffect(() => {
+    const savedRules = localStorage.getItem('access_rules');
+    if (savedRules) setRules(JSON.parse(savedRules));
+    
+    const savedTeam = localStorage.getItem('team_members');
+    if (savedTeam) setTeam(JSON.parse(savedTeam));
+  }, []);
+
+  const handleAddMember = () => {
+    if (!newMemberName.trim() || !newMemberRegistration.trim() || !newMemberPassword.trim()) {
+      alert('Preencha todos os campos.');
+      return;
+    }
+
+    const newMember: TeamMember = {
+      id: Math.random().toString(36).substr(2, 9),
+      name: newMemberName,
+      registration: newMemberRegistration,
+      password: newMemberPassword,
+      role: activeRole,
+      rating: 5.0,
+      servicesCount: 0,
+      status: 'offline',
+      avatar: `https://i.pravatar.cc/150?u=${Math.random()}`,
+      efficiency: '100%'
+    };
+
+    const updatedTeam = [...team, newMember];
+    setTeam(updatedTeam);
+    localStorage.setItem('team_members', JSON.stringify(updatedTeam));
+    
+    setNewMemberName('');
+    setNewMemberRegistration('');
+    setNewMemberPassword('');
+    setIsAddingMember(false);
+    alert('Colaborador adicionado com sucesso!');
+  };
+
+  const handleDeleteMember = (id: string) => {
+    if (confirm('Tem certeza que deseja remover este colaborador?')) {
+      const updatedTeam = team.filter(m => m.id !== id);
+      setTeam(updatedTeam);
+      localStorage.setItem('team_members', JSON.stringify(updatedTeam));
+      setOpenMenuId(null);
+    }
+  };
+
+  const handleSave = () => {
+    setIsSaving(true);
+    setTimeout(() => {
+      localStorage.setItem('access_rules', JSON.stringify(rules));
+      setIsSaving(false);
+      alert('Configurações atualizadas com sucesso!');
+    }, 1000);
+  };
+
+  const handleUpdateService = (vehicle: VehicleType, serviceId: string, field: keyof ServiceTypeOption, value: string | number) => {
+    if (!serviceTypes || !onUpdateServiceTypes) return;
+
+    const updatedTypes = { ...serviceTypes };
+    const vehicleServices = [...updatedTypes[vehicle].services];
+    const serviceIndex = vehicleServices.findIndex(s => s.id === serviceId);
+
+    if (serviceIndex !== -1) {
+      vehicleServices[serviceIndex] = {
+        ...vehicleServices[serviceIndex],
+        [field]: value
+      };
+      updatedTypes[vehicle] = {
+        ...updatedTypes[vehicle],
+        services: vehicleServices
+      };
+      onUpdateServiceTypes(updatedTypes);
+    }
+  };
+
+  const handleAddService = (vehicle: VehicleType) => {
+    if (!serviceTypes || !onUpdateServiceTypes) return;
+    
+    const newService: ServiceTypeOption = {
+      id: Math.random().toString(36).substr(2, 9),
+      label: 'Novo Serviço',
+      price: 0
+    };
+    
+    const updatedTypes = { ...serviceTypes };
+    updatedTypes[vehicle] = {
+      ...updatedTypes[vehicle],
+      services: [...updatedTypes[vehicle].services, newService]
+    };
+    
+    onUpdateServiceTypes(updatedTypes);
+  };
+
+  const handleAddVehicle = () => {
+    if (!newVehicle.plate || !newVehicle.customer || !newVehicle.model) {
+      alert('Preencha placa, cliente e modelo.');
+      return;
+    }
+    
+    if (onUpdateVehicleDb) {
+      const currentDb = vehicleDb || [];
+      onUpdateVehicleDb([...currentDb, newVehicle as VehicleRegistration]);
+      setIsAddingVehicle(false);
+      setNewVehicle({ type: 'car' });
+      alert('Veículo cadastrado com sucesso!');
+    }
+  };
+
+  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const text = e.target?.result as string;
+      if (!text) return;
+
+      const lines = text.split('\n');
+      const newVehicles: VehicleRegistration[] = [];
+
+      // Skip header row if exists (assuming first row is header based on prompt)
+      // The prompt shows header: cod_veic;cod_cliente;...
+      const startIndex = lines[0].includes('cod_veic') ? 1 : 0;
+
+      for (let i = startIndex; i < lines.length; i++) {
+        const line = lines[i].trim();
+        if (!line) continue;
+
+        // Split by semicolon as per the example
+        const cols = line.split(';');
+        
+        // Mapping based on the provided CSV structure:
+        // cod_placa is index 3 (0-based) -> "=""AAA0003"""
+        // proprietario is index 13
+        // marca_modelo is index 27
+        // tipo_veiculo is index 10
+        // cidade is index 8
+        // estado is index 11
+        
+        if (cols.length < 14) continue; // Basic validation
+
+        // Clean up plate: remove "="" and """
+        let plate = cols[3]?.replace(/[="]/g, '').trim() || '';
+        const customer = cols[13]?.replace(/["]/g, '').trim() || 'Desconhecido';
+        const model = cols[27]?.replace(/["]/g, '').trim() || 'Modelo Desconhecido';
+        const rawType = cols[10]?.replace(/["]/g, '').trim().toUpperCase() || '';
+        const city = cols[8]?.replace(/["]/g, '').trim();
+        const state = cols[11]?.replace(/["]/g, '').trim();
+
+        let type: VehicleType = 'car';
+        if (rawType.includes('MOTO')) type = 'motorcycle';
+        else if (rawType.includes('CAMINHAO') || rawType.includes('CAMINHÃO')) type = 'truck';
+        else if (rawType.includes('LANCHA') || rawType.includes('BARCO') || rawType.includes('REBOQUE')) type = 'boat';
+        // Default to car for PASSEIO, PICAPE, VAN, etc.
+
+        if (plate) {
+          newVehicles.push({
+            plate,
+            customer,
+            model,
+            type,
+            city,
+            state
+          });
+        }
+      }
+
+      if (onUpdateVehicleDb) {
+        // Merge with existing or replace? Usually import adds/updates.
+        // Let's replace for now as it seems to be a full base import, or we can append.
+        // To be safe and avoid duplicates, we can use a Map.
+        const currentDb = vehicleDb || [];
+        const dbMap = new Map(currentDb.map(v => [v.plate, v]));
+        
+        newVehicles.forEach(v => {
+          dbMap.set(v.plate, v);
+        });
+
+        onUpdateVehicleDb(Array.from(dbMap.values()));
+        alert(`${newVehicles.length} veículos importados com sucesso!`);
+      }
+    };
+    reader.readAsText(file);
+  };
+
+  const currentRoleRules = rules.find(r => r.role === activeRole);
+
+  return (
+    <div className="flex flex-col min-h-full bg-white pb-24">
+      {/* Tabs */}
+      <div className="flex px-6 border-b border-slate-100 overflow-x-auto no-scrollbar pt-6">
+        <button 
+          onClick={() => setActiveTab('access')}
+          className={`pb-4 pt-2 px-4 font-bold text-sm border-b-2 transition-colors whitespace-nowrap ${activeTab === 'access' ? 'border-primary text-primary' : 'border-transparent text-slate-400'}`}
+        >
+          Acesso & Equipe
+        </button>
+        <button 
+          onClick={() => setActiveTab('services')}
+          className={`pb-4 pt-2 px-4 font-bold text-sm border-b-2 transition-colors whitespace-nowrap ${activeTab === 'services' ? 'border-primary text-primary' : 'border-transparent text-slate-400'}`}
+        >
+          Serviços & Preços
+        </button>
+        <button 
+          onClick={() => setActiveTab('database')}
+          className={`pb-4 pt-2 px-4 font-bold text-sm border-b-2 transition-colors whitespace-nowrap ${activeTab === 'database' ? 'border-primary text-primary' : 'border-transparent text-slate-400'}`}
+        >
+          Cadastros de Clientes
+        </button>
+      </div>
+
+      <div className="flex-1 flex flex-col lg:flex-row">
+        {activeTab === 'access' ? (
+          <>
+            {/* Role Sidebar */}
+            <div className="w-full lg:w-64 border-b lg:border-b-0 lg:border-r border-slate-100 p-4 space-y-2">
+              <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 ml-2 mb-4">Níveis de Acesso</p>
+              {rules.map((r) => (
+                <button
+                  key={r.role}
+                  onClick={() => setActiveRole(r.role)}
+                  className={`w-full flex items-center justify-between px-4 py-3 rounded-xl transition-all ${
+                    activeRole === r.role 
+                      ? 'bg-primary text-white shadow-lg shadow-primary/20' 
+                      : 'text-slate-600 hover:bg-slate-50'
+                  }`}
+                >
+                  <span className="font-bold text-sm">{r.role}</span>
+                  {activeRole === r.role && <CheckCircle2 className="w-4 h-4" />}
+                </button>
+              ))}
+            </div>
+
+            {/* Permissions List */}
+            <div className="flex-1 p-6 space-y-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-lg font-black text-slate-900">Permissões para {activeRole}</h3>
+                  <p className="text-xs text-slate-500">Habilite ou desabilite as funcionalidades abaixo.</p>
+                </div>
+                {activeRole === 'Administrador' && (
+                  <div className="flex items-center gap-2 bg-amber-50 text-amber-600 px-3 py-1.5 rounded-lg border border-amber-100">
+                    <Lock className="w-4 h-4" />
+                    <span className="text-[10px] font-bold uppercase">Acesso Total</span>
+                  </div>
+                )}
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {PERMISSIONS.map((perm) => {
+                  const isEnabled = currentRoleRules?.permissions.includes(perm.id);
+                  const isDisabled = activeRole === 'Administrador';
+
+                  return (
+                    <div 
+                      key={perm.id}
+                      onClick={() => !isDisabled && togglePermission(activeRole, perm.id)}
+                      className={`p-4 rounded-2xl border transition-all cursor-pointer flex items-start gap-4 ${
+                        isEnabled 
+                          ? 'border-primary/20 bg-primary/5' 
+                          : 'border-slate-100 bg-white hover:border-slate-200'
+                      } ${isDisabled ? 'opacity-80 cursor-default' : 'active:scale-[0.98]'}`}
+                    >
+                      <div className={`p-2 rounded-xl ${isEnabled ? 'bg-primary text-white' : 'bg-slate-100 text-slate-400'}`}>
+                        {perm.icon}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between mb-1">
+                          <p className="text-sm font-bold text-slate-900">{perm.label}</p>
+                          <div className={`w-10 h-5 rounded-full relative transition-colors ${isEnabled ? 'bg-primary' : 'bg-slate-200'}`}>
+                            <div className={`absolute top-1 w-3 h-3 bg-white rounded-full transition-all ${isEnabled ? 'right-1' : 'left-1'}`} />
+                          </div>
+                        </div>
+                        <p className="text-[10px] text-slate-500 leading-relaxed">{perm.description}</p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Info Card */}
+              <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 flex items-start gap-3">
+                <Info className="w-5 h-5 text-slate-400 shrink-0 mt-0.5" />
+                <p className="text-xs text-slate-600 leading-relaxed">
+                  As alterações feitas aqui entrarão em vigor imediatamente para todos os usuários vinculados a este nível de acesso. 
+                  Certifique-se de revisar as permissões de segurança antes de salvar.
+                </p>
+              </div>
+
+              {/* Team Management Section */}
+              <div className="pt-8 border-t border-slate-100">
+                <div className="flex items-center justify-between mb-6">
+                  <div>
+                    <h3 className="text-lg font-black text-slate-900">Membros da Equipe ({activeRole})</h3>
+                    <p className="text-xs text-slate-500">Gerencie os colaboradores vinculados a este nível de acesso.</p>
+                  </div>
+                  <button 
+                    onClick={() => setIsAddingMember(true)}
+                    className="bg-primary text-white px-4 py-2 rounded-xl font-bold text-xs flex items-center gap-2 active:scale-95 transition-all shadow-lg shadow-primary/20"
+                  >
+                    <UserPlus className="w-4 h-4" />
+                    <span>ADICIONAR</span>
+                  </button>
+                </div>
+
+                <div className="relative mb-4">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                  <input 
+                    type="text" 
+                    placeholder="Buscar por nome..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="w-full h-11 pl-10 pr-4 bg-slate-50 border border-slate-100 rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary/20 transition-all text-slate-900"
+                  />
+                </div>
+
+                <div className="space-y-3">
+                  {filteredTeam.length === 0 ? (
+                    <div className="py-8 text-center bg-slate-50 rounded-2xl border border-dashed border-slate-200">
+                      <Users className="w-8 h-8 text-slate-300 mx-auto mb-2" />
+                      <p className="text-xs text-slate-500 font-medium">Nenhum {activeRole} encontrado</p>
+                    </div>
+                  ) : (
+                    filteredTeam.map((member, index) => (
+                      <motion.div
+                        key={member.id}
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: index * 0.05 }}
+                        className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex items-center gap-4 group"
+                      >
+                        <div className="relative">
+                          <img src={member.avatar} alt={member.name} className="w-10 h-10 rounded-full border-2 border-white shadow-sm" />
+                          <div className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-white ${
+                            member.status === 'active' ? 'bg-emerald-500' :
+                            member.status === 'break' ? 'bg-amber-500' : 'bg-slate-300'
+                          }`} />
+                        </div>
+
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <h4 className="font-bold text-sm text-slate-900 truncate">{member.name}</h4>
+                            {member.role.includes('Líder') && <ShieldCheck className="w-3.5 h-3.5 text-primary" />}
+                          </div>
+                          <div className="flex items-center gap-3 mt-1">
+                            <div className="flex items-center gap-1">
+                              <Star className="w-2.5 h-2.5 text-amber-500 fill-amber-500" />
+                              <span className="text-[9px] font-bold text-slate-700">{member.rating}</span>
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <CheckCircle2 className="w-2.5 h-2.5 text-emerald-500" />
+                              <span className="text-[9px] font-bold text-slate-700">{member.servicesCount} serv.</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="relative">
+                          <button 
+                            onClick={() => setOpenMenuId(openMenuId === member.id ? null : member.id)}
+                            className="p-2 text-slate-400 hover:text-slate-600 transition-colors"
+                          >
+                            <MoreVertical className="w-4 h-4" />
+                          </button>
+                          
+                          {openMenuId === member.id && (
+                            <>
+                              <div className="fixed inset-0 z-10" onClick={() => setOpenMenuId(null)} />
+                              <div className="absolute right-0 top-full mt-1 w-32 bg-white rounded-xl shadow-xl border border-slate-100 z-20 overflow-hidden">
+                                <button 
+                                  onClick={() => handleDeleteMember(member.id)}
+                                  className="w-full text-left px-4 py-3 text-xs font-bold text-rose-500 hover:bg-rose-50 flex items-center gap-2"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                  Excluir
+                                </button>
+                              </div>
+                            </>
+                          )}
+                        </div>
+                      </motion.div>
+                    ))
+                  )}
+                </div>
+              </div>
+            </div>
+          </>
+        ) : activeTab === 'services' ? (
+          <div className="flex-1 p-6 space-y-8">
+            {serviceTypes && Object.entries(serviceTypes).map(([type, category]) => (
+              <div key={type} className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="p-2 bg-slate-100 rounded-xl text-slate-600">
+                      {type === 'car' && <Car className="w-5 h-5" />}
+                      {type === 'motorcycle' && <Bike className="w-5 h-5" />}
+                      {type === 'truck' && <Truck className="w-5 h-5" />}
+                      {type === 'boat' && <Ship className="w-5 h-5" />}
+                    </div>
+                    <h3 className="text-lg font-black text-slate-900">{category.label}</h3>
+                  </div>
+                  <button 
+                    onClick={() => handleAddService(type as VehicleType)}
+                    className="flex items-center gap-1 text-xs font-bold text-primary hover:bg-primary/5 px-3 py-1.5 rounded-lg transition-colors"
+                  >
+                    <Plus className="w-4 h-4" />
+                    Adicionar Serviço
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {category.services.map((service) => (
+                    <div key={service.id} className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex items-center justify-between">
+                      <div className="flex-1">
+                        <input 
+                          type="text"
+                          value={service.label}
+                          onChange={(e) => handleUpdateService(type as VehicleType, service.id, 'label', e.target.value)}
+                          className="font-bold text-slate-900 bg-transparent border-none p-0 focus:ring-0 w-full mb-1"
+                        />
+                        <p className="text-xs text-slate-400 font-medium uppercase tracking-wide">Preço Base</p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-slate-400 text-sm font-medium">R$</span>
+                        <input 
+                          type="number"
+                          value={service.price}
+                          onChange={(e) => handleUpdateService(type as VehicleType, service.id, 'price', Number(e.target.value))}
+                          className="w-20 font-black text-lg text-primary bg-slate-50 border-none rounded-lg px-2 py-1 text-right focus:ring-2 focus:ring-primary/20"
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="flex-1 p-6 space-y-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-lg font-black text-slate-900">Base de Veículos e Centros de Custo</h3>
+                <p className="text-xs text-slate-500">Importe dados via CSV ou gerencie cadastros manualmente.</p>
+              </div>
+              <div className="flex gap-2">
+                <button 
+                  onClick={() => setIsAddingVehicle(true)}
+                  className="bg-primary text-white px-4 py-2 rounded-xl font-bold text-xs flex items-center gap-2 active:scale-95 transition-all shadow-sm hover:bg-blue-600"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>Novo Cadastro</span>
+                </button>
+                <label className="bg-white border border-slate-200 text-slate-600 px-4 py-2 rounded-xl font-bold text-xs flex items-center gap-2 active:scale-95 transition-all shadow-sm cursor-pointer hover:bg-slate-50 hover:border-primary hover:text-primary">
+                  <Upload className="w-4 h-4" />
+                  <span>Importar CSV</span>
+                  <input type="file" accept=".csv" className="hidden" onChange={handleFileUpload} />
+                </label>
+              </div>
+            </div>
+
+            <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 flex items-start gap-3">
+              <FileSpreadsheet className="w-5 h-5 text-emerald-500 shrink-0 mt-0.5" />
+              <div>
+                <p className="text-xs font-bold text-slate-900 mb-1">Formato do Arquivo CSV</p>
+                <p className="text-[10px] text-slate-500 leading-relaxed">
+                  O arquivo deve usar ponto e vírgula (;) como separador. As colunas esperadas são: cod_veic; cod_cliente; ...; cod_placa (col 4); ...; proprietario (col 14); ...; marca_modelo (col 28).
+                </p>
+              </div>
+            </div>
+
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+              <input 
+                type="text" 
+                placeholder="Buscar por placa, centro de custo ou modelo..."
+                value={dbSearchQuery}
+                onChange={(e) => setDbSearchQuery(e.target.value)}
+                className="w-full h-11 pl-10 pr-4 bg-slate-50 border border-slate-100 rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary/20 transition-all text-slate-900"
+              />
+            </div>
+
+            <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left">
+                  <thead className="bg-slate-50 border-b border-slate-100">
+                    <tr>
+                      <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-widest text-slate-400">Placa</th>
+                      <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-widest text-slate-400">Centro de Custo</th>
+                      <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-widest text-slate-400">Veículo</th>
+                      <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-widest text-slate-400">Tipo</th>
+                      <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-widest text-slate-400">Local</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {filteredDb.length === 0 ? (
+                      <tr>
+                        <td colSpan={5} className="px-4 py-8 text-center text-xs text-slate-400 font-medium">
+                          Nenhum registro encontrado. Importe uma base de dados.
+                        </td>
+                      </tr>
+                    ) : (
+                      filteredDb.slice(0, 50).map((vehicle, i) => (
+                        <tr key={`${vehicle.plate}-${i}`} className="hover:bg-slate-50 transition-colors">
+                          <td className="px-4 py-3 text-xs font-black text-slate-900">{vehicle.plate}</td>
+                          <td className="px-4 py-3 text-xs font-medium text-slate-600">
+                            {vehicle.customer}
+                            {vehicle.thirdPartyName && (
+                              <div className="text-[10px] text-slate-400 mt-0.5">
+                                Terceiro: {vehicle.thirdPartyName}
+                              </div>
+                            )}
+                          </td>
+                          <td className="px-4 py-3 text-xs text-slate-500">{vehicle.model}</td>
+                          <td className="px-4 py-3">
+                            <span className={`text-[10px] font-bold px-2 py-1 rounded-full uppercase ${
+                              vehicle.type === 'car' ? 'bg-blue-50 text-blue-600' :
+                              vehicle.type === 'motorcycle' ? 'bg-amber-50 text-amber-600' :
+                              vehicle.type === 'truck' ? 'bg-purple-50 text-purple-600' :
+                              'bg-cyan-50 text-cyan-600'
+                            }`}>
+                              {vehicle.type === 'car' ? 'Carro' : 
+                               vehicle.type === 'motorcycle' ? 'Moto' : 
+                               vehicle.type === 'truck' ? 'Caminhão' : 'Lancha'}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-xs text-slate-400">{vehicle.city} - {vehicle.state}</td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+              {filteredDb.length > 50 && (
+                <div className="p-3 border-t border-slate-100 text-center">
+                  <p className="text-xs text-slate-400">Exibindo 50 de {filteredDb.length} registros</p>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Add Member Modal */}
+      <AnimatePresence>
+        {isAddingMember && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100] bg-black/40 backdrop-blur-sm flex items-end justify-center p-4"
+          >
+            <motion.div
+              initial={{ y: "100%" }}
+              animate={{ y: 0 }}
+              exit={{ y: "100%" }}
+              transition={{ type: "spring", damping: 25, stiffness: 200 }}
+              className="bg-white w-full max-w-[400px] rounded-t-[32px] p-6 shadow-2xl space-y-6"
+            >
+              <div className="flex justify-between items-center">
+                <h3 className="text-xl font-black text-slate-900">Novo {activeRole}</h3>
+                <button onClick={() => setIsAddingMember(false)} className="text-slate-400 hover:text-slate-600 font-bold">Fechar</button>
+              </div>
+
+              <div className="space-y-4">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400 ml-1">Nome Completo</label>
+                  <input 
+                    type="text" 
+                    placeholder="Ex: Carlos Alberto"
+                    value={newMemberName}
+                    onChange={(e) => setNewMemberName(e.target.value)}
+                    className="w-full h-14 px-4 bg-slate-50 border border-slate-100 rounded-2xl outline-none focus:border-primary transition-all text-slate-900"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400 ml-1">Matrícula</label>
+                  <input 
+                    type="text" 
+                    placeholder="Ex: 1001"
+                    value={newMemberRegistration}
+                    onChange={(e) => setNewMemberRegistration(e.target.value)}
+                    className="w-full h-14 px-4 bg-slate-50 border border-slate-100 rounded-2xl outline-none focus:border-primary transition-all text-slate-900"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400 ml-1">Senha</label>
+                  <input 
+                    type="password" 
+                    placeholder="••••••••"
+                    value={newMemberPassword}
+                    onChange={(e) => setNewMemberPassword(e.target.value)}
+                    className="w-full h-14 px-4 bg-slate-50 border border-slate-100 rounded-2xl outline-none focus:border-primary transition-all text-slate-900"
+                  />
+                </div>
+                
+                <div className="pt-2">
+                  <button 
+                    onClick={handleAddMember}
+                    className="w-full bg-primary text-white font-bold py-4 rounded-2xl shadow-lg shadow-primary/20 active:scale-[0.98] transition-all"
+                  >
+                    Confirmar Cadastro
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+
+        {/* Add Vehicle Modal */}
+        {isAddingVehicle && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100] bg-black/40 backdrop-blur-sm flex items-end justify-center p-4"
+          >
+            <motion.div
+              initial={{ y: "100%" }}
+              animate={{ y: 0 }}
+              exit={{ y: "100%" }}
+              transition={{ type: "spring", damping: 25, stiffness: 200 }}
+              className="bg-white w-full max-w-[400px] rounded-t-[32px] p-6 shadow-2xl space-y-6"
+            >
+              <div className="flex justify-between items-center">
+                <h3 className="text-xl font-black text-slate-900">Novo Veículo</h3>
+                <button onClick={() => setIsAddingVehicle(false)} className="text-slate-400 hover:text-slate-600 font-bold">Fechar</button>
+              </div>
+
+              <div className="space-y-4">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400 ml-1">Placa</label>
+                  <input 
+                    type="text" 
+                    placeholder="Ex: ABC-1234"
+                    value={newVehicle.plate || ''}
+                    onChange={(e) => setNewVehicle({...newVehicle, plate: e.target.value.toUpperCase()})}
+                    className="w-full h-12 px-4 bg-slate-50 border border-slate-100 rounded-xl outline-none focus:border-primary transition-all text-slate-900 font-bold uppercase"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400 ml-1">Centro de Custo</label>
+                  <input 
+                    type="text" 
+                    placeholder="Ex: João Silva"
+                    value={newVehicle.customer || ''}
+                    onChange={(e) => setNewVehicle({...newVehicle, customer: e.target.value})}
+                    className="w-full h-12 px-4 bg-slate-50 border border-slate-100 rounded-xl outline-none focus:border-primary transition-all text-slate-900"
+                  />
+                  
+                  <label className="flex items-center gap-2 mt-2 ml-1 cursor-pointer">
+                    <input 
+                      type="checkbox" 
+                      checked={!!newVehicle.thirdPartyName || !!newVehicle.thirdPartyCpf}
+                      onChange={(e) => {
+                        if (!e.target.checked) {
+                          setNewVehicle({...newVehicle, thirdPartyName: undefined, thirdPartyCpf: undefined});
+                        } else {
+                          setNewVehicle({...newVehicle, thirdPartyName: '', thirdPartyCpf: ''});
+                        }
+                      }}
+                      className="w-4 h-4 text-primary rounded border-slate-300 focus:ring-primary"
+                    />
+                    <span className="text-sm font-bold text-slate-600">Cadastro para Terceiro</span>
+                  </label>
+
+                  {(newVehicle.thirdPartyName !== undefined || newVehicle.thirdPartyCpf !== undefined) && (
+                    <div className="grid grid-cols-2 gap-3 mt-2">
+                      <input 
+                        type="text"
+                        value={newVehicle.thirdPartyName || ''}
+                        onChange={(e) => setNewVehicle({...newVehicle, thirdPartyName: e.target.value})}
+                        placeholder="Nome do Terceiro"
+                        className="w-full rounded-xl border border-slate-200 bg-white h-12 px-4 text-slate-900 font-medium focus:border-primary focus:ring-0 transition-all shadow-sm text-sm"
+                      />
+                      <input 
+                        type="text"
+                        value={newVehicle.thirdPartyCpf || ''}
+                        onChange={(e) => setNewVehicle({...newVehicle, thirdPartyCpf: e.target.value})}
+                        placeholder="CPF do Terceiro"
+                        className="w-full rounded-xl border border-slate-200 bg-white h-12 px-4 text-slate-900 font-medium focus:border-primary focus:ring-0 transition-all shadow-sm text-sm"
+                      />
+                    </div>
+                  )}
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400 ml-1">Modelo</label>
+                  <input 
+                    type="text" 
+                    placeholder="Ex: Corolla"
+                    value={newVehicle.model || ''}
+                    onChange={(e) => setNewVehicle({...newVehicle, model: e.target.value})}
+                    className="w-full h-12 px-4 bg-slate-50 border border-slate-100 rounded-xl outline-none focus:border-primary transition-all text-slate-900"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400 ml-1">Tipo</label>
+                  <select 
+                    value={newVehicle.type || 'car'}
+                    onChange={(e) => setNewVehicle({...newVehicle, type: e.target.value as VehicleType})}
+                    className="w-full h-12 px-4 bg-slate-50 border border-slate-100 rounded-xl outline-none focus:border-primary transition-all text-slate-900"
+                  >
+                    <option value="car">Carro</option>
+                    <option value="motorcycle">Moto</option>
+                    <option value="truck">Caminhão</option>
+                    <option value="boat">Lancha</option>
+                  </select>
+                </div>
+                
+                <div className="pt-2">
+                  <button 
+                    onClick={handleAddVehicle}
+                    className="w-full bg-primary text-white font-bold py-4 rounded-2xl shadow-lg shadow-primary/20 active:scale-[0.98] transition-all"
+                  >
+                    Confirmar Cadastro
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Footer Actions */}
+      <div className="fixed bottom-0 left-0 right-0 lg:left-72 bg-white/95 backdrop-blur-md border-t border-slate-100 p-4 flex justify-end z-30">
+        <div className="flex gap-3 w-full max-w-md">
+          <button 
+            onClick={() => onNavigate('dashboard')}
+            className="flex-1 py-4 rounded-2xl font-bold text-slate-500 hover:bg-slate-50 transition-colors"
+          >
+            Cancelar
+          </button>
+          <button 
+            onClick={handleSave}
+            disabled={isSaving}
+            className="flex-1 bg-primary text-white font-bold py-4 rounded-2xl shadow-lg shadow-primary/20 flex items-center justify-center gap-2 active:scale-[0.98] transition-all disabled:opacity-70"
+          >
+            {isSaving ? (
+              <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+            ) : (
+              <>
+                <Save className="w-5 h-5" />
+                <span>Salvar Alterações</span>
+              </>
+            )}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}

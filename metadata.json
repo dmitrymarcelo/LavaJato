@@ -1,0 +1,7 @@
+{
+  "name": "Lava-Jato Pro Admin",
+  "description": "Sistema completo de gestão para lava-jatos, incluindo check-in, fila operacional, auditoria por fotos e frotas B2B.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}

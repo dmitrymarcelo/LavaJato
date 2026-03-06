@@ -1,0 +1,470 @@
+import React, { useState, useEffect } from 'react';
+import { 
+  Search, 
+  Plus, 
+  Filter, 
+  Package, 
+  AlertTriangle, 
+  CheckCircle2, 
+  MoreVertical, 
+  Trash2, 
+  Edit3, 
+  ArrowUpRight, 
+  ArrowDownLeft,
+  X,
+  Save
+} from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
+import { Screen, Product } from '../types';
+
+const INITIAL_PRODUCTS: Product[] = [
+  {
+    id: '1',
+    name: 'Shampoo Automotivo Neutro',
+    category: 'Limpeza Externa',
+    quantity: 15,
+    minQuantity: 5,
+    unit: 'Litros',
+    price: 45.90,
+    lastRestock: '2024-02-28',
+    status: 'ok',
+    image: 'https://images.unsplash.com/photo-1600456548090-7d1b3f0bbea5?q=80&w=200&auto=format&fit=crop'
+  },
+  {
+    id: '2',
+    name: 'Cera de Carnaúba Premium',
+    category: 'Acabamento',
+    quantity: 2,
+    minQuantity: 4,
+    unit: 'Unidades',
+    price: 89.90,
+    lastRestock: '2024-01-15',
+    status: 'critical',
+    image: 'https://images.unsplash.com/photo-1626806819282-2c1dc01a5e0c?q=80&w=200&auto=format&fit=crop'
+  },
+  {
+    id: '3',
+    name: 'Pretinho para Pneus',
+    category: 'Acabamento',
+    quantity: 8,
+    minQuantity: 10,
+    unit: 'Litros',
+    price: 32.50,
+    lastRestock: '2024-02-10',
+    status: 'low',
+    image: 'https://images.unsplash.com/photo-1625043484555-47841a752840?q=80&w=200&auto=format&fit=crop'
+  },
+  {
+    id: '4',
+    name: 'Pano de Microfibra',
+    category: 'Acessórios',
+    quantity: 50,
+    minQuantity: 20,
+    unit: 'Unidades',
+    price: 12.00,
+    lastRestock: '2024-02-25',
+    status: 'ok',
+    image: 'https://images.unsplash.com/photo-1584622650111-993a426fbf0a?q=80&w=200&auto=format&fit=crop'
+  },
+  {
+    id: '5',
+    name: 'Desengraxante Multiuso',
+    category: 'Limpeza Pesada',
+    quantity: 25,
+    minQuantity: 10,
+    unit: 'Litros',
+    price: 55.00,
+    lastRestock: '2024-02-20',
+    status: 'ok',
+    image: 'https://images.unsplash.com/photo-1585751119414-ef2636f8aede?q=80&w=200&auto=format&fit=crop'
+  }
+];
+
+export default function Inventory({ onNavigate }: { onNavigate: (screen: Screen) => void }) {
+  const [products, setProducts] = useState<Product[]>(() => {
+    try {
+      const saved = localStorage.getItem('inventory_products');
+      return saved ? JSON.parse(saved) : INITIAL_PRODUCTS;
+    } catch (e) {
+      return INITIAL_PRODUCTS;
+    }
+  });
+  const [searchQuery, setSearchQuery] = useState('');
+  const [isAdding, setIsAdding] = useState(false);
+  const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
+  const [filterStatus, setFilterStatus] = useState<'all' | 'ok' | 'low' | 'critical'>('all');
+
+  useEffect(() => {
+    localStorage.setItem('inventory_products', JSON.stringify(products));
+  }, [products]);
+
+  const filteredProducts = products.filter(product => {
+    const matchesSearch = product.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
+                          product.category.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesStatus = filterStatus === 'all' || product.status === filterStatus;
+    return matchesSearch && matchesStatus;
+  });
+
+  const handleDelete = (id: string) => {
+    if (confirm('Tem certeza que deseja remover este produto?')) {
+      setProducts(prev => prev.filter(p => p.id !== id));
+      setOpenMenuId(null);
+    }
+  };
+
+  const handleSaveProduct = (e: React.FormEvent) => {
+    e.preventDefault();
+    const form = e.target as HTMLFormElement;
+    const formData = new FormData(form);
+
+    const quantity = Number(formData.get('quantity'));
+    const minQuantity = Number(formData.get('minQuantity'));
+    
+    let status: Product['status'] = 'ok';
+    if (quantity <= minQuantity / 2) status = 'critical';
+    else if (quantity <= minQuantity) status = 'low';
+
+    const productData: Product = {
+      id: editingProduct ? editingProduct.id : Math.random().toString(36).substr(2, 9),
+      name: formData.get('name') as string,
+      category: formData.get('category') as string,
+      quantity,
+      minQuantity,
+      unit: formData.get('unit') as string,
+      price: Number(formData.get('price')),
+      lastRestock: new Date().toISOString().split('T')[0],
+      status,
+      image: editingProduct?.image || `https://images.unsplash.com/photo-1600456548090-7d1b3f0bbea5?q=80&w=200&auto=format&fit=crop&seed=${Math.random()}`
+    };
+
+    if (editingProduct) {
+      setProducts(prev => prev.map(p => p.id === editingProduct.id ? productData : p));
+    } else {
+      setProducts(prev => [...prev, productData]);
+    }
+
+    setIsAdding(false);
+    setEditingProduct(null);
+  };
+
+  const getStatusColor = (status: Product['status']) => {
+    switch (status) {
+      case 'ok': return 'bg-emerald-50 text-emerald-600 border-emerald-100';
+      case 'low': return 'bg-amber-50 text-amber-600 border-amber-100';
+      case 'critical': return 'bg-rose-50 text-rose-600 border-rose-100';
+      default: return 'bg-slate-50 text-slate-600 border-slate-100';
+    }
+  };
+
+  const getStatusLabel = (status: Product['status']) => {
+    switch (status) {
+      case 'ok': return 'Estoque Normal';
+      case 'low': return 'Estoque Baixo';
+      case 'critical': return 'Crítico';
+      default: return 'Desconhecido';
+    }
+  };
+
+  return (
+    <div className="flex flex-col min-h-full bg-white pb-24">
+      {/* Header */}
+      <div className="px-6 pt-6 pb-2 flex justify-end items-center">
+        <button 
+          onClick={() => {
+            setEditingProduct(null);
+            setIsAdding(true);
+          }}
+          className="bg-primary text-white p-3 rounded-2xl shadow-xl shadow-primary/20 active:scale-95 transition-transform flex items-center gap-2"
+        >
+          <Plus className="w-6 h-6" />
+          <span className="font-bold text-sm hidden sm:inline">Novo Produto</span>
+        </button>
+      </div>
+
+      {/* Stats Cards */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 px-6 mt-6">
+        <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm">
+          <div className="flex items-center gap-3 mb-2">
+            <div className="p-2 bg-blue-50 text-blue-600 rounded-xl">
+              <Package className="w-5 h-5" />
+            </div>
+            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Total</span>
+          </div>
+          <p className="text-2xl font-black text-slate-900">{products.length}</p>
+        </div>
+        <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm">
+          <div className="flex items-center gap-3 mb-2">
+            <div className="p-2 bg-emerald-50 text-emerald-600 rounded-xl">
+              <CheckCircle2 className="w-5 h-5" />
+            </div>
+            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Regular</span>
+          </div>
+          <p className="text-2xl font-black text-slate-900">{products.filter(p => p.status === 'ok').length}</p>
+        </div>
+        <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm">
+          <div className="flex items-center gap-3 mb-2">
+            <div className="p-2 bg-amber-50 text-amber-600 rounded-xl">
+              <AlertTriangle className="w-5 h-5" />
+            </div>
+            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Baixo</span>
+          </div>
+          <p className="text-2xl font-black text-slate-900">{products.filter(p => p.status === 'low').length}</p>
+        </div>
+        <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm">
+          <div className="flex items-center gap-3 mb-2">
+            <div className="p-2 bg-rose-50 text-rose-600 rounded-xl">
+              <AlertTriangle className="w-5 h-5" />
+            </div>
+            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Crítico</span>
+          </div>
+          <p className="text-2xl font-black text-slate-900">{products.filter(p => p.status === 'critical').length}</p>
+        </div>
+      </div>
+
+      {/* Filters & Search */}
+      <div className="px-6 mt-8 flex flex-col sm:flex-row gap-4">
+        <div className="relative flex-1">
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+          <input 
+            type="text" 
+            placeholder="Buscar produtos..." 
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full h-12 pl-12 pr-4 bg-slate-50 border border-slate-100 rounded-xl outline-none focus:ring-2 focus:ring-primary/20 transition-all text-slate-900"
+          />
+        </div>
+        <div className="flex gap-2 overflow-x-auto pb-2 sm:pb-0">
+          {(['all', 'ok', 'low', 'critical'] as const).map((status) => (
+            <button
+              key={status}
+              onClick={() => setFilterStatus(status)}
+              className={`px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider border transition-all whitespace-nowrap ${
+                filterStatus === status 
+                  ? 'bg-slate-900 text-white border-slate-900' 
+                  : 'bg-white text-slate-500 border-slate-100 hover:border-slate-300'
+              }`}
+            >
+              {status === 'all' ? 'Todos' : status === 'ok' ? 'Regular' : status === 'low' ? 'Baixo' : 'Crítico'}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Products List */}
+      <div className="px-6 mt-6 space-y-3">
+        <AnimatePresence mode="popLayout">
+          {filteredProducts.length === 0 ? (
+            <div className="py-12 text-center bg-slate-50 rounded-2xl border border-dashed border-slate-200">
+              <Package className="w-12 h-12 text-slate-300 mx-auto mb-3" />
+              <p className="text-sm font-bold text-slate-900">Nenhum produto encontrado</p>
+              <p className="text-xs text-slate-500 mt-1">Tente ajustar os filtros ou adicione um novo produto.</p>
+            </div>
+          ) : (
+            filteredProducts.map((product, index) => (
+              <motion.div
+                key={product.id}
+                layout
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.95 }}
+                transition={{ delay: index * 0.05 }}
+                className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-all group"
+              >
+                <div className="flex items-center gap-4">
+                  <div className="w-16 h-16 rounded-xl bg-slate-50 border border-slate-100 overflow-hidden shrink-0">
+                    <img src={product.image} alt={product.name} className="w-full h-full object-cover" />
+                  </div>
+                  
+                  <div className="flex-1 min-w-0">
+                    <div className="flex justify-between items-start mb-1">
+                      <div>
+                        <h3 className="font-bold text-slate-900 truncate">{product.name}</h3>
+                        <p className="text-xs text-slate-500 font-medium">{product.category}</p>
+                      </div>
+                      <div className={`px-2 py-1 rounded-lg border text-[10px] font-black uppercase tracking-wider ${getStatusColor(product.status)}`}>
+                        {getStatusLabel(product.status)}
+                      </div>
+                    </div>
+                    
+                    <div className="flex items-center gap-6 mt-2">
+                      <div>
+                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Quantidade</p>
+                        <p className="text-sm font-black text-slate-900">{product.quantity} <span className="text-xs font-medium text-slate-500">{product.unit}</span></p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Preço Un.</p>
+                        <p className="text-sm font-black text-slate-900">R$ {product.price.toFixed(2)}</p>
+                      </div>
+                      <div className="hidden sm:block">
+                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Última Reposição</p>
+                        <p className="text-sm font-medium text-slate-600">{new Date(product.lastRestock).toLocaleDateString('pt-BR')}</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="relative">
+                    <button 
+                      onClick={() => setOpenMenuId(openMenuId === product.id ? null : product.id)}
+                      className="p-2 text-slate-400 hover:text-slate-600 transition-colors"
+                    >
+                      <MoreVertical className="w-5 h-5" />
+                    </button>
+                    
+                    {openMenuId === product.id && (
+                      <>
+                        <div className="fixed inset-0 z-10" onClick={() => setOpenMenuId(null)} />
+                        <div className="absolute right-0 top-full mt-1 w-40 bg-white rounded-xl shadow-xl border border-slate-100 z-20 overflow-hidden">
+                          <button 
+                            onClick={() => {
+                              setEditingProduct(product);
+                              setIsAdding(true);
+                              setOpenMenuId(null);
+                            }}
+                            className="w-full text-left px-4 py-3 text-xs font-bold text-slate-600 hover:bg-slate-50 flex items-center gap-2"
+                          >
+                            <Edit3 className="w-3.5 h-3.5" />
+                            Editar
+                          </button>
+                          <button 
+                            onClick={() => handleDelete(product.id)}
+                            className="w-full text-left px-4 py-3 text-xs font-bold text-rose-500 hover:bg-rose-50 flex items-center gap-2"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                            Excluir
+                          </button>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                </div>
+              </motion.div>
+            ))
+          )}
+        </AnimatePresence>
+      </div>
+
+      {/* Add/Edit Modal */}
+      <AnimatePresence>
+        {isAdding && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100] bg-black/40 backdrop-blur-sm flex items-end justify-center p-4 sm:items-center"
+          >
+            <motion.div
+              initial={{ y: "100%" }}
+              animate={{ y: 0 }}
+              exit={{ y: "100%" }}
+              transition={{ type: "spring", damping: 25, stiffness: 200 }}
+              className="bg-white w-full max-w-lg rounded-3xl p-6 shadow-2xl space-y-6 max-h-[90vh] overflow-y-auto"
+            >
+              <div className="flex justify-between items-center border-b border-slate-100 pb-4">
+                <h3 className="text-xl font-black text-slate-900">{editingProduct ? 'Editar Produto' : 'Novo Produto'}</h3>
+                <button onClick={() => setIsAdding(false)} className="p-2 hover:bg-slate-100 rounded-full transition-colors">
+                  <X className="w-5 h-5 text-slate-500" />
+                </button>
+              </div>
+
+              <form onSubmit={handleSaveProduct} className="space-y-4">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400 ml-1">Nome do Produto</label>
+                  <input 
+                    name="name"
+                    defaultValue={editingProduct?.name}
+                    type="text" 
+                    placeholder="Ex: Shampoo Automotivo"
+                    className="w-full h-12 px-4 bg-slate-50 border border-slate-100 rounded-xl outline-none focus:border-primary transition-all text-slate-900"
+                    required
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400 ml-1">Categoria</label>
+                    <select 
+                      name="category"
+                      defaultValue={editingProduct?.category}
+                      className="w-full h-12 px-4 bg-slate-50 border border-slate-100 rounded-xl outline-none focus:border-primary transition-all text-slate-900 appearance-none"
+                      required
+                    >
+                      <option value="">Selecione...</option>
+                      <option value="Limpeza Externa">Limpeza Externa</option>
+                      <option value="Limpeza Interna">Limpeza Interna</option>
+                      <option value="Acabamento">Acabamento</option>
+                      <option value="Acessórios">Acessórios</option>
+                      <option value="Limpeza Pesada">Limpeza Pesada</option>
+                    </select>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400 ml-1">Unidade</label>
+                    <select 
+                      name="unit"
+                      defaultValue={editingProduct?.unit}
+                      className="w-full h-12 px-4 bg-slate-50 border border-slate-100 rounded-xl outline-none focus:border-primary transition-all text-slate-900 appearance-none"
+                      required
+                    >
+                      <option value="Unidades">Unidades</option>
+                      <option value="Litros">Litros</option>
+                      <option value="Caixas">Caixas</option>
+                      <option value="Kits">Kits</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400 ml-1">Quantidade Atual</label>
+                    <input 
+                      name="quantity"
+                      defaultValue={editingProduct?.quantity}
+                      type="number" 
+                      min="0"
+                      className="w-full h-12 px-4 bg-slate-50 border border-slate-100 rounded-xl outline-none focus:border-primary transition-all text-slate-900"
+                      required
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400 ml-1">Qtd. Mínima</label>
+                    <input 
+                      name="minQuantity"
+                      defaultValue={editingProduct?.minQuantity}
+                      type="number" 
+                      min="1"
+                      className="w-full h-12 px-4 bg-slate-50 border border-slate-100 rounded-xl outline-none focus:border-primary transition-all text-slate-900"
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400 ml-1">Preço Unitário (R$)</label>
+                  <input 
+                    name="price"
+                    defaultValue={editingProduct?.price}
+                    type="number" 
+                    step="0.01"
+                    min="0"
+                    className="w-full h-12 px-4 bg-slate-50 border border-slate-100 rounded-xl outline-none focus:border-primary transition-all text-slate-900"
+                    required
+                  />
+                </div>
+
+                <div className="pt-4">
+                  <button 
+                    type="submit"
+                    className="w-full bg-primary text-white font-bold py-4 rounded-2xl shadow-lg shadow-primary/20 active:scale-[0.98] transition-all flex items-center justify-center gap-2"
+                  >
+                    <Save className="w-5 h-5" />
+                    <span>Salvar Produto</span>
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
