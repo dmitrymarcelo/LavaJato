@@ -1,6 +1,6 @@
 import { BedrockRuntimeClient, ConverseCommand } from '@aws-sdk/client-bedrock-runtime';
 
-const modelId = process.env.AWS_BEDROCK_MODEL_ID || 'amazon.nova-lite-v1:0';
+const modelId = process.env.AWS_BEDROCK_MODEL_ID || 'us.amazon.nova-lite-v1:0';
 const region = process.env.AWS_BEDROCK_REGION || process.env.AWS_REGION || 'us-east-2';
 
 let bedrockClient = null;
