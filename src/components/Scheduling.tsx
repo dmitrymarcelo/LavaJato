@@ -37,13 +37,23 @@ const DEFAULT_SERVICE_IMAGE = 'https://images.unsplash.com/photo-1549317661-bd32
 
 const normalizePlate = (value: string) => value.toUpperCase().replace(/[^A-Z0-9]/g, '');
 const isActiveAppointment = (appointment: Appointment) => ACTIVE_APPOINTMENT_STATUSES.includes(appointment.status);
-const isWeekendDate = (date: string) => {
+const getWeekDay = (date: string) => {
   const weekDay = new Date(`${date}T12:00:00`).getDay();
-  return weekDay === 0 || weekDay === 6;
+  return weekDay;
 };
-const getNextBusinessDate = (date: string) => {
+const isSundayDate = (date: string) => getWeekDay(date) === 0;
+const isSaturdayDate = (date: string) => getWeekDay(date) === 6;
+const isSaturdayAfternoonSlot = (time: string) => Number.parseInt(time.slice(0, 2), 10) >= 13;
+const isTimeBlockedByBusinessRules = (date: string, time: string) => {
+  if (isSundayDate(date)) {
+    return true;
+  }
+
+  return isSaturdayDate(date) && isSaturdayAfternoonSlot(time);
+};
+const getNextBookableDate = (date: string) => {
   let nextDate = date;
-  while (isWeekendDate(nextDate)) {
+  while (isSundayDate(nextDate)) {
     nextDate = addDays(nextDate, 1);
   }
   return nextDate;
@@ -103,7 +113,7 @@ export default function Scheduling({
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
   const [appointments, setAppointments] = useState<Appointment[]>(appointmentsProp);
   const [filterDate, setFilterDate] = useState(currentDateKey);
-  const [appointmentDate, setAppointmentDate] = useState(getNextBusinessDate(currentDateKey));
+  const [appointmentDate, setAppointmentDate] = useState(getNextBookableDate(currentDateKey));
   const [activeTab, setActiveTab] = useState<'appointments' | 'waiting' | 'washing' | 'completed'>('appointments');
   const [clockNow, setClockNow] = useState(() => Date.now());
   const [isSavingAppointment, setIsSavingAppointment] = useState(false);
@@ -120,7 +130,7 @@ export default function Scheduling({
 
   const resetAppointmentForm = () => {
     setIsAdding(false);
-    setAppointmentDate(getNextBusinessDate(currentDateKey));
+    setAppointmentDate(getNextBookableDate(currentDateKey));
     setSelectedTime(null);
     setPlate('');
     setCustomer('');
@@ -275,6 +285,7 @@ export default function Scheduling({
 
     const todayStr = getTodayDate();
     const isPastSlotDate = date < todayStr;
+    const isBlockedBySchedule = isTimeBlockedByBusinessRules(date, time);
 
     return {
       count: totalCount,
@@ -282,6 +293,7 @@ export default function Scheduling({
       otherCount,
       isFull,
       isPast: isPastSlotDate,
+      isBlockedBySchedule,
     };
   };
 
@@ -298,8 +310,13 @@ export default function Scheduling({
       return;
     }
 
-    if (isWeekendDate(appointmentDate)) {
-      alert('Nao trabalhamos aos finais de semana. Selecione um dia util.');
+    if (isSundayDate(appointmentDate)) {
+      alert('Nao trabalhamos aos domingos. Selecione outro dia.');
+      return;
+    }
+
+    if (isSaturdayDate(appointmentDate) && isSaturdayAfternoonSlot(selectedTime)) {
+      alert('Aos sabados atendemos somente ate as 12:00. Selecione 07:00, 09:00 ou 11:00.');
       return;
     }
 
@@ -316,9 +333,14 @@ export default function Scheduling({
       return;
     }
 
-    const { isFull, isPast } = getSlotStatus(appointmentDate, selectedTime, vehicleType);
+    const { isFull, isPast, isBlockedBySchedule } = getSlotStatus(appointmentDate, selectedTime, vehicleType);
     if (isFull) {
       alert('Este horario esta lotado.');
+      return;
+    }
+
+    if (isBlockedBySchedule) {
+      alert('Aos sabados atendemos somente ate as 12:00. Selecione 07:00, 09:00 ou 11:00.');
       return;
     }
 
@@ -695,8 +717,8 @@ export default function Scheduling({
                           min={currentDateKey}
                           onChange={event => {
                             const nextDate = event.target.value;
-                            if (isWeekendDate(nextDate)) {
-                              alert('Nao trabalhamos aos finais de semana. Selecione um dia util.');
+                            if (isSundayDate(nextDate)) {
+                              alert('Nao trabalhamos aos domingos. Selecione outro dia.');
                               return;
                             }
                             setAppointmentDate(nextDate);
@@ -709,7 +731,7 @@ export default function Scheduling({
                         <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400 ml-1">Hora</label>
                         <div className="grid grid-cols-3 gap-2">
                           {TIME_SLOTS.map(time => {
-                            const { isFull, isPast, count, truckCount, otherCount } = getSlotStatus(appointmentDate, time, vehicleType);
+                            const { isFull, isPast, count, truckCount, otherCount, isBlockedBySchedule } = getSlotStatus(appointmentDate, time, vehicleType);
                             const isSelected = selectedTime === time;
 
                             return (
@@ -717,8 +739,13 @@ export default function Scheduling({
                                 key={time}
                                 type="button"
                                 onClick={() => {
-                                  if (isWeekendDate(appointmentDate)) {
-                                    alert('Nao trabalhamos aos finais de semana. Selecione um dia util.');
+                                  if (isSundayDate(appointmentDate)) {
+                                    alert('Nao trabalhamos aos domingos. Selecione outro dia.');
+                                    return;
+                                  }
+
+                                  if (isBlockedBySchedule) {
+                                    alert('Aos sabados atendemos somente ate as 12:00. Selecione 07:00, 09:00 ou 11:00.');
                                     return;
                                   }
 
@@ -741,7 +768,9 @@ export default function Scheduling({
                                 className={`py-2 rounded-xl text-xs font-bold transition-all relative ${
                                   isSelected
                                     ? 'bg-primary text-white shadow-lg shadow-primary/30 scale-105'
-                                    : isFull
+                                    : isBlockedBySchedule
+                                      ? 'bg-slate-50 text-slate-300 border border-slate-100 cursor-not-allowed'
+                                      : isFull
                                       ? 'bg-rose-50 text-rose-300 border border-rose-100 cursor-not-allowed'
                                       : isPast
                                         ? 'bg-slate-50 text-slate-300 cursor-not-allowed'
@@ -750,12 +779,12 @@ export default function Scheduling({
                               >
                                 <span className="block">{time}</span>
                                 <span className="block text-[8px] font-medium opacity-70">C{truckCount}/2 O{otherCount}/3</span>
-                                {isFull && (
+                                {(isFull || isBlockedBySchedule) && (
                                   <span className="absolute -top-1 -right-1 w-4 h-4 bg-rose-500 text-white text-[10px] flex items-center justify-center rounded-full border border-white shadow-sm">
                                     !
                                   </span>
                                 )}
-                                {!isFull && !isPast && count > 0 && (
+                                {!isFull && !isPast && !isBlockedBySchedule && count > 0 && (
                                   <span className="absolute -top-1 -right-1 w-4 h-4 bg-amber-500 text-white text-[8px] flex items-center justify-center rounded-full border border-white">
                                     {count}
                                   </span>
@@ -771,9 +800,15 @@ export default function Scheduling({
                       Capacidade por horario: 2 caminhoes, 3 outros veiculos, 5 vagas totais.
                     </div>
 
-                    {isWeekendDate(appointmentDate) && (
+                    {isSundayDate(appointmentDate) && (
                       <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-xs font-bold text-rose-700">
-                        Nao trabalhamos aos finais de semana. Selecione um dia util para concluir o agendamento.
+                        Nao trabalhamos aos domingos. Selecione outro dia para concluir o agendamento.
+                      </div>
+                    )}
+
+                    {isSaturdayDate(appointmentDate) && (
+                      <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs font-bold text-amber-700">
+                        Aos sabados atendemos somente ate as 12:00. Horarios disponiveis: 07:00, 09:00 e 11:00.
                       </div>
                     )}
 
