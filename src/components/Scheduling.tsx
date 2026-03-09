@@ -15,8 +15,11 @@ import {
   ChevronUp,
   Clock,
   History,
+  MoreVertical,
   PlayCircle,
   Plus,
+  SquarePen,
+  Trash2,
   User,
   WashingMachine,
   Zap,
@@ -245,6 +248,38 @@ export default function Scheduling({
 
     if (service.status === 'waiting_payment') {
       onNavigate('payment', service.id);
+    }
+  };
+
+  const handleEditService = (service: Service) => {
+    if (service.status === 'pending') {
+      onNavigate('inspection-pre', service.id);
+      return;
+    }
+
+    if (service.status === 'in_progress') {
+      onNavigate('inspection-post', service.id);
+      return;
+    }
+
+    onNavigate('payment', service.id);
+  };
+
+  const handleDeleteService = async (service: Service) => {
+    const confirmed = window.confirm(`Excluir o registro do veiculo ${service.plate}?`);
+    if (!confirmed) {
+      return;
+    }
+
+    const nextServices = services.filter((item) => item.id !== service.id);
+    const nextAppointments = appointments.filter((item) => item.id !== service.id);
+
+    try {
+      await onReorder(nextServices);
+      await onUpdateAppointments(nextAppointments);
+    } catch (error) {
+      console.error(error);
+      alert(error instanceof Error ? error.message : 'Nao foi possivel excluir o registro.');
     }
   };
 
@@ -652,19 +687,19 @@ export default function Scheduling({
 
           {activeTab === 'waiting' && (
             <motion.div key="waiting-tab" initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }}>
-              <QueueSection title="Aguardando" services={waitingServices} timers={timers} onAction={handleAction} onMove={moveService} />
+              <QueueSection title="Aguardando" services={waitingServices} timers={timers} onAction={handleAction} onMove={moveService} onEdit={handleEditService} onDelete={handleDeleteService} />
             </motion.div>
           )}
 
           {activeTab === 'washing' && (
             <motion.div key="washing-tab" initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }}>
-              <QueueSection title="Em Lavagem" services={washingServices} timers={timers} onAction={handleAction} onMove={moveService} />
+              <QueueSection title="Em Lavagem" services={washingServices} timers={timers} onAction={handleAction} onMove={moveService} onEdit={handleEditService} onDelete={handleDeleteService} />
             </motion.div>
           )}
 
           {activeTab === 'completed' && (
             <motion.div key="completed-tab" initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }}>
-              <QueueSection title="Concluido" services={completedServices} timers={timers} onAction={handleAction} onMove={moveService} />
+              <QueueSection title="Concluido" services={completedServices} timers={timers} onAction={handleAction} onMove={moveService} onEdit={handleEditService} onDelete={handleDeleteService} />
             </motion.div>
           )}
         </AnimatePresence>
@@ -1048,13 +1083,19 @@ export function QueueSection({
   timers,
   onAction,
   onMove,
+  onEdit,
+  onDelete,
 }: {
   title: string;
   services: Service[];
   timers: Record<string, number | null>;
   onAction: (service: Service) => void;
   onMove: (id: string, direction: 'up' | 'down') => void;
+  onEdit: (service: Service) => void;
+  onDelete: (service: Service) => Promise<void> | void;
 }) {
+  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
+
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between px-1">
@@ -1129,6 +1170,55 @@ export function QueueSection({
                   </div>
 
                   <div className="absolute top-2 right-2 flex flex-col items-end gap-1">
+                    <div className="relative">
+                      <button
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          setOpenMenuId((current) => current === service.id ? null : service.id);
+                        }}
+                        className="flex h-8 w-8 items-center justify-center rounded-full bg-white/90 text-slate-700 shadow-lg active:scale-90 transition-all"
+                      >
+                        <MoreVertical className="w-4 h-4" />
+                      </button>
+
+                      <AnimatePresence>
+                        {openMenuId === service.id && (
+                          <>
+                            <div className="fixed inset-0 z-[110]" onClick={() => setOpenMenuId(null)} />
+                            <motion.div
+                              initial={{ opacity: 0, scale: 0.95, y: -8 }}
+                              animate={{ opacity: 1, scale: 1, y: 0 }}
+                              exit={{ opacity: 0, scale: 0.95, y: -8 }}
+                              className="absolute right-0 top-10 z-[120] w-36 overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-2xl"
+                            >
+                              <button
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  setOpenMenuId(null);
+                                  onEdit(service);
+                                }}
+                                className="flex w-full items-center gap-2 px-3 py-3 text-left text-xs font-bold text-slate-700 hover:bg-slate-50"
+                              >
+                                <SquarePen className="w-4 h-4 text-primary" />
+                                Editar
+                              </button>
+                              <button
+                                onClick={async (event) => {
+                                  event.stopPropagation();
+                                  setOpenMenuId(null);
+                                  await onDelete(service);
+                                }}
+                                className="flex w-full items-center gap-2 px-3 py-3 text-left text-xs font-bold text-rose-600 hover:bg-rose-50"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                                Excluir
+                              </button>
+                            </motion.div>
+                          </>
+                        )}
+                      </AnimatePresence>
+                    </div>
+
                     {service.priority && (
                       <div className="bg-amber-500 text-white px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-widest shadow-lg flex items-center gap-1">
                         <Zap className="w-2.5 h-2.5 fill-white" />

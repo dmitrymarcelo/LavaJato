@@ -733,7 +733,16 @@ export default function App() {
                 handleNavigateWithService('inspection-post', s.id);
               }
             }} 
-            onMove={() => {}} 
+            onMove={() => {}}
+            onEdit={(service) => {
+              if (service.status === 'in_progress') {
+                handleNavigateWithService('inspection-post', service.id);
+              }
+            }}
+            onDelete={async (service) => {
+              await persistServices(servicesRef.current.filter((item) => item.id !== service.id));
+              await persistAppointments(appointmentsRef.current.filter((item) => item.id !== service.id));
+            }}
           />
         </div>
       );
