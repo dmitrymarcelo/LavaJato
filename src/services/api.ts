@@ -142,6 +142,8 @@ export const api = {
     request<void>(`/vehicles/${encodeURIComponent(plate)}`, { method: 'DELETE' }),
   saveServices: (services: Service[]) =>
     request('/services', { method: 'PUT', body: JSON.stringify(services) }),
+  getService: (id: string) =>
+    request<Service>(`/services/${encodeURIComponent(id)}`),
   upsertService: (service: Service) =>
     request<Service>('/services/upsert', { method: 'POST', body: JSON.stringify(service) }),
   bookScheduling: (payload: SchedulingBookingPayload) =>

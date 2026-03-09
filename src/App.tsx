@@ -316,6 +316,39 @@ export default function App() {
     await loadBootstrap();
   };
 
+  useEffect(() => {
+    if (!isAuthenticated || !activeServiceId) {
+      return;
+    }
+
+    if (!['inspection-pre', 'inspection-post', 'payment', 'history', 'customer-history'].includes(currentScreen)) {
+      return;
+    }
+
+    let cancelled = false;
+
+    const hydrateActiveService = async () => {
+      try {
+        const service = await api.getService(activeServiceId);
+        if (cancelled) {
+          return;
+        }
+
+        setServices((current) => normalizeServicesForPersistence(
+          current.map((item) => item.id === service.id ? { ...item, ...service } : item)
+        ));
+      } catch (error) {
+        console.error(error);
+      }
+    };
+
+    void hydrateActiveService();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isAuthenticated, currentScreen, activeServiceId]);
+
   const persistVehicleDb = async (next: VehicleRegistration[]) => {
     const previous = vehicleDbRef.current;
     setVehicleDb(next);

@@ -62,7 +62,8 @@ function toDateKey(value) {
   return parsed.toISOString().slice(0, 10);
 }
 
-function toCamelService(row) {
+function toCamelService(row, options = {}) {
+  const includePhotos = options.includePhotos !== false;
   return {
     id: row.id,
     sortOrder: row.sort_order,
@@ -83,8 +84,8 @@ function toCamelService(row) {
     washer: row.washer,
     washers: row.washers || [],
     timeline: row.timeline || {},
-    preInspectionPhotos: row.pre_inspection_photos || {},
-    postInspectionPhotos: row.post_inspection_photos || {},
+    preInspectionPhotos: includePhotos ? (row.pre_inspection_photos || {}) : {},
+    postInspectionPhotos: includePhotos ? (row.post_inspection_photos || {}) : {},
     startTime: row.start_time,
     endTime: row.end_time,
     image: row.image,
@@ -562,7 +563,7 @@ app.get('/api/bootstrap', async (_req, res) => {
   res.json({
     serviceTypes: serviceTypesResult.rows[0]?.value || {},
     vehicleDb: vehiclesResult.rows.map(toCamelVehicle),
-    services: servicesResult.rows.map(toCamelService),
+    services: servicesResult.rows.map((row) => toCamelService(row, { includePhotos: false })),
     appointments: appointmentsResult.rows.map(toCamelAppointment),
     products: productsResult.rows.map(toCamelProduct),
     team: teamResult.rows.map(toCamelTeam),
@@ -622,7 +623,18 @@ app.put('/api/vehicles', async (req, res) => {
 
 app.get('/api/services', async (_req, res) => {
   const result = await query(`SELECT * FROM services ORDER BY ${servicesOrderSql}`);
-  res.json(result.rows.map(toCamelService));
+  res.json(result.rows.map((row) => toCamelService(row, { includePhotos: false })));
+});
+
+app.get('/api/services/:id', async (req, res) => {
+  const result = await query('SELECT * FROM services WHERE id = $1', [req.params.id]);
+  const row = result.rows[0];
+
+  if (!row) {
+    return res.status(404).json({ error: 'Servico nao encontrado.' });
+  }
+
+  res.json(toCamelService(row));
 });
 
 app.post('/api/services/upsert', async (req, res) => {
