@@ -1,7 +1,7 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { ChevronLeft, Clock, CreditCard, User, Car, MapPin, CheckCircle2 } from 'lucide-react';
 import { Screen, Service } from '../types';
-import { formatElapsedMinutes, getDurationMinutes } from '../utils/app';
+import { formatElapsedMinutes, getDurationMinutes, getElapsedMinutes } from '../utils/app';
 
 const formatDateTime = (value?: string) =>
   value ? new Date(value).toLocaleString('pt-BR') : 'Nao registrado';
@@ -30,19 +30,47 @@ export default function ServiceHistory({
     );
   }
 
-  const waitingMinutes = getDurationMinutes(service.timeline?.checkInAt, service.timeline?.washStartedAt || service.startTime);
-  const washMinutes = getDurationMinutes(service.timeline?.washStartedAt || service.startTime, service.timeline?.washCompletedAt || service.endTime);
-  const paymentMinutes = getDurationMinutes(service.timeline?.paymentStartedAt, service.timeline?.paymentCompletedAt);
-  const totalMinutes = getDurationMinutes(
-    service.timeline?.checkInAt || service.timeline?.washStartedAt || service.startTime || service.timeline?.createdAt,
-    service.timeline?.completedAt || service.timeline?.noShowAt || service.timeline?.paymentCompletedAt || service.timeline?.washCompletedAt || service.endTime
-  );
+  const [clockNow, setClockNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    const interval = window.setInterval(() => {
+      setClockNow(Date.now());
+    }, 60000);
+
+    return () => window.clearInterval(interval);
+  }, []);
+
+  const waitingStart = service.timeline?.checkInAt || service.timeline?.createdAt;
+  const waitingEnd = service.timeline?.washStartedAt || service.startTime || service.timeline?.noShowAt;
+  const washStart = service.timeline?.washStartedAt || service.startTime;
+  const washEnd = service.timeline?.washCompletedAt || service.endTime;
+  const paymentStart = service.timeline?.paymentStartedAt || service.timeline?.washCompletedAt || service.endTime;
+  const paymentEnd = service.timeline?.paymentCompletedAt || service.timeline?.completedAt;
+  const totalStart = service.timeline?.checkInAt || service.timeline?.createdAt || service.timeline?.washStartedAt || service.startTime;
+  const totalEnd = service.timeline?.completedAt || service.timeline?.noShowAt || service.timeline?.paymentCompletedAt || service.timeline?.washCompletedAt || service.endTime;
+
+  const waitingMinutes = service.status === 'pending'
+    ? getElapsedMinutes(waitingStart, clockNow)
+    : getDurationMinutes(waitingStart, waitingEnd);
+  const washMinutes = service.status === 'in_progress'
+    ? getElapsedMinutes(washStart, clockNow)
+    : getDurationMinutes(washStart, washEnd);
+  const paymentMinutes = service.status === 'waiting_payment'
+    ? getElapsedMinutes(paymentStart, clockNow)
+    : getDurationMinutes(paymentStart, paymentEnd);
+  const totalMinutes = ['completed', 'no_show'].includes(service.status)
+    ? getDurationMinutes(
+        totalStart,
+        totalEnd
+      )
+    : getElapsedMinutes(totalStart, clockNow);
+
   const timelineRows = [
     { label: 'Criado', value: service.timeline?.createdAt || service.timeline?.checkInAt },
-    { label: 'Entrada / fila', value: service.timeline?.checkInAt },
+    { label: 'Entrada / fila', value: waitingStart },
     { label: 'Inspecao pre iniciada', value: service.timeline?.preInspectionStartedAt },
-    { label: 'Lavagem iniciada', value: service.timeline?.washStartedAt || service.startTime },
-    { label: 'Lavagem concluida', value: service.timeline?.washCompletedAt || service.endTime },
+    { label: 'Lavagem iniciada', value: washStart },
+    { label: 'Lavagem concluida', value: washEnd },
     { label: 'Inspecao pos concluida', value: service.timeline?.postInspectionCompletedAt },
     { label: 'Pagamento iniciado', value: service.timeline?.paymentStartedAt },
     { label: 'Pagamento concluido', value: service.timeline?.paymentCompletedAt },

@@ -71,11 +71,11 @@ export default function CustomerHistory({
             </div>
           ) : (
             vehicleHistory.map((item) => {
-              const waitingMinutes = getDurationMinutes(item.timeline?.checkInAt, item.timeline?.washStartedAt || item.startTime);
+              const waitingMinutes = getDurationMinutes(item.timeline?.checkInAt || item.timeline?.createdAt, item.timeline?.washStartedAt || item.startTime || item.timeline?.noShowAt);
               const washMinutes = getDurationMinutes(item.timeline?.washStartedAt || item.startTime, item.timeline?.washCompletedAt || item.endTime);
               const paymentMinutes = getDurationMinutes(item.timeline?.paymentStartedAt, item.timeline?.paymentCompletedAt);
               const totalMinutes = getDurationMinutes(
-                item.timeline?.checkInAt || item.timeline?.washStartedAt || item.startTime || item.timeline?.createdAt,
+                item.timeline?.checkInAt || item.timeline?.createdAt || item.timeline?.washStartedAt || item.startTime,
                 item.timeline?.completedAt || item.timeline?.noShowAt || item.timeline?.paymentCompletedAt || item.timeline?.washCompletedAt || item.endTime
               );
 
@@ -116,7 +116,7 @@ export default function CustomerHistory({
 
                   <div className="grid grid-cols-2 gap-3 pt-2">
                     <HistoryMetric label="Agendado em" value={formatDateTime(item.timeline?.createdAt)} emphasis="text-slate-700" />
-                    <HistoryMetric label="Entrada / fila" value={formatDateTime(item.timeline?.checkInAt)} emphasis="text-slate-700" />
+                    <HistoryMetric label="Entrada / fila" value={formatDateTime(item.timeline?.checkInAt || item.timeline?.createdAt)} emphasis="text-slate-700" />
                     <HistoryMetric label="Tempo de espera" value={waitingMinutes ? formatElapsedMinutes(waitingMinutes) : 'Nao registrado'} />
                     <HistoryMetric label="Tempo de lavagem" value={washMinutes ? formatElapsedMinutes(washMinutes) : 'Nao registrado'} />
                     <HistoryMetric label="Tempo de pagamento" value={paymentMinutes ? formatElapsedMinutes(paymentMinutes) : 'Nao registrado'} />

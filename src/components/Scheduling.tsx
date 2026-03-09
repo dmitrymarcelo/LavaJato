@@ -70,7 +70,7 @@ const isTruckType = (type?: VehicleType) => type === 'truck';
 
 const getServiceStageReference = (service: Service) => {
   if (service.status === 'pending') {
-    return service.timeline?.checkInAt;
+    return service.timeline?.checkInAt || service.timeline?.createdAt;
   }
 
   if (service.status === 'in_progress') {
@@ -78,7 +78,7 @@ const getServiceStageReference = (service: Service) => {
   }
 
   if (service.status === 'waiting_payment') {
-    return service.timeline?.washCompletedAt || service.endTime;
+    return service.timeline?.paymentStartedAt || service.timeline?.washCompletedAt || service.endTime;
   }
 
   return undefined;
