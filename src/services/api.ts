@@ -32,6 +32,11 @@ export interface LoginResponse {
   expiresAt: string;
 }
 
+export interface SchedulingBookingPayload {
+  appointment: Appointment;
+  service: Service;
+}
+
 export class ApiError extends Error {
   status: number;
 
@@ -124,6 +129,8 @@ export const api = {
     request('/services', { method: 'PUT', body: JSON.stringify(services) }),
   upsertService: (service: Service) =>
     request<Service>('/services/upsert', { method: 'POST', body: JSON.stringify(service) }),
+  bookScheduling: (payload: SchedulingBookingPayload) =>
+    request<SchedulingBookingPayload>('/scheduling/book', { method: 'POST', body: JSON.stringify(payload) }),
   deleteService: (id: string) =>
     request<void>(`/services/${id}`, { method: 'DELETE' }),
   saveAppointments: (appointments: Appointment[]) =>

@@ -499,6 +499,29 @@ export default function App() {
     await persistServices([service, ...servicesRef.current]);
   };
 
+  const createScheduledBooking = async (appointment: Appointment, service: Service) => {
+    try {
+      const created = await api.bookScheduling({ appointment, service });
+
+      const nextServices = normalizeServicesForPersistence([
+        created.service,
+        ...servicesRef.current.filter((currentService) => currentService.id !== created.service.id),
+      ]);
+      setServices(nextServices);
+      servicesRef.current = nextServices;
+
+      const nextAppointments = [
+        created.appointment,
+        ...appointmentsRef.current.filter((currentAppointment) => currentAppointment.id !== created.appointment.id),
+      ];
+      setAppointments(nextAppointments);
+      appointmentsRef.current = nextAppointments;
+    } catch (error) {
+      await handlePersistenceError(error, 'Nao foi possivel salvar o agendamento.');
+      throw error;
+    }
+  };
+
   const reorderServices = async (newServices: Service[]) => {
     await persistServices(newServices);
   };
@@ -707,7 +730,7 @@ export default function App() {
             setSelectedBase(baseId);
           }} />;
         }
-        return <Scheduling currentDateKey={currentDateKey} appointments={appointments} onUpdateAppointments={persistAppointments} onNavigate={handleNavigateWithService} services={services} onAddService={addService} onReorder={reorderServices} serviceTypes={serviceTypes} vehicleDb={vehicleDb} selectedBaseId={selectedBaseInfo?.id} selectedBaseName={selectedBaseInfo?.name} onClearBase={() => {
+        return <Scheduling currentDateKey={currentDateKey} appointments={appointments} onUpdateAppointments={persistAppointments} onCreateBooking={createScheduledBooking} onNavigate={handleNavigateWithService} services={services} onAddService={addService} onReorder={reorderServices} serviceTypes={serviceTypes} vehicleDb={vehicleDb} selectedBaseId={selectedBaseInfo?.id} selectedBaseName={selectedBaseInfo?.name} onClearBase={() => {
           setSelectedBase(null);
         }} />;
       case 'inventory': return <Inventory onNavigate={navigateTo} products={products} onUpdateProducts={persistProducts} />;

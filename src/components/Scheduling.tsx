@@ -74,6 +74,7 @@ export default function Scheduling({
   currentDateKey,
   appointments: appointmentsProp,
   onUpdateAppointments,
+  onCreateBooking,
   onNavigate,
   services,
   onAddService,
@@ -87,6 +88,7 @@ export default function Scheduling({
   currentDateKey: string;
   appointments: Appointment[];
   onUpdateAppointments: (appointments: Appointment[]) => Promise<void> | void;
+  onCreateBooking: (appointment: Appointment, service: Service) => Promise<void> | void;
   onNavigate: (screen: Screen, serviceId?: string) => void;
   services: Service[];
   onAddService: (service: Service) => Promise<void> | void;
@@ -104,6 +106,7 @@ export default function Scheduling({
   const [appointmentDate, setAppointmentDate] = useState(getNextBusinessDate(currentDateKey));
   const [activeTab, setActiveTab] = useState<'appointments' | 'waiting' | 'washing' | 'completed'>('appointments');
   const [clockNow, setClockNow] = useState(() => Date.now());
+  const [isSavingAppointment, setIsSavingAppointment] = useState(false);
 
   const [plate, setPlate] = useState('');
   const [customer, setCustomer] = useState('');
@@ -361,12 +364,9 @@ export default function Scheduling({
       },
     };
 
-    const nextAppointments = [...appointments, newAppointment];
-    setAppointments(nextAppointments);
-
     try {
-      await onUpdateAppointments(nextAppointments);
-      await onAddService(newService);
+      setIsSavingAppointment(true);
+      await onCreateBooking(newAppointment, newService);
       setFilterDate(appointmentDate);
       setActiveTab(appointmentDate === currentDateKey ? 'waiting' : 'appointments');
       alert('Agendamento realizado com sucesso.');
@@ -374,6 +374,8 @@ export default function Scheduling({
     } catch (error) {
       console.error(error);
       alert(error instanceof Error ? error.message : 'Nao foi possivel salvar o agendamento.');
+    } finally {
+      setIsSavingAppointment(false);
     }
   };
 
@@ -791,10 +793,11 @@ export default function Scheduling({
 
                     <button
                       type="submit"
+                      disabled={isSavingAppointment}
                       className="w-full bg-primary text-white font-bold py-4 rounded-2xl shadow-lg shadow-primary/20 active:scale-[0.98] transition-all flex items-center justify-center gap-2"
                     >
                       <CheckCircle2 className="w-5 h-5" />
-                      <span>Confirmar Agendamento</span>
+                      <span>{isSavingAppointment ? 'Salvando...' : 'Confirmar Agendamento'}</span>
                     </button>
                   </>
                 )}

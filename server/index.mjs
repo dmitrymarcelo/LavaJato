@@ -5,7 +5,7 @@ import { fileURLToPath } from 'url';
 import express from 'express';
 import cors from 'cors';
 import bcrypt from 'bcryptjs';
-import { pool, query } from './db.mjs';
+import { pool, query, withTransaction } from './db.mjs';
 import { seedDatabase } from './seed.mjs';
 import { getAssistantTips, getAssistantWeather } from './assistant.mjs';
 
@@ -157,8 +157,8 @@ const servicesOrderSql = `
   created_at DESC
 `;
 
-async function upsertServiceRow(service) {
-  await query(
+async function upsertServiceRow(service, executor = query) {
+  await executor(
     `
     INSERT INTO services (
       id, sort_order, plate, model, type, base_id, base_name, scheduled_date, scheduled_time, status, price, priority, customer,
@@ -402,8 +402,8 @@ async function getSessionUser(token) {
   return session;
 }
 
-async function upsertAppointmentRow(appointment) {
-  const duplicate = await query(
+async function upsertAppointmentRow(appointment, executor = query) {
+  const duplicate = await executor(
     `
     SELECT id
     FROM appointments
@@ -424,7 +424,7 @@ async function upsertAppointmentRow(appointment) {
   }
 
   try {
-    await query(
+    await executor(
       `
       INSERT INTO appointments (
         id, customer, vehicle, plate, vehicle_type, service, date, time, status, photo, third_party_name, third_party_cpf, updated_at
@@ -616,6 +616,33 @@ app.post('/api/services/upsert', async (req, res) => {
   await upsertServiceRow(service);
   const result = await query('SELECT * FROM services WHERE id = $1', [service.id]);
   res.json(toCamelService(result.rows[0]));
+});
+
+app.post('/api/scheduling/book', async (req, res) => {
+  const { appointment, service } = req.body || {};
+
+  if (!appointment?.id || !service?.id) {
+    return res.status(400).json({ error: 'Agendamento e servico sao obrigatorios.' });
+  }
+
+  const payload = await withTransaction(async (client) => {
+    const executor = (text, params = []) => client.query(text, params);
+
+    await upsertAppointmentRow(appointment, executor);
+    await upsertServiceRow(service, executor);
+
+    const [appointmentResult, serviceResult] = await Promise.all([
+      client.query('SELECT * FROM appointments WHERE id = $1', [appointment.id]),
+      client.query('SELECT * FROM services WHERE id = $1', [service.id]),
+    ]);
+
+    return {
+      appointment: toCamelAppointment(appointmentResult.rows[0]),
+      service: toCamelService(serviceResult.rows[0]),
+    };
+  });
+
+  res.json(payload);
 });
 
 app.delete('/api/services/:id', async (req, res) => {
