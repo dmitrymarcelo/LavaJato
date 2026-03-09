@@ -131,7 +131,7 @@ export async function seedDatabase() {
         `
         INSERT INTO products (
           id, name, category, quantity, min_quantity, unit, price, last_restock, status, image, manual_entries, manual_outputs
-        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11::jsonb,$12::jsonb)
         ON CONFLICT (id) DO NOTHING
         `,
         [

@@ -221,7 +221,7 @@ async function upsertServiceRow(service, executor = query) {
   );
 }
 
-async function upsertVehicleRow(vehicle) {
+async function upsertVehicleRow(vehicle, executor = query) {
   const plate = String(vehicle.plate || '').toUpperCase().trim();
   if (!plate) {
     const error = new Error('Placa do veiculo e obrigatoria.');
@@ -229,7 +229,7 @@ async function upsertVehicleRow(vehicle) {
     throw error;
   }
 
-  await query(
+  await executor(
     `
     INSERT INTO vehicles (
       plate, customer, model, type, city, state, last_service, third_party_name, third_party_cpf, updated_at
@@ -259,8 +259,8 @@ async function upsertVehicleRow(vehicle) {
   );
 }
 
-async function upsertProductRow(product) {
-  await query(
+async function upsertProductRow(product, executor = query) {
+  await executor(
     `
     INSERT INTO products (
       id, name, category, quantity, min_quantity, unit, price, last_restock, status, image, manual_entries, manual_outputs, updated_at
@@ -296,7 +296,7 @@ async function upsertProductRow(product) {
   );
 }
 
-async function upsertTeamMemberRow(member) {
+async function upsertTeamMemberRow(member, executor = query) {
   const registration = String(member.registration || '').trim();
   if (!registration) {
     const error = new Error('Matricula do colaborador e obrigatoria.');
@@ -304,7 +304,7 @@ async function upsertTeamMemberRow(member) {
     throw error;
   }
 
-  const duplicate = await query(
+  const duplicate = await executor(
     `
     SELECT id
     FROM team_members
@@ -321,12 +321,12 @@ async function upsertTeamMemberRow(member) {
     throw error;
   }
 
-  const currentMember = await query('SELECT password_hash, avatar FROM team_members WHERE id = $1', [member.id]);
+  const currentMember = await executor('SELECT password_hash, avatar FROM team_members WHERE id = $1', [member.id]);
   const passwordHash = member.passwordHash
     || (member.password ? await bcrypt.hash(member.password, 10) : currentMember.rows[0]?.password_hash)
     || await bcrypt.hash('Admin@123456!', 10);
 
-  await query(
+  await executor(
     `
     INSERT INTO team_members (
       id, name, registration, password_hash, role, rating, services_count, status, avatar, efficiency, updated_at
@@ -601,10 +601,22 @@ app.delete('/api/vehicles/:plate', async (req, res) => {
 
 app.put('/api/vehicles', async (req, res) => {
   const vehicles = Array.isArray(req.body) ? req.body : [];
-  await query('TRUNCATE TABLE vehicles');
-  for (const vehicle of vehicles) {
-    await upsertVehicleRow(vehicle);
-  }
+  await withTransaction(async (client) => {
+    const executor = (text, params = []) => client.query(text, params);
+    const plates = vehicles
+      .map((vehicle) => String(vehicle.plate || '').toUpperCase().trim())
+      .filter(Boolean);
+
+    if (plates.length) {
+      await executor('DELETE FROM vehicles WHERE NOT (plate = ANY($1::text[]))', [plates]);
+    } else {
+      await executor('DELETE FROM vehicles');
+    }
+
+    for (const vehicle of vehicles) {
+      await upsertVehicleRow(vehicle, executor);
+    }
+  });
   res.json({ count: vehicles.length });
 });
 
@@ -658,10 +670,20 @@ app.delete('/api/services/:id', async (req, res) => {
 
 app.put('/api/services', async (req, res) => {
   const services = Array.isArray(req.body) ? req.body : [];
-  await query('TRUNCATE TABLE services');
-  for (const service of services) {
-    await upsertServiceRow(service);
-  }
+  await withTransaction(async (client) => {
+    const executor = (text, params = []) => client.query(text, params);
+    const ids = services.map((service) => service.id).filter(Boolean);
+
+    if (ids.length) {
+      await executor('DELETE FROM services WHERE NOT (id = ANY($1::text[]))', [ids]);
+    } else {
+      await executor('DELETE FROM services');
+    }
+
+    for (const service of services) {
+      await upsertServiceRow(service, executor);
+    }
+  });
   res.json({ count: services.length });
 });
 
@@ -688,10 +710,20 @@ app.delete('/api/appointments/:id', async (req, res) => {
 
 app.put('/api/appointments', async (req, res) => {
   const appointments = Array.isArray(req.body) ? req.body : [];
-  await query('TRUNCATE TABLE appointments');
-  for (const appointment of appointments) {
-    await upsertAppointmentRow(appointment);
-  }
+  await withTransaction(async (client) => {
+    const executor = (text, params = []) => client.query(text, params);
+    const ids = appointments.map((appointment) => appointment.id).filter(Boolean);
+
+    if (ids.length) {
+      await executor('DELETE FROM appointments WHERE NOT (id = ANY($1::text[]))', [ids]);
+    } else {
+      await executor('DELETE FROM appointments');
+    }
+
+    for (const appointment of appointments) {
+      await upsertAppointmentRow(appointment, executor);
+    }
+  });
   res.json({ count: appointments.length });
 });
 
@@ -718,10 +750,20 @@ app.delete('/api/products/:id', async (req, res) => {
 
 app.put('/api/products', async (req, res) => {
   const products = Array.isArray(req.body) ? req.body : [];
-  await query('TRUNCATE TABLE products');
-  for (const product of products) {
-    await upsertProductRow(product);
-  }
+  await withTransaction(async (client) => {
+    const executor = (text, params = []) => client.query(text, params);
+    const ids = products.map((product) => product.id).filter(Boolean);
+
+    if (ids.length) {
+      await executor('DELETE FROM products WHERE NOT (id = ANY($1::text[]))', [ids]);
+    } else {
+      await executor('DELETE FROM products');
+    }
+
+    for (const product of products) {
+      await upsertProductRow(product, executor);
+    }
+  });
   res.json({ count: products.length });
 });
 
@@ -748,10 +790,22 @@ app.delete('/api/team-members/:id', async (req, res) => {
 
 app.put('/api/team-members', async (req, res) => {
   const team = Array.isArray(req.body) ? req.body : [];
-  await query('TRUNCATE TABLE team_members');
-  for (const member of team) {
-    await upsertTeamMemberRow(member);
-  }
+  await withTransaction(async (client) => {
+    const executor = (text, params = []) => client.query(text, params);
+    const ids = team.map((member) => member.id).filter(Boolean);
+
+    if (ids.length) {
+      await executor('DELETE FROM auth_sessions WHERE NOT (member_id = ANY($1::text[]))', [ids]);
+      await executor('DELETE FROM team_members WHERE NOT (id = ANY($1::text[]))', [ids]);
+    } else {
+      await executor('DELETE FROM auth_sessions');
+      await executor('DELETE FROM team_members');
+    }
+
+    for (const member of team) {
+      await upsertTeamMemberRow(member, executor);
+    }
+  });
   res.json({ count: team.length });
 });
 
