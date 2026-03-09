@@ -66,7 +66,7 @@ export default function Dashboard({
   team?: TeamMember[];
 }) {
   const [weatherAdvice, setWeatherAdvice] = useState<string>('Carregando recomendacao...');
-  const [timeframe, setTimeframe] = useState<'today' | 'week' | 'month'>('week');
+  const [timeframe, setTimeframe] = useState<'today' | 'week' | 'month'>('today');
 
   useEffect(() => {
     const fetchWeather = async () => {
@@ -135,9 +135,44 @@ export default function Dashboard({
     };
   });
 
-  const topWashers = [...team]
-    .filter(member => member.role.toLowerCase().includes('lavador'))
-    .sort((left, right) => right.servicesCount - left.servicesCount)
+  const teamByName = new Map(
+    team.map((member) => [member.name.trim().toLowerCase(), member])
+  );
+  const topWashers = [...services]
+    .filter((service) => {
+      const washDateKey =
+        service.timeline?.washStartedAt?.slice(0, 10)
+        || service.startTime?.slice(0, 10)
+        || null;
+      return washDateKey === todayKey;
+    })
+    .flatMap((service) => {
+      const washerNames = service.washers?.length
+        ? service.washers
+        : service.washer
+          ? [service.washer]
+          : [];
+
+      return washerNames.map((washerName) => washerName.trim()).filter(Boolean);
+    })
+    .reduce((accumulator, washerName) => {
+      const current = accumulator.get(washerName) || 0;
+      accumulator.set(washerName, current + 1);
+      return accumulator;
+    }, new Map<string, number>());
+
+  const topWashersList = Array.from(topWashers.entries())
+    .map(([washerName, washes]) => {
+      const member = teamByName.get(washerName.toLowerCase());
+      return {
+        id: member?.id || washerName,
+        name: member?.name || washerName,
+        efficiency: member?.efficiency || '0%',
+        washes,
+        imageUrl: member?.avatar || `https://i.pravatar.cc/150?u=${encodeURIComponent(washerName)}`,
+      };
+    })
+    .sort((left, right) => right.washes - left.washes)
     .slice(0, 3);
 
   const recentServices = [...services]
@@ -276,17 +311,17 @@ export default function Dashboard({
             </button>
           </div>
           <div className="space-y-3">
-            {topWashers.length === 0 ? (
-              <p className="text-xs text-slate-400 font-medium">Nenhum lavador com producao registrada ainda.</p>
+            {topWashersList.length === 0 ? (
+              <p className="text-xs text-slate-400 font-medium">Nenhum lavador com producao registrada hoje.</p>
             ) : (
-              topWashers.map((member, index) => (
+              topWashersList.map((member, index) => (
                 <div key={member.id}>
                   <WasherRank
                     rank={`${index + 1}o`}
                     name={member.name}
                     efficiency={member.efficiency}
-                    washes={member.servicesCount}
-                    imageUrl={member.avatar}
+                    washes={member.washes}
+                    imageUrl={member.imageUrl}
                   />
                 </div>
               ))

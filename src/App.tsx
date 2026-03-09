@@ -40,14 +40,7 @@ import { getBaseById } from './data/bases';
 export default function App() {
   const normalizeScreen = (screen: Screen): Screen => screen === 'queue' ? 'scheduling' : screen;
 
-  const [currentScreen, setCurrentScreen] = useState<Screen>(() => {
-    try {
-      const saved = localStorage.getItem('currentScreen');
-      return saved ? normalizeScreen(saved as Screen) : 'dashboard';
-    } catch (e) {
-      return 'dashboard';
-    }
-  });
+  const [currentScreen, setCurrentScreen] = useState<Screen>('dashboard');
   const [isAssistantOpen, setIsAssistantOpen] = useState(false);
   const [chatInput, setChatInput] = useState('');
   const [chatHistory, setChatHistory] = useState<{role: 'user' | 'ai', text: string}[]>([]);
@@ -160,12 +153,6 @@ export default function App() {
   useEffect(() => {
     api.setAuthToken(authToken);
   }, [authToken]);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem('currentScreen', currentScreen);
-    } catch (e) {}
-  }, [currentScreen]);
 
   useEffect(() => {
     try {
