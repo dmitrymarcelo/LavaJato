@@ -94,8 +94,21 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   });
 
   if (!response.ok) {
-    const data = await response.json().catch(() => ({ error: 'Falha na requisicao.' }));
-    throw new ApiError(response.status, data.error || 'Falha na requisicao.');
+    const raw = await response.text().catch(() => '');
+    let message = 'Falha na requisicao.';
+
+    if (response.status === 413) {
+      message = 'As fotos enviadas ficaram muito grandes. Tente novamente com menos imagens ou imagens menores.';
+    } else if (raw) {
+      try {
+        const data = JSON.parse(raw);
+        message = data.error || message;
+      } catch (error) {
+        message = raw.trim() || message;
+      }
+    }
+
+    throw new ApiError(response.status, message);
   }
 
   if (response.status === 204) {

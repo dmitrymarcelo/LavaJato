@@ -17,7 +17,7 @@ const port = Number(process.env.API_PORT || 4000);
 const authSessionDays = Number(process.env.AUTH_SESSION_DAYS || 7);
 
 app.use(cors());
-app.use(express.json({ limit: '50mb' }));
+app.use(express.json({ limit: '80mb' }));
 
 function toCamelProduct(row) {
   return {
@@ -165,7 +165,7 @@ async function upsertServiceRow(service, executor = query) {
     INSERT INTO services (
       id, sort_order, plate, model, type, base_id, base_name, scheduled_date, scheduled_time, status, price, priority, customer,
       third_party_name, third_party_cpf, observations, washer, washers, timeline, pre_inspection_photos, post_inspection_photos, start_time, end_time, image, updated_at
-    ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18::jsonb,$19::jsonb,$20::jsonb,$21,$22,$23,$24,NOW())
+    ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18::jsonb,$19::jsonb,$20::jsonb,$21::jsonb,$22,$23,$24,NOW())
     ON CONFLICT (id) DO UPDATE SET
       sort_order = EXCLUDED.sort_order,
       plate = EXCLUDED.plate,
