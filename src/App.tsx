@@ -28,7 +28,6 @@ import CheckIn from './components/CheckIn';
 import InspectionPre from './components/InspectionPre';
 import InspectionPost from './components/InspectionPost';
 import Payment from './components/Payment';
-import Filiais from './components/Filiais';
 import ServiceHistory from './components/ServiceHistory';
 import CustomerHistory from './components/CustomerHistory';
 import Scheduling, { QueueSection } from './components/Scheduling';
@@ -652,7 +651,7 @@ export default function App() {
     if (backendError) return <div className="min-h-screen flex items-center justify-center p-6 text-center text-rose-600 font-bold">{backendError}</div>;
 
     switch (currentScreen) {
-      case 'dashboard': return <Dashboard onNavigate={handleNavigateWithService} services={services} team={team} />;
+      case 'dashboard': return <Dashboard onNavigate={handleNavigateWithService} services={services} appointments={appointments} currentDateKey={currentDateKey} team={team} />;
       case 'checkin': return <CheckIn onNavigate={navigateTo} onAddService={addService} serviceTypes={serviceTypes} vehicleDb={vehicleDb} selectedBaseId={selectedBaseInfo?.id} selectedBaseName={selectedBaseInfo?.name} />;
       case 'inspection-pre': return <InspectionPre service={activeService} teamMembers={team} elapsedMinutes={activeServiceElapsedMinutes} onNavigate={navigateTo} onStartWash={async (washers, photos) => {
         if (activeServiceId) {
@@ -729,15 +728,11 @@ export default function App() {
       case 'customer-history': return <CustomerHistory onNavigate={handleNavigateWithService} selectedService={activeService} services={services} />;
       case 'queue':
       case 'scheduling': 
-        if (!selectedBase) {
-          return <Filiais onNavigate={navigateTo} services={services} appointments={appointments} currentDateKey={currentDateKey} onSelectBase={(baseId) => {
-            setSelectedBase(baseId);
-          }} />;
-        }
         return <Scheduling currentDateKey={currentDateKey} appointments={appointments} onUpdateAppointments={persistAppointments} onCreateBooking={createScheduledBooking} onNavigate={handleNavigateWithService} services={services} onAddService={addService} onReorder={reorderServices} serviceTypes={serviceTypes} vehicleDb={vehicleDb} selectedBaseId={selectedBaseInfo?.id} selectedBaseName={selectedBaseInfo?.name} onSelectBase={(baseId) => {
           setSelectedBase(baseId);
         }} onClearBase={() => {
           setSelectedBase(null);
+          navigateTo('dashboard');
         }} />;
       case 'inventory': return <Inventory onNavigate={navigateTo} products={products} onUpdateProducts={persistProducts} />;
       case 'washing': return (
@@ -756,7 +751,7 @@ export default function App() {
         </div>
       );
       case 'settings': return <Settings onNavigate={navigateTo} serviceTypes={serviceTypes} onUpdateServiceTypes={persistServiceTypes} vehicleDb={vehicleDb} onUpdateVehicleDb={persistVehicleDb} team={team} onUpdateTeam={persistTeam} />;
-      default: return <Dashboard onNavigate={handleNavigateWithService} services={services} team={team} />;
+      default: return <Dashboard onNavigate={handleNavigateWithService} services={services} appointments={appointments} currentDateKey={currentDateKey} team={team} />;
     }
   };
 
