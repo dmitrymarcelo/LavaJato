@@ -6,7 +6,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Camera, CheckCircle2, ChevronLeft, CreditCard, RefreshCw, Upload, X, AlertCircle } from 'lucide-react';
 import { Screen, Service } from '../types';
-import { formatElapsedMinutes } from '../utils/app';
+import { formatElapsedMinutes, optimizeImageFile } from '../utils/app';
 
 const PHOTO_TYPES = [
   { id: 'front', label: 'Frente' },
@@ -30,6 +30,7 @@ export default function InspectionPost({
   const [photos, setPhotos] = useState<Record<string, string>>({});
   const [activePhotoId, setActivePhotoId] = useState<string | null>(null);
   const [isPhotoSourceOpen, setIsPhotoSourceOpen] = useState(false);
+  const [isProcessingPhoto, setIsProcessingPhoto] = useState(false);
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const galleryInputRef = useRef<HTMLInputElement>(null);
 
@@ -48,15 +49,22 @@ export default function InspectionPost({
       return;
     }
 
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      setPhotos((current) => ({
-        ...current,
-        [activePhotoId]: reader.result as string,
-      }));
-      setIsPhotoSourceOpen(false);
-    };
-    reader.readAsDataURL(file);
+    setIsProcessingPhoto(true);
+    optimizeImageFile(file)
+      .then((imageData) => {
+        setPhotos((current) => ({
+          ...current,
+          [activePhotoId]: imageData,
+        }));
+        setIsPhotoSourceOpen(false);
+      })
+      .catch((error) => {
+        console.error(error);
+        alert(error instanceof Error ? error.message : 'Nao foi possivel processar a foto.');
+      })
+      .finally(() => {
+        setIsProcessingPhoto(false);
+      });
 
     if (cameraInputRef.current) {
       cameraInputRef.current.value = '';
@@ -69,7 +77,7 @@ export default function InspectionPost({
 
   const completedCount = Object.keys(photos).length;
   const progress = (completedCount / PHOTO_TYPES.length) * 100;
-  const canComplete = completedCount === PHOTO_TYPES.length;
+  const canComplete = completedCount >= 1;
 
   const handleComplete = async () => {
     if (!canComplete) {
@@ -135,7 +143,7 @@ export default function InspectionPost({
 
         <div className="space-y-1">
           <h2 className="text-xl font-bold tracking-tight">Estado Final</h2>
-          <p className="text-sm text-slate-500 leading-relaxed">Capture as 5 fotos obrigatorias para documentar a entrega do veiculo apos a lavagem.</p>
+          <p className="text-sm text-slate-500 leading-relaxed">Capture pelo menos 1 foto para documentar a entrega do veiculo apos a lavagem. As demais sao opcionais.</p>
         </div>
 
         <div className="grid grid-cols-2 gap-3">
@@ -145,7 +153,7 @@ export default function InspectionPost({
               label={type.label}
               image={photos[type.id]}
               onClick={() => handlePhotoClick(type.id)}
-              required
+              required={!completedCount}
             />
           ))}
         </div>
@@ -159,7 +167,7 @@ export default function InspectionPost({
               </span>
             </div>
             <span className="text-xs font-semibold text-slate-400">
-              {canComplete ? 'Entrega pronta' : `Aguardando ${PHOTO_TYPES.length - completedCount} fotos`}
+              {canComplete ? 'Entrega pronta' : 'Capture ao menos 1 foto'}
             </span>
           </div>
           <div className="w-full bg-slate-100 h-3 rounded-full overflow-hidden p-0.5 border border-slate-200">
@@ -188,8 +196,9 @@ export default function InspectionPost({
             </div>
             <div className="grid grid-cols-2 gap-3">
               <button
+                disabled={isProcessingPhoto}
                 onClick={() => cameraInputRef.current?.click()}
-                className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-5 text-slate-900 active:scale-[0.98]"
+                className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-5 text-slate-900 active:scale-[0.98] disabled:opacity-50"
               >
                 <div className="rounded-2xl bg-primary/10 p-3 text-primary">
                   <Camera className="w-6 h-6" />
@@ -197,8 +206,9 @@ export default function InspectionPost({
                 <span className="text-sm font-bold">Abrir camera</span>
               </button>
               <button
+                disabled={isProcessingPhoto}
                 onClick={() => galleryInputRef.current?.click()}
-                className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-5 text-slate-900 active:scale-[0.98]"
+                className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-5 text-slate-900 active:scale-[0.98] disabled:opacity-50"
               >
                 <div className="rounded-2xl bg-primary/10 p-3 text-primary">
                   <Upload className="w-6 h-6" />
@@ -206,6 +216,9 @@ export default function InspectionPost({
                 <span className="text-sm font-bold">Enviar do dispositivo</span>
               </button>
             </div>
+            {isProcessingPhoto && (
+              <p className="text-xs font-bold text-slate-500 text-center">Processando foto...</p>
+            )}
           </div>
         </div>
       )}
@@ -227,7 +240,7 @@ export default function InspectionPost({
           <div className="flex items-center justify-center gap-2 px-6">
             <AlertCircle className={`w-4 h-4 ${canComplete ? 'text-emerald-500' : 'text-amber-500'}`} />
             <p className="text-center text-[10px] uppercase font-bold tracking-wider text-slate-500">
-              {canComplete ? 'Tudo pronto para finalizar a lavagem' : `Capture as ${PHOTO_TYPES.length} fotos finais para habilitar`}
+              {canComplete ? 'Tudo pronto para finalizar a lavagem' : 'Capture ao menos 1 foto final para habilitar'}
             </p>
           </div>
         </div>

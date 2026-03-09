@@ -154,3 +154,55 @@ export function getServicePreviewImage(service?: Service | null) {
     || ''
   );
 }
+
+export async function optimizeImageFile(
+  file: File,
+  options?: {
+    maxWidth?: number;
+    maxHeight?: number;
+    quality?: number;
+  }
+) {
+  const maxWidth = options?.maxWidth ?? 1600;
+  const maxHeight = options?.maxHeight ?? 1600;
+  const quality = options?.quality ?? 0.72;
+
+  const fileDataUrl = await new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ''));
+    reader.onerror = () => reject(new Error('Nao foi possivel ler a imagem selecionada.'));
+    reader.readAsDataURL(file);
+  });
+
+  if (typeof document === 'undefined') {
+    return fileDataUrl;
+  }
+
+  const image = await new Promise<HTMLImageElement>((resolve, reject) => {
+    const element = new Image();
+    element.onload = () => resolve(element);
+    element.onerror = () => reject(new Error('Nao foi possivel processar a imagem selecionada.'));
+    element.src = fileDataUrl;
+  });
+
+  let { width, height } = image;
+  if (!width || !height) {
+    return fileDataUrl;
+  }
+
+  const scale = Math.min(1, maxWidth / width, maxHeight / height);
+  width = Math.max(1, Math.round(width * scale));
+  height = Math.max(1, Math.round(height * scale));
+
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+  const context = canvas.getContext('2d');
+
+  if (!context) {
+    return fileDataUrl;
+  }
+
+  context.drawImage(image, 0, 0, width, height);
+  return canvas.toDataURL('image/jpeg', quality);
+}

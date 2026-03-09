@@ -17,7 +17,7 @@ const port = Number(process.env.API_PORT || 4000);
 const authSessionDays = Number(process.env.AUTH_SESSION_DAYS || 7);
 
 app.use(cors());
-app.use(express.json({ limit: '15mb' }));
+app.use(express.json({ limit: '50mb' }));
 
 function toCamelProduct(row) {
   return {
@@ -751,6 +751,11 @@ app.put('/api/team-members', async (req, res) => {
 
 app.use((error, _req, res, _next) => {
   console.error(error);
+
+  if (error?.type === 'entity.too.large') {
+    return res.status(413).json({ error: 'As fotos enviadas ficaram muito grandes. Tente novamente com menos imagens ou imagens menores.' });
+  }
+
   res.status(error.statusCode || 500).json({ error: error.message || 'Erro interno no servidor.' });
 });
 

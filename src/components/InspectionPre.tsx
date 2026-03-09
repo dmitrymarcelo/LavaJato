@@ -7,7 +7,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Camera, CheckCircle2, Lock, Info, RefreshCw, ChevronLeft, PlayCircle, AlertCircle, Upload, X } from 'lucide-react';
 import { motion } from 'motion/react';
 import { Screen, Service, TeamMember } from '../types';
-import { formatElapsedMinutes } from '../utils/app';
+import { formatElapsedMinutes, optimizeImageFile } from '../utils/app';
 
 const PHOTO_TYPES = [
   { id: 'front', label: 'Frente' },
@@ -23,6 +23,7 @@ export default function InspectionPre({ onNavigate, onStartWash, elapsedMinutes 
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
   const [selectedWashers, setSelectedWashers] = useState<string[]>([]);
   const [isPhotoSourceOpen, setIsPhotoSourceOpen] = useState(false);
+  const [isProcessingPhoto, setIsProcessingPhoto] = useState(false);
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const galleryInputRef = useRef<HTMLInputElement>(null);
 
@@ -67,15 +68,22 @@ export default function InspectionPre({ onNavigate, onStartWash, elapsedMinutes 
   const onFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file && activePhotoId) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setPhotos(prev => ({
-          ...prev,
-          [activePhotoId]: reader.result as string
-        }));
-        setIsPhotoSourceOpen(false);
-      };
-      reader.readAsDataURL(file);
+      setIsProcessingPhoto(true);
+      optimizeImageFile(file)
+        .then((imageData) => {
+          setPhotos(prev => ({
+            ...prev,
+            [activePhotoId]: imageData
+          }));
+          setIsPhotoSourceOpen(false);
+        })
+        .catch((error) => {
+          console.error(error);
+          alert(error instanceof Error ? error.message : 'Nao foi possivel processar a foto.');
+        })
+        .finally(() => {
+          setIsProcessingPhoto(false);
+        });
     }
     if (cameraInputRef.current) {
       cameraInputRef.current.value = '';
@@ -87,7 +95,7 @@ export default function InspectionPre({ onNavigate, onStartWash, elapsedMinutes 
 
   const completedCount = Object.keys(photos).length;
   const progress = (completedCount / PHOTO_TYPES.length) * 100;
-  const isPhotosComplete = completedCount === PHOTO_TYPES.length;
+  const isPhotosComplete = completedCount >= 1;
   const isWashersSelected = selectedWashers.length > 0;
   const canStart = isPhotosComplete && isWashersSelected;
 
@@ -203,7 +211,7 @@ export default function InspectionPre({ onNavigate, onStartWash, elapsedMinutes 
 
         <div className="space-y-1">
           <h2 className="text-xl font-bold tracking-tight">Estado Inicial</h2>
-          <p className="text-sm text-slate-500 leading-relaxed">Capture 5 fotos obrigatórias para documentar o estado do veículo antes de iniciar o serviço.</p>
+          <p className="text-sm text-slate-500 leading-relaxed">Capture pelo menos 1 foto para documentar o estado do veiculo antes de iniciar o servico. As demais sao opcionais.</p>
         </div>
 
         {/* Photo Grid */}
@@ -214,7 +222,7 @@ export default function InspectionPre({ onNavigate, onStartWash, elapsedMinutes 
               label={type.label}
               image={photos[type.id]}
               onClick={() => handlePhotoClick(type.id)}
-              required
+              required={!completedCount}
             />
           ))}
         </div>
@@ -229,7 +237,7 @@ export default function InspectionPre({ onNavigate, onStartWash, elapsedMinutes 
               </span>
             </div>
             <span className="text-xs font-semibold text-slate-400">
-              {isPhotosComplete ? 'Tudo pronto!' : `Aguardando ${PHOTO_TYPES.length - completedCount} fotos`}
+              {isPhotosComplete ? 'Tudo pronto!' : 'Capture ao menos 1 foto'}
             </span>
           </div>
           <div className="w-full bg-slate-100 h-3 rounded-full overflow-hidden p-0.5 border border-slate-200">
@@ -263,8 +271,9 @@ export default function InspectionPre({ onNavigate, onStartWash, elapsedMinutes 
             </div>
             <div className="grid grid-cols-2 gap-3">
               <button
+                disabled={isProcessingPhoto}
                 onClick={() => cameraInputRef.current?.click()}
-                className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-5 text-slate-900 active:scale-[0.98]"
+                className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-5 text-slate-900 active:scale-[0.98] disabled:opacity-50"
               >
                 <div className="rounded-2xl bg-primary/10 p-3 text-primary">
                   <Camera className="w-6 h-6" />
@@ -272,8 +281,9 @@ export default function InspectionPre({ onNavigate, onStartWash, elapsedMinutes 
                 <span className="text-sm font-bold">Abrir camera</span>
               </button>
               <button
+                disabled={isProcessingPhoto}
                 onClick={() => galleryInputRef.current?.click()}
-                className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-5 text-slate-900 active:scale-[0.98]"
+                className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-5 text-slate-900 active:scale-[0.98] disabled:opacity-50"
               >
                 <div className="rounded-2xl bg-primary/10 p-3 text-primary">
                   <Upload className="w-6 h-6" />
@@ -281,6 +291,9 @@ export default function InspectionPre({ onNavigate, onStartWash, elapsedMinutes 
                 <span className="text-sm font-bold">Enviar do dispositivo</span>
               </button>
             </div>
+            {isProcessingPhoto && (
+              <p className="text-xs font-bold text-slate-500 text-center">Processando foto...</p>
+            )}
           </div>
         </div>
       )}
@@ -304,7 +317,7 @@ export default function InspectionPre({ onNavigate, onStartWash, elapsedMinutes 
             <Info className={`w-4 h-4 ${canStart ? 'text-emerald-500' : 'text-amber-500'}`} />
             <p className="text-center text-[10px] uppercase font-bold tracking-wider text-slate-500">
               {!isPhotosComplete 
-                ? `Capture as ${PHOTO_TYPES.length} fotos para habilitar` 
+                ? 'Capture ao menos 1 foto para habilitar'
                 : !isWashersSelected 
                   ? 'Selecione pelo menos um responsável'
                   : 'Tudo pronto para iniciar'}
