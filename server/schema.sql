@@ -85,6 +85,8 @@ CREATE TABLE IF NOT EXISTS appointments (
     customer TEXT NOT NULL,
     vehicle TEXT NOT NULL,
     plate TEXT NOT NULL,
+    base_id TEXT,
+    base_name TEXT,
     vehicle_type TEXT,
     service TEXT NOT NULL,
     date DATE NOT NULL,
@@ -99,6 +101,12 @@ CREATE TABLE IF NOT EXISTS appointments (
 
 ALTER TABLE appointments
     ADD COLUMN IF NOT EXISTS vehicle_type TEXT;
+
+ALTER TABLE appointments
+    ADD COLUMN IF NOT EXISTS base_id TEXT;
+
+ALTER TABLE appointments
+    ADD COLUMN IF NOT EXISTS base_name TEXT;
 
 CREATE TABLE IF NOT EXISTS auth_sessions (
     token TEXT PRIMARY KEY,

@@ -7,6 +7,8 @@ export interface Appointment {
   customer: string;
   vehicle: string;
   plate: string;
+  baseId?: string;
+  baseName?: string;
   vehicleType?: VehicleType;
   service: string;
   date: string;

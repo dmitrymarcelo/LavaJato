@@ -125,6 +125,8 @@ function toCamelAppointment(row) {
     customer: row.customer,
     vehicle: row.vehicle,
     plate: row.plate,
+    baseId: row.base_id,
+    baseName: row.base_name,
     vehicleType: row.vehicle_type,
     service: row.service,
     date: toDateKey(row.date),
@@ -427,12 +429,14 @@ async function upsertAppointmentRow(appointment, executor = query) {
     await executor(
       `
       INSERT INTO appointments (
-        id, customer, vehicle, plate, vehicle_type, service, date, time, status, photo, third_party_name, third_party_cpf, updated_at
-      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,NOW())
+        id, customer, vehicle, plate, base_id, base_name, vehicle_type, service, date, time, status, photo, third_party_name, third_party_cpf, updated_at
+      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,NOW())
       ON CONFLICT (id) DO UPDATE SET
         customer = EXCLUDED.customer,
         vehicle = EXCLUDED.vehicle,
         plate = EXCLUDED.plate,
+        base_id = EXCLUDED.base_id,
+        base_name = EXCLUDED.base_name,
         vehicle_type = EXCLUDED.vehicle_type,
         service = EXCLUDED.service,
         date = EXCLUDED.date,
@@ -448,6 +452,8 @@ async function upsertAppointmentRow(appointment, executor = query) {
         appointment.customer,
         appointment.vehicle,
         appointment.plate,
+        appointment.baseId || null,
+        appointment.baseName || null,
         appointment.vehicleType || null,
         appointment.service,
         appointment.date,

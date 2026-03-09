@@ -25,6 +25,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { Screen, Service, VehicleCategory, VehicleType, VehicleRegistration } from '../types';
 import { Appointment } from '../services/api';
 import { addDays, digitsOnly, formatCpf, generateId, getElapsedMinutes, getServicePreviewImage, getTodayDate, normalizeDateKey } from '../utils/app';
+import { BASES, getBaseById } from '../data/bases';
 
 const TIME_SLOTS = ['07:00', '09:00', '11:00', '13:00', '15:00', '17:00'];
 const ACTIVE_APPOINTMENT_STATUSES: Appointment['status'][] = ['confirmed', 'pending'];
@@ -97,6 +98,7 @@ export default function Scheduling({
   vehicleDb,
   selectedBaseId,
   selectedBaseName,
+  onSelectBase,
   onClearBase,
 }: {
   currentDateKey: string;
@@ -111,6 +113,7 @@ export default function Scheduling({
   vehicleDb?: VehicleRegistration[];
   selectedBaseId?: string | null;
   selectedBaseName?: string | null;
+  onSelectBase?: (baseId: string) => void;
   onClearBase?: () => void;
 }) {
   const [isAdding, setIsAdding] = useState(false);
@@ -131,6 +134,7 @@ export default function Scheduling({
   const [thirdPartyName, setThirdPartyName] = useState('');
   const [thirdPartyCpf, setThirdPartyCpf] = useState('');
   const [isVehicleFound, setIsVehicleFound] = useState(false);
+  const [appointmentBaseId, setAppointmentBaseId] = useState(selectedBaseId || BASES[0]?.id || '');
 
   const resetAppointmentForm = () => {
     setIsAdding(false);
@@ -144,6 +148,7 @@ export default function Scheduling({
     setThirdPartyName('');
     setThirdPartyCpf('');
     setIsVehicleFound(false);
+    setAppointmentBaseId(selectedBaseId || BASES[0]?.id || '');
   };
 
   useEffect(() => {
@@ -155,6 +160,10 @@ export default function Scheduling({
   }, [appointmentsProp]);
 
   useEffect(() => {
+    setAppointmentBaseId(selectedBaseId || BASES[0]?.id || '');
+  }, [selectedBaseId]);
+
+  useEffect(() => {
     const interval = window.setInterval(() => {
       setClockNow(Date.now());
     }, 60000);
@@ -164,13 +173,16 @@ export default function Scheduling({
 
   const pendingAppointmentsForDate = appointments.filter(appointment => {
     const relatedService = services.find(service => service.id === appointment.id);
-    return normalizeDateKey(appointment.date) === filterDate && isActiveAppointment(appointment) && (!relatedService || relatedService.status === 'pending');
+    return normalizeDateKey(appointment.date) === filterDate
+      && (!selectedBaseId || appointment.baseId === selectedBaseId)
+      && isActiveAppointment(appointment)
+      && (!relatedService || relatedService.status === 'pending');
   });
 
-  const waitingServices = services.filter(service => service.status === 'pending' && normalizeDateKey(service.scheduledDate) === currentDateKey);
-  const washingServices = services.filter(service => service.status === 'in_progress' && normalizeDateKey(service.scheduledDate) === currentDateKey);
+  const waitingServices = services.filter(service => service.status === 'pending' && normalizeDateKey(service.scheduledDate) === currentDateKey && (!selectedBaseId || service.baseId === selectedBaseId));
+  const washingServices = services.filter(service => service.status === 'in_progress' && normalizeDateKey(service.scheduledDate) === currentDateKey && (!selectedBaseId || service.baseId === selectedBaseId));
   const completedServices = services.filter(
-    service => (service.status === 'waiting_payment' || service.status === 'completed') && normalizeDateKey(service.scheduledDate) === currentDateKey
+    service => (service.status === 'waiting_payment' || service.status === 'completed') && normalizeDateKey(service.scheduledDate) === currentDateKey && (!selectedBaseId || service.baseId === selectedBaseId)
   );
 
   const timers = Object.fromEntries(
@@ -276,7 +288,11 @@ export default function Scheduling({
 
   const getSlotStatus = (date: string, time: string, nextVehicleType?: VehicleType) => {
     const sameSlotAppointments = appointments.filter(
-      appointment => normalizeDateKey(appointment.date) === date && appointment.time === time && isActiveAppointment(appointment)
+      appointment =>
+        normalizeDateKey(appointment.date) === date
+        && appointment.time === time
+        && appointment.baseId === appointmentBaseId
+        && isActiveAppointment(appointment)
     );
     const truckCount = sameSlotAppointments.filter(appointment => isTruckType(resolveAppointmentVehicleType(appointment))).length;
     const otherCount = sameSlotAppointments.length - truckCount;
@@ -317,6 +333,11 @@ export default function Scheduling({
       return;
     }
 
+    if (!appointmentBaseId) {
+      alert('Selecione a base do agendamento.');
+      return;
+    }
+
     if (isSundayDate(appointmentDate)) {
       alert('Nao trabalhamos aos domingos. Selecione outro dia.');
       return;
@@ -331,6 +352,7 @@ export default function Scheduling({
       appointment =>
         normalizePlate(appointment.plate) === normalizePlate(plate) &&
         normalizeDateKey(appointment.date) === appointmentDate &&
+        appointment.baseId === appointmentBaseId &&
         appointment.time === selectedTime &&
         isActiveAppointment(appointment)
     );
@@ -359,11 +381,14 @@ export default function Scheduling({
     const formData = new FormData(event.target as HTMLFormElement);
     const selectedService = formData.get('service') as string;
 
+    const appointmentBase = getBaseById(appointmentBaseId);
     const newAppointment: Appointment = {
       id: generateId(),
       customer,
       vehicle: vehicleModel,
       plate,
+      baseId: appointmentBaseId,
+      baseName: appointmentBase?.name,
       vehicleType,
       service: selectedService,
       date: appointmentDate,
@@ -378,8 +403,8 @@ export default function Scheduling({
       plate: newAppointment.plate,
       model: newAppointment.vehicle,
       type: newAppointment.service,
-      baseId: selectedBaseId || undefined,
-      baseName: selectedBaseName || undefined,
+      baseId: appointmentBaseId || undefined,
+      baseName: appointmentBase?.name || undefined,
       scheduledDate: newAppointment.date,
       scheduledTime: newAppointment.time,
       status: 'pending',
@@ -396,6 +421,9 @@ export default function Scheduling({
     try {
       setIsSavingAppointment(true);
       await onCreateBooking(newAppointment, newService);
+      if (appointmentBaseId && appointmentBaseId !== selectedBaseId) {
+        onSelectBase?.(appointmentBaseId);
+      }
       setFilterDate(appointmentDate);
       setActiveTab(appointmentDate === currentDateKey ? 'waiting' : 'appointments');
       alert('Agendamento realizado com sucesso.');
@@ -430,6 +458,14 @@ export default function Scheduling({
           </button>
         )}
       </div>
+
+      {selectedBaseName && (
+        <div className="px-4 pb-2">
+          <div className="rounded-2xl border border-primary/10 bg-primary/5 px-4 py-3 text-xs font-bold text-primary">
+            Base em foco: {selectedBaseName}
+          </div>
+        </div>
+      )}
 
       <nav className="sticky top-0 z-20 bg-white/80 backdrop-blur-md border-b border-slate-100">
         <div className="flex px-4 gap-6 overflow-x-auto no-scrollbar">
@@ -580,6 +616,11 @@ export default function Scheduling({
                       <span className="text-[10px] font-black uppercase tracking-widest text-primary bg-primary/5 px-2 py-0.5 rounded border border-primary/5">
                         {appointment.service}
                       </span>
+                      {appointment.baseName && (
+                        <span className="ml-2 text-[10px] font-black uppercase tracking-widest text-slate-600 bg-slate-100 px-2 py-0.5 rounded border border-slate-100">
+                          {appointment.baseName}
+                        </span>
+                      )}
                     </div>
                   </div>
 
@@ -679,6 +720,23 @@ export default function Scheduling({
 
                 {isVehicleFound && (
                   <>
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400 ml-1">Base</label>
+                      <select
+                        name="base"
+                        value={appointmentBaseId}
+                        onChange={(event) => setAppointmentBaseId(event.target.value)}
+                        className="w-full h-14 px-4 bg-slate-50 border border-slate-100 rounded-2xl focus:border-primary outline-none appearance-none text-slate-900"
+                        required
+                      >
+                        {BASES.map((base) => (
+                          <option key={base.id} value={base.id}>
+                            {base.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
                     <div className="bg-emerald-50 border border-emerald-100 rounded-2xl p-4 space-y-3">
                       <div className="flex items-center gap-2 text-emerald-600 mb-2">
                         <CheckCircle2 className="w-5 h-5" />
@@ -700,6 +758,10 @@ export default function Scheduling({
                         <div>
                           <p className="text-[10px] font-bold uppercase tracking-widest text-emerald-600/60">Placa Base</p>
                           <p className="font-bold text-emerald-900">{plate}</p>
+                        </div>
+                        <div>
+                          <p className="text-[10px] font-bold uppercase tracking-widest text-emerald-600/60">Filial de Lavagem</p>
+                          <p className="font-bold text-emerald-900">{getBaseById(appointmentBaseId)?.name || 'Nao selecionada'}</p>
                         </div>
                       </div>
 
