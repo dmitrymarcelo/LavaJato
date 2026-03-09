@@ -68,16 +68,20 @@ const getVehicleTypeLabel = (type: VehicleType) => {
 
 const isTruckType = (type?: VehicleType) => type === 'truck';
 
-const getServiceStartReference = (service: Service, currentDateKey: string) => {
-  if (service.startTime) {
-    return service.startTime;
+const getServiceStageReference = (service: Service) => {
+  if (service.status === 'pending') {
+    return service.timeline?.checkInAt;
   }
 
-  if (service.scheduledDate && service.scheduledTime) {
-    return `${service.scheduledDate}T${service.scheduledTime}:00`;
+  if (service.status === 'in_progress') {
+    return service.timeline?.washStartedAt || service.startTime;
   }
 
-  return `${currentDateKey}T00:00:00`;
+  if (service.status === 'waiting_payment') {
+    return service.timeline?.washCompletedAt || service.endTime;
+  }
+
+  return undefined;
 };
 
 export default function Scheduling({
@@ -170,10 +174,13 @@ export default function Scheduling({
   );
 
   const timers = Object.fromEntries(
-    services.map(service => [
-      service.id,
-      getElapsedMinutes(getServiceStartReference(service, currentDateKey), clockNow),
-    ])
+    services.map(service => {
+      const stageReference = getServiceStageReference(service);
+      return [
+        service.id,
+        stageReference ? getElapsedMinutes(stageReference, clockNow) : null,
+      ];
+    })
   );
 
   const nextDays = Array.from({ length: 7 }, (_, index) => addDays(currentDateKey, index));
@@ -982,7 +989,7 @@ export function QueueSection({
 }: {
   title: string;
   services: Service[];
-  timers: Record<string, number>;
+  timers: Record<string, number | null>;
   onAction: (service: Service) => void;
   onMove: (id: string, direction: 'up' | 'down') => void;
 }) {
@@ -1002,7 +1009,16 @@ export function QueueSection({
               <p className="text-xs text-slate-400 font-medium">Nenhum veiculo nesta etapa</p>
             </div>
           ) : (
-            services.map((service, index) => (
+            services.map((service, index) => {
+              const timerValue = timers[service.id];
+              const hasTimer = typeof timerValue === 'number';
+              const timerClass = !hasTimer
+                ? 'bg-slate-400'
+                : timerValue > 30
+                  ? 'bg-rose-500'
+                  : 'bg-amber-500';
+
+              return (
               <motion.div
                 key={service.id}
                 layout
@@ -1056,9 +1072,9 @@ export function QueueSection({
                         <Zap className="w-2.5 h-2.5 fill-white" />
                       </div>
                     )}
-                    <div className={`flex items-center gap-1 ${timers[service.id] > 30 ? 'bg-rose-500' : 'bg-amber-500'} backdrop-blur-md text-white px-2 py-1 rounded-full shadow-lg`}>
+                    <div className={`flex items-center gap-1 ${timerClass} backdrop-blur-md text-white px-2 py-1 rounded-full shadow-lg`}>
                       <History className="w-3 h-3" />
-                      <span className="text-[10px] font-bold">{timers[service.id] || 0}m</span>
+                      <span className="text-[10px] font-bold">{hasTimer ? `${timerValue}m` : '--'}</span>
                     </div>
                   </div>
                 </div>
@@ -1114,7 +1130,8 @@ export function QueueSection({
                   </button>
                 </div>
               </motion.div>
-            ))
+              );
+            })
           )}
         </AnimatePresence>
       </div>

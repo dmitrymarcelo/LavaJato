@@ -1,22 +1,9 @@
 import React from 'react';
 import { ChevronLeft, Calendar, Car, Clock } from 'lucide-react';
 import { Screen, Service } from '../types';
-import { formatElapsedMinutes } from '../utils/app';
+import { formatElapsedMinutes, getDurationMinutes } from '../utils/app';
 
 const formatDateTime = (value?: string) => (value ? new Date(value).toLocaleString('pt-BR') : 'Nao registrado');
-
-const getDurationMinutes = (start?: string, end?: string) => {
-  if (!start || !end) return 0;
-
-  const startMs = new Date(start).getTime();
-  const endMs = new Date(end).getTime();
-
-  if (Number.isNaN(startMs) || Number.isNaN(endMs) || endMs <= startMs) {
-    return 0;
-  }
-
-  return Math.floor((endMs - startMs) / 60000);
-};
 
 export default function CustomerHistory({
   onNavigate,
@@ -47,8 +34,8 @@ export default function CustomerHistory({
   const vehicleHistory = [...services]
     .filter((service) => service.plate === selectedService.plate && ['completed', 'no_show'].includes(service.status))
     .sort((left, right) => {
-      const leftKey = left.timeline?.completedAt || left.endTime || left.startTime || `${left.scheduledDate || ''}T${left.scheduledTime || '00:00'}`;
-      const rightKey = right.timeline?.completedAt || right.endTime || right.startTime || `${right.scheduledDate || ''}T${right.scheduledTime || '00:00'}`;
+      const leftKey = left.timeline?.completedAt || left.timeline?.noShowAt || left.endTime || left.startTime || `${left.scheduledDate || ''}T${left.scheduledTime || '00:00'}`;
+      const rightKey = right.timeline?.completedAt || right.timeline?.noShowAt || right.endTime || right.startTime || `${right.scheduledDate || ''}T${right.scheduledTime || '00:00'}`;
       return rightKey.localeCompare(leftKey);
     });
 
@@ -83,8 +70,15 @@ export default function CustomerHistory({
               Nenhum historico registrado para este veiculo.
             </div>
           ) : (
-            vehicleHistory.map((item, index) => {
-              const washMinutes = getDurationMinutes(item.startTime, item.endTime);
+            vehicleHistory.map((item) => {
+              const waitingMinutes = getDurationMinutes(item.timeline?.checkInAt, item.timeline?.washStartedAt || item.startTime);
+              const washMinutes = getDurationMinutes(item.timeline?.washStartedAt || item.startTime, item.timeline?.washCompletedAt || item.endTime);
+              const paymentMinutes = getDurationMinutes(item.timeline?.paymentStartedAt, item.timeline?.paymentCompletedAt);
+              const totalMinutes = getDurationMinutes(
+                item.timeline?.checkInAt || item.timeline?.washStartedAt || item.startTime || item.timeline?.createdAt,
+                item.timeline?.completedAt || item.timeline?.noShowAt || item.timeline?.paymentCompletedAt || item.timeline?.washCompletedAt || item.endTime
+              );
+
               return (
                 <div
                   key={item.id}
@@ -94,7 +88,9 @@ export default function CustomerHistory({
                   <div className="flex justify-between items-start gap-3">
                     <div className="flex items-center gap-2">
                       <Calendar className="w-4 h-4 text-primary" />
-                      <span className="text-sm font-bold text-slate-700">{formatDateTime(item.timeline?.completedAt || item.endTime || item.startTime)}</span>
+                      <span className="text-sm font-bold text-slate-700">
+                        {formatDateTime(item.timeline?.completedAt || item.timeline?.noShowAt || item.endTime || item.startTime)}
+                      </span>
                     </div>
                     <div className="bg-emerald-500/10 text-emerald-600 px-2 py-1 rounded-lg text-[10px] font-bold uppercase">
                       {item.status === 'completed' ? 'Finalizado' : 'Nao compareceu'}
@@ -113,9 +109,18 @@ export default function CustomerHistory({
 
                   <div className="flex items-center gap-2 text-[11px] text-slate-500 font-medium">
                     <Clock className="w-3 h-3" />
-                    {item.status === 'no_show' ? 'Nao compareceu ate o fim do dia' : washMinutes ? formatElapsedMinutes(washMinutes) : 'Tempo ainda nao finalizado'}
+                    {item.status === 'no_show' ? 'Nao compareceu ate o fim do dia' : washMinutes ? formatElapsedMinutes(washMinutes) : 'Lavagem sem tempo final registrado'}
                     <span className="text-slate-300">•</span>
                     {item.washers?.length ? item.washers.join(', ') : 'Sem lavador registrado'}
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3 pt-2">
+                    <HistoryMetric label="Agendado em" value={formatDateTime(item.timeline?.createdAt)} emphasis="text-slate-700" />
+                    <HistoryMetric label="Entrada / fila" value={formatDateTime(item.timeline?.checkInAt)} emphasis="text-slate-700" />
+                    <HistoryMetric label="Tempo de espera" value={waitingMinutes ? formatElapsedMinutes(waitingMinutes) : 'Nao registrado'} />
+                    <HistoryMetric label="Tempo de lavagem" value={washMinutes ? formatElapsedMinutes(washMinutes) : 'Nao registrado'} />
+                    <HistoryMetric label="Tempo de pagamento" value={paymentMinutes ? formatElapsedMinutes(paymentMinutes) : 'Nao registrado'} />
+                    <HistoryMetric label="Tempo total" value={totalMinutes ? formatElapsedMinutes(totalMinutes) : 'Nao registrado'} emphasis="text-primary" />
                   </div>
                 </div>
               );
@@ -123,6 +128,23 @@ export default function CustomerHistory({
           )}
         </div>
       </main>
+    </div>
+  );
+}
+
+function HistoryMetric({
+  label,
+  value,
+  emphasis = 'text-slate-900',
+}: {
+  label: string;
+  value: string;
+  emphasis?: string;
+}) {
+  return (
+    <div className="rounded-xl bg-slate-50 border border-slate-100 px-3 py-2">
+      <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400">{label}</p>
+      <p className={`mt-1 text-xs font-black ${emphasis}`}>{value}</p>
     </div>
   );
 }

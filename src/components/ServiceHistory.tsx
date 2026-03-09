@@ -1,23 +1,10 @@
 import React from 'react';
 import { ChevronLeft, Clock, CreditCard, User, Car, MapPin, CheckCircle2 } from 'lucide-react';
 import { Screen, Service } from '../types';
-import { formatElapsedMinutes } from '../utils/app';
+import { formatElapsedMinutes, getDurationMinutes } from '../utils/app';
 
 const formatDateTime = (value?: string) =>
   value ? new Date(value).toLocaleString('pt-BR') : 'Nao registrado';
-
-const getDurationMinutes = (start?: string, end?: string) => {
-  if (!start || !end) return 0;
-
-  const startMs = new Date(start).getTime();
-  const endMs = new Date(end).getTime();
-
-  if (Number.isNaN(startMs) || Number.isNaN(endMs) || endMs <= startMs) {
-    return 0;
-  }
-
-  return Math.floor((endMs - startMs) / 60000);
-};
 
 export default function ServiceHistory({
   onNavigate,
@@ -43,9 +30,16 @@ export default function ServiceHistory({
     );
   }
 
-  const washMinutes = getDurationMinutes(service.startTime, service.endTime);
+  const waitingMinutes = getDurationMinutes(service.timeline?.checkInAt, service.timeline?.washStartedAt || service.startTime);
+  const washMinutes = getDurationMinutes(service.timeline?.washStartedAt || service.startTime, service.timeline?.washCompletedAt || service.endTime);
+  const paymentMinutes = getDurationMinutes(service.timeline?.paymentStartedAt, service.timeline?.paymentCompletedAt);
+  const totalMinutes = getDurationMinutes(
+    service.timeline?.checkInAt || service.timeline?.washStartedAt || service.startTime || service.timeline?.createdAt,
+    service.timeline?.completedAt || service.timeline?.noShowAt || service.timeline?.paymentCompletedAt || service.timeline?.washCompletedAt || service.endTime
+  );
   const timelineRows = [
     { label: 'Criado', value: service.timeline?.createdAt || service.timeline?.checkInAt },
+    { label: 'Entrada / fila', value: service.timeline?.checkInAt },
     { label: 'Inspecao pre iniciada', value: service.timeline?.preInspectionStartedAt },
     { label: 'Lavagem iniciada', value: service.timeline?.washStartedAt || service.startTime },
     { label: 'Lavagem concluida', value: service.timeline?.washCompletedAt || service.endTime },
@@ -92,11 +86,32 @@ export default function ServiceHistory({
           <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm">
             <div className="flex items-center gap-2 mb-1">
               <Clock className="w-4 h-4 text-slate-400" />
-              <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Tempo de lavagem</p>
+              <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Tempo de espera</p>
             </div>
-            <p className="text-lg font-black text-slate-900">{washMinutes ? formatElapsedMinutes(washMinutes) : 'Nao medido'}</p>
+            <p className="text-lg font-black text-slate-900">{waitingMinutes ? formatElapsedMinutes(waitingMinutes) : 'Nao registrado'}</p>
           </div>
           <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm">
+            <div className="flex items-center gap-2 mb-1">
+              <Clock className="w-4 h-4 text-slate-400" />
+              <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Tempo de lavagem</p>
+            </div>
+            <p className="text-lg font-black text-slate-900">{washMinutes ? formatElapsedMinutes(washMinutes) : 'Nao registrado'}</p>
+          </div>
+          <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm">
+            <div className="flex items-center gap-2 mb-1">
+              <CreditCard className="w-4 h-4 text-slate-400" />
+              <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Tempo de pagamento</p>
+            </div>
+            <p className="text-lg font-black text-slate-900">{paymentMinutes ? formatElapsedMinutes(paymentMinutes) : 'Nao registrado'}</p>
+          </div>
+          <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm">
+            <div className="flex items-center gap-2 mb-1">
+              <CheckCircle2 className="w-4 h-4 text-slate-400" />
+              <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Tempo total</p>
+            </div>
+            <p className="text-lg font-black text-primary">{totalMinutes ? formatElapsedMinutes(totalMinutes) : 'Nao registrado'}</p>
+          </div>
+          <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm col-span-2">
             <div className="flex items-center gap-2 mb-1">
               <CheckCircle2 className="w-4 h-4 text-slate-400" />
               <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Responsaveis</p>

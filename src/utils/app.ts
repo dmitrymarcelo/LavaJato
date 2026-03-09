@@ -117,6 +117,21 @@ export function getElapsedMinutes(startTime?: string, now = Date.now()) {
   return Math.max(0, Math.floor((now - startedAt) / 60000));
 }
 
+export function getDurationMinutes(startTime?: string, endTime?: string) {
+  if (!startTime || !endTime) {
+    return 0;
+  }
+
+  const startedAt = new Date(startTime).getTime();
+  const finishedAt = new Date(endTime).getTime();
+
+  if (Number.isNaN(startedAt) || Number.isNaN(finishedAt) || finishedAt <= startedAt) {
+    return 0;
+  }
+
+  return Math.floor((finishedAt - startedAt) / 60000);
+}
+
 export function formatElapsedMinutes(minutes: number) {
   const safeMinutes = Math.max(0, minutes);
   const hours = Math.floor(safeMinutes / 60);
