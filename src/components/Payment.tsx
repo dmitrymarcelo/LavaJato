@@ -6,13 +6,7 @@
 import React from 'react';
 import { CheckCircle2, Clock, ChevronRight, ChevronLeft, Camera } from 'lucide-react';
 import { Screen, Service } from '../types';
-import { formatElapsedMinutes, getElapsedMinutes } from '../utils/app';
-
-const getServicePreviewImage = (service?: Service | null) =>
-  service?.postInspectionPhotos?.front
-  || service?.preInspectionPhotos?.front
-  || service?.image
-  || '';
+import { formatElapsedMinutes, getElapsedMinutes, getServicePreviewImage } from '../utils/app';
 
 export default function Payment({
   onNavigate,

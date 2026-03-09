@@ -34,7 +34,7 @@ import CustomerHistory from './components/CustomerHistory';
 import Scheduling, { QueueSection } from './components/Scheduling';
 import Settings from './components/Settings';
 import Inventory from './components/Inventory';
-import { getElapsedMinutes, getTodayDate, normalizeDateKey } from './utils/app';
+import { getElapsedMinutes, getServicePreviewImage, getTodayDate, normalizeDateKey } from './utils/app';
 import { api, ApiError, Appointment } from './services/api';
 import { getBaseById } from './data/bases';
 
@@ -658,10 +658,12 @@ export default function App() {
         if (activeServiceId) {
           await updateServiceRecord(activeServiceId, (service) => {
             const nowIso = new Date().toISOString();
+            const nextPreviewImage = photos.front || getServicePreviewImage(service);
             return {
               ...service,
               washers,
               preInspectionPhotos: photos,
+              image: nextPreviewImage || service.image,
               status: 'in_progress',
               startTime: nowIso,
               timeline: {
@@ -678,9 +680,11 @@ export default function App() {
         if (activeServiceId) {
           await updateServiceRecord(activeServiceId, (service) => {
             const nowIso = new Date().toISOString();
+            const nextPreviewImage = photos.front || getServicePreviewImage(service);
             return {
               ...service,
               postInspectionPhotos: photos,
+              image: nextPreviewImage || service.image,
               status: 'waiting_payment',
               endTime: nowIso,
               timeline: {

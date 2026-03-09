@@ -1,3 +1,5 @@
+import type { Service } from '../types';
+
 export function generateId() {
   if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
     return crypto.randomUUID();
@@ -142,4 +144,13 @@ export function formatElapsedMinutes(minutes: number) {
   }
 
   return `${hours}h ${remainingMinutes.toString().padStart(2, '0')}min`;
+}
+
+export function getServicePreviewImage(service?: Service | null) {
+  return (
+    service?.postInspectionPhotos?.front
+    || service?.preInspectionPhotos?.front
+    || service?.image
+    || ''
+  );
 }

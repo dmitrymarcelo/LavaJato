@@ -24,7 +24,7 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 import { Screen, Service, VehicleCategory, VehicleType, VehicleRegistration } from '../types';
 import { Appointment } from '../services/api';
-import { addDays, digitsOnly, formatCpf, generateId, getElapsedMinutes, getTodayDate, normalizeDateKey } from '../utils/app';
+import { addDays, digitsOnly, formatCpf, generateId, getElapsedMinutes, getServicePreviewImage, getTodayDate, normalizeDateKey } from '../utils/app';
 
 const TIME_SLOTS = ['07:00', '09:00', '11:00', '13:00', '15:00', '17:00'];
 const ACTIVE_APPOINTMENT_STATUSES: Appointment['status'][] = ['confirmed', 'pending'];
@@ -1028,8 +1028,8 @@ export function QueueSection({
                 className="flex flex-col rounded-2xl overflow-hidden shadow-sm bg-white border border-slate-100 transition-transform hover:shadow-md"
               >
                 <div className="relative h-32 w-full bg-slate-100">
-                  {service.image ? (
-                    <img alt={service.model} className="w-full h-full object-cover" src={service.image} />
+                  {getServicePreviewImage(service) ? (
+                    <img alt={service.model} className="w-full h-full object-cover" src={getServicePreviewImage(service)} />
                   ) : (
                     <div className="w-full h-full flex items-center justify-center text-slate-300">
                       <Car className="w-10 h-10" />
