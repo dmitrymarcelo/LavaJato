@@ -730,7 +730,7 @@ export default function App() {
       case 'queue':
       case 'scheduling': 
         if (!selectedBase) {
-          return <Filiais onNavigate={navigateTo} onSelectBase={(baseId) => {
+          return <Filiais onNavigate={navigateTo} services={services} appointments={appointments} currentDateKey={currentDateKey} onSelectBase={(baseId) => {
             setSelectedBase(baseId);
           }} />;
         }
