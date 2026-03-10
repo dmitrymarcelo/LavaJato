@@ -7,6 +7,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Camera, CheckCircle2, ChevronLeft, CreditCard, RefreshCw, Upload, X, AlertCircle } from 'lucide-react';
 import { Screen, Service } from '../types';
 import { formatElapsedMinutes, optimizeImageFile } from '../utils/app';
+import ModalSurface from './ModalSurface';
 
 const PHOTO_TYPES = [
   { id: 'front', label: 'Frente' },
@@ -180,8 +181,7 @@ export default function InspectionPost({
       </main>
 
       {isPhotoSourceOpen && (
-        <div className="fixed inset-0 z-[80] bg-black/40 backdrop-blur-sm flex items-end justify-center p-4">
-          <div className="w-full max-w-md rounded-[28px] bg-white p-5 shadow-2xl space-y-4">
+        <ModalSurface onClose={() => setIsPhotoSourceOpen(false)} overlayClassName="z-[80]" panelClassName="max-w-md rounded-[28px] p-5 space-y-4">
             <div className="flex items-center justify-between">
               <div>
                 <h3 className="text-lg font-black text-slate-900">Adicionar foto final</h3>
@@ -219,8 +219,7 @@ export default function InspectionPost({
             {isProcessingPhoto && (
               <p className="text-xs font-bold text-slate-500 text-center">Processando foto...</p>
             )}
-          </div>
-        </div>
+        </ModalSurface>
       )}
 
       <footer className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[430px] p-4 bg-white/95 backdrop-blur-lg border-t border-slate-100 pb-6 z-[70]">

@@ -8,6 +8,7 @@ import { Camera, CheckCircle2, Lock, Info, RefreshCw, ChevronLeft, PlayCircle, A
 import { motion } from 'motion/react';
 import { Screen, Service, TeamMember } from '../types';
 import { formatElapsedMinutes, optimizeImageFile } from '../utils/app';
+import ModalSurface from './ModalSurface';
 
 const PHOTO_TYPES = [
   { id: 'front', label: 'Frente' },
@@ -255,8 +256,7 @@ export default function InspectionPre({ onNavigate, onStartWash, elapsedMinutes 
       </main>
 
       {isPhotoSourceOpen && (
-        <div className="fixed inset-0 z-[80] bg-black/40 backdrop-blur-sm flex items-end justify-center p-4">
-          <div className="w-full max-w-md rounded-[28px] bg-white p-5 shadow-2xl space-y-4">
+        <ModalSurface onClose={() => setIsPhotoSourceOpen(false)} overlayClassName="z-[80]" panelClassName="max-w-md rounded-[28px] p-5 space-y-4">
             <div className="flex items-center justify-between">
               <div>
                 <h3 className="text-lg font-black text-slate-900">Adicionar foto</h3>
@@ -294,8 +294,7 @@ export default function InspectionPre({ onNavigate, onStartWash, elapsedMinutes 
             {isProcessingPhoto && (
               <p className="text-xs font-bold text-slate-500 text-center">Processando foto...</p>
             )}
-          </div>
-        </div>
+        </ModalSurface>
       )}
 
       {/* Footer Action */}

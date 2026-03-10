@@ -29,6 +29,7 @@ import { Screen, Service, VehicleCategory, VehicleType, VehicleRegistration } fr
 import { api, ApiError, Appointment } from '../services/api';
 import { addDays, digitsOnly, formatCpf, generateId, getElapsedMinutes, getServicePreviewImage, normalizeDateKey } from '../utils/app';
 import { BASES, BaseInfo, getBaseById } from '../data/bases';
+import ModalSurface from './ModalSurface';
 
 const TIME_SLOTS = ['07:00', '09:00', '11:00', '13:00', '15:00', '17:00'];
 const ACTIVE_APPOINTMENT_STATUSES: Appointment['status'][] = ['confirmed', 'pending'];
@@ -774,19 +775,7 @@ export default function Scheduling({
 
       <AnimatePresence>
         {isAdding && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[100] bg-black/40 backdrop-blur-sm flex items-end justify-center p-4"
-          >
-            <motion.div
-              initial={{ y: '100%' }}
-              animate={{ y: 0 }}
-              exit={{ y: '100%' }}
-              transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-              className="bg-white w-full max-w-[400px] rounded-t-[32px] p-6 shadow-2xl space-y-6"
-            >
+          <ModalSurface onClose={resetAppointmentForm} panelClassName="max-w-[400px] p-6 space-y-6">
               <div className="flex justify-between items-center">
                 <h3 className="text-xl font-black text-slate-900">Novo Agendamento</h3>
                 <button onClick={resetAppointmentForm} className="text-slate-400 hover:text-slate-600 font-bold">
@@ -1002,8 +991,7 @@ export default function Scheduling({
                   </>
                 )}
               </form>
-            </motion.div>
-          </motion.div>
+          </ModalSurface>
         )}
       </AnimatePresence>
 
@@ -1068,13 +1056,7 @@ function CalendarModal({
   const weekDays = ['D', 'S', 'T', 'Q', 'Q', 'S', 'S'];
 
   return (
-    <div className="fixed inset-0 z-[150] bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
-      <motion.div
-        initial={{ opacity: 0, scale: 0.9 }}
-        animate={{ opacity: 1, scale: 1 }}
-        exit={{ opacity: 0, scale: 0.9 }}
-        className="bg-white rounded-3xl shadow-2xl p-6 w-full max-w-sm border border-slate-100"
-      >
+    <ModalSurface onClose={onClose} position="center" overlayClassName="z-[150]" panelClassName="max-w-sm p-6 border border-slate-100">
         <div className="flex items-center justify-between mb-6">
           <h3 className="text-lg font-black text-slate-900">Selecionar Data</h3>
           <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-full transition-colors">
@@ -1128,8 +1110,7 @@ function CalendarModal({
             );
           })}
         </div>
-      </motion.div>
-    </div>
+    </ModalSurface>
   );
 }
 

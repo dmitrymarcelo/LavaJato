@@ -18,6 +18,7 @@ import { Screen, Service, Notification, INITIAL_SERVICE_TYPES, RoleAccessRule, V
 import { getCarCareTips } from './services/geminiService';
 
 import Sidebar from './components/Sidebar';
+import ModalSurface from './components/ModalSurface';
 import Notifications from './components/Notifications';
 import Scheduling, { QueueSection } from './components/Scheduling';
 import { getElapsedMinutes, getServicePreviewImage, getTodayDate, normalizeDateKey } from './utils/app';
@@ -993,13 +994,7 @@ export default function App() {
           {/* AI Assistant Modal */}
           <AnimatePresence>
             {isAssistantOpen && (
-              <motion.div 
-                initial={{ opacity: 0, y: 100 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: 100 }}
-                className="fixed inset-0 z-[60] flex items-end justify-center p-4 bg-black/20 backdrop-blur-sm"
-              >
-                <div className="bg-white w-full max-w-[400px] rounded-3xl shadow-2xl flex flex-col h-[70vh] overflow-hidden border border-slate-100">
+              <ModalSurface onClose={() => setIsAssistantOpen(false)} overlayClassName="z-[60] bg-black/20" panelClassName="max-w-[400px] rounded-3xl flex flex-col h-[70vh] overflow-hidden border border-slate-100">
                   <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-primary text-white">
                     <div className="flex items-center gap-2">
                       <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center">
@@ -1061,8 +1056,7 @@ export default function App() {
                       </button>
                     </div>
                   </div>
-                </div>
-              </motion.div>
+              </ModalSurface>
             )}
           </AnimatePresence>
         </div>

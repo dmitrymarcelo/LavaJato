@@ -16,6 +16,7 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 import { Screen, Product, ProductMovement } from '../types';
 import { generateId, getTodayDate } from '../utils/app';
+import ModalSurface from './ModalSurface';
 
 const INITIAL_PRODUCTS: Product[] = [
   {
@@ -695,19 +696,7 @@ export default function Inventory({
 
       <AnimatePresence>
         {isAdding && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[100] bg-black/40 backdrop-blur-sm flex items-end justify-center p-4 sm:items-center"
-          >
-            <motion.div
-              initial={{ y: '100%' }}
-              animate={{ y: 0 }}
-              exit={{ y: '100%' }}
-              transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-              className="bg-white w-full max-w-lg rounded-3xl p-6 shadow-2xl space-y-6 max-h-[90vh] overflow-y-auto"
-            >
+          <ModalSurface onClose={() => setIsAdding(false)} panelClassName="max-w-lg rounded-3xl p-6 space-y-6">
               <div className="flex justify-between items-center border-b border-slate-100 pb-4">
                 <h3 className="text-xl font-black text-slate-900">{editingProduct ? 'Editar Produto' : 'Novo Produto'}</h3>
                 <button onClick={() => setIsAdding(false)} className="p-2 hover:bg-slate-100 rounded-full transition-colors">
@@ -837,26 +826,13 @@ export default function Inventory({
                   </button>
                 </div>
               </form>
-            </motion.div>
-          </motion.div>
+          </ModalSurface>
         )}
       </AnimatePresence>
 
       <AnimatePresence>
         {manualEntryProduct && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[110] bg-black/40 backdrop-blur-sm flex items-end justify-center p-4 sm:items-center"
-          >
-            <motion.div
-              initial={{ y: '100%' }}
-              animate={{ y: 0 }}
-              exit={{ y: '100%' }}
-              transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-              className="bg-white w-full max-w-md rounded-3xl p-6 shadow-2xl space-y-6"
-            >
+          <ModalSurface onClose={() => setManualEntryProduct(null)} overlayClassName="z-[110]" panelClassName="max-w-md rounded-3xl p-6 space-y-6">
               <div className="flex justify-between items-center border-b border-slate-100 pb-4">
                 <div>
                   <h3 className="text-xl font-black text-slate-900">Entrada Manual</h3>
@@ -915,26 +891,13 @@ export default function Inventory({
                   <span>Registrar Entrada</span>
                 </button>
               </form>
-            </motion.div>
-          </motion.div>
+          </ModalSurface>
         )}
       </AnimatePresence>
 
       <AnimatePresence>
         {manualOutputProduct && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[110] bg-black/40 backdrop-blur-sm flex items-end justify-center p-4 sm:items-center"
-          >
-            <motion.div
-              initial={{ y: '100%' }}
-              animate={{ y: 0 }}
-              exit={{ y: '100%' }}
-              transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-              className="bg-white w-full max-w-md rounded-3xl p-6 shadow-2xl space-y-6"
-            >
+          <ModalSurface onClose={() => setManualOutputProduct(null)} overlayClassName="z-[110]" panelClassName="max-w-md rounded-3xl p-6 space-y-6">
               <div className="flex justify-between items-center border-b border-slate-100 pb-4">
                 <div>
                   <h3 className="text-xl font-black text-slate-900">Baixa Manual</h3>
@@ -993,8 +956,7 @@ export default function Inventory({
                   <span>Registrar Baixa</span>
                 </button>
               </form>
-            </motion.div>
-          </motion.div>
+          </ModalSurface>
         )}
       </AnimatePresence>
     </div>

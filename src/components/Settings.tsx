@@ -4,6 +4,7 @@ import { RoleAccessRule, Screen, TeamMember, VehicleCategory, VehicleType, Servi
 import { motion, AnimatePresence } from 'motion/react';
 import { digitsOnly, formatCpf, generateId, isValidCpf, validateStrongPassword } from '../utils/app';
 import { BASES } from '../data/bases';
+import ModalSurface from './ModalSurface';
 
 interface Permission {
   id: string;
@@ -858,19 +859,7 @@ export default function Settings({
       {/* Add Member Modal */}
       <AnimatePresence>
         {isAddingMember && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[100] bg-black/40 backdrop-blur-sm flex items-end justify-center p-4"
-          >
-            <motion.div
-              initial={{ y: "100%" }}
-              animate={{ y: 0 }}
-              exit={{ y: "100%" }}
-              transition={{ type: "spring", damping: 25, stiffness: 200 }}
-              className="bg-white w-full max-w-[400px] rounded-t-[32px] p-6 shadow-2xl space-y-6"
-            >
+          <ModalSurface onClose={resetMemberForm} panelClassName="max-w-[400px] p-6 space-y-6">
               <div className="flex justify-between items-center">
                 <h3 className="text-xl font-black text-slate-900">{editingMemberId ? `Editar ${activeRole}` : `Novo ${activeRole}`}</h3>
                 <button onClick={resetMemberForm} className="text-slate-400 hover:text-slate-600 font-bold">Fechar</button>
@@ -983,25 +972,12 @@ export default function Settings({
                   </button>
                 </div>
               </div>
-            </motion.div>
-          </motion.div>
+          </ModalSurface>
         )}
 
         {/* Add Vehicle Modal */}
         {isAddingVehicle && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[100] bg-black/40 backdrop-blur-sm flex items-end justify-center p-4"
-          >
-            <motion.div
-              initial={{ y: "100%" }}
-              animate={{ y: 0 }}
-              exit={{ y: "100%" }}
-              transition={{ type: "spring", damping: 25, stiffness: 200 }}
-              className="bg-white w-full max-w-[400px] rounded-t-[32px] p-6 shadow-2xl space-y-6"
-            >
+          <ModalSurface onClose={() => setIsAddingVehicle(false)} panelClassName="max-w-[400px] p-6 space-y-6">
               <div className="flex justify-between items-center">
                 <h3 className="text-xl font-black text-slate-900">Novo Veículo</h3>
                 <button onClick={() => setIsAddingVehicle(false)} className="text-slate-400 hover:text-slate-600 font-bold">Fechar</button>
@@ -1103,24 +1079,11 @@ export default function Settings({
                   </button>
                 </div>
               </div>
-            </motion.div>
-          </motion.div>
+          </ModalSurface>
         )}
 
         {isServiceModalOpen && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[100] bg-black/40 backdrop-blur-sm flex items-end justify-center p-4"
-          >
-            <motion.div
-              initial={{ y: '100%' }}
-              animate={{ y: 0 }}
-              exit={{ y: '100%' }}
-              transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-              className="bg-white w-full max-w-[420px] rounded-t-[32px] p-6 shadow-2xl space-y-6"
-            >
+          <ModalSurface onClose={resetServiceForm} panelClassName="max-w-[420px] p-6 space-y-6">
               <div className="flex justify-between items-center">
                 <h3 className="text-xl font-black text-slate-900">
                   {editingService ? 'Editar Serviço' : 'Adicionar Serviço'}
@@ -1179,8 +1142,7 @@ export default function Settings({
                   </button>
                 </div>
               </div>
-            </motion.div>
-          </motion.div>
+          </ModalSurface>
         )}
       </AnimatePresence>
 
