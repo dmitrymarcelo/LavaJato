@@ -39,6 +39,7 @@ import { getBaseById } from './data/bases';
 
 const BOOTSTRAP_CACHE_KEY = 'bootstrapCacheV2';
 const VEHICLE_DB_CACHE_KEY = 'vehicleDbCacheV1';
+const AUTH_USER_CACHE_KEY = 'authUserV1';
 
 function readJsonCache<T>(key: string, fallback: T): T {
   try {
@@ -115,6 +116,9 @@ export default function App() {
       return null;
     }
   });
+  const [currentUser, setCurrentUser] = useState<TeamMember | null>(() => typeof window !== 'undefined'
+    ? readJsonCache<TeamMember | null>(AUTH_USER_CACHE_KEY, null)
+    : null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
@@ -135,6 +139,7 @@ export default function App() {
   const productsSyncQueueRef = useRef<Promise<void>>(Promise.resolve());
   const teamSyncQueueRef = useRef<Promise<void>>(Promise.resolve());
   const isAuthenticated = Boolean(authToken);
+  const isClientUser = currentUser?.role === 'Clientes';
 
   useEffect(() => {
     const interval = window.setInterval(() => {
@@ -221,6 +226,14 @@ export default function App() {
   }, [authToken]);
 
   useEffect(() => {
+    if (currentUser) {
+      writeJsonCache(AUTH_USER_CACHE_KEY, currentUser);
+    } else {
+      clearJsonCache(AUTH_USER_CACHE_KEY);
+    }
+  }, [currentUser]);
+
+  useEffect(() => {
     try {
       if (selectedBase) {
         localStorage.setItem('selectedBase', selectedBase);
@@ -302,6 +315,12 @@ export default function App() {
       void loadBootstrap();
     }
   }, [isAuthenticated]);
+
+  useEffect(() => {
+    if (isAuthenticated && isClientUser && currentScreen !== 'scheduling') {
+      setCurrentScreen('scheduling');
+    }
+  }, [isAuthenticated, isClientUser, currentScreen]);
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -408,6 +427,7 @@ export default function App() {
   const performClientLogout = () => {
     api.clearAuthToken();
     setAuthToken(null);
+    setCurrentUser(null);
     setActiveServiceId(null);
     setSelectedBase(null);
     setServices([]);
@@ -419,6 +439,7 @@ export default function App() {
     setNotifications([]);
     clearJsonCache(BOOTSTRAP_CACHE_KEY);
     clearJsonCache(VEHICLE_DB_CACHE_KEY);
+    clearJsonCache(AUTH_USER_CACHE_KEY);
     navigateTo('login');
   };
 
@@ -667,7 +688,13 @@ export default function App() {
   };
 
   const navigateTo = (screen: Screen) => {
-    setCurrentScreen(normalizeScreen(screen));
+    const normalized = normalizeScreen(screen);
+    if (isClientUser) {
+      setCurrentScreen('scheduling');
+      return;
+    }
+
+    setCurrentScreen(normalized);
   };
 
   const handleNavigateWithService = (screen: Screen, serviceId?: string) => {
@@ -702,8 +729,9 @@ export default function App() {
 
   const handleLogin = async (registration: string, password: string) => {
     const response = await api.login(registration, password);
+    setCurrentUser(response.user);
     setAuthToken(response.token);
-    navigateTo('dashboard');
+    setCurrentScreen(response.user.role === 'Clientes' ? 'scheduling' : 'dashboard');
   };
 
   const activeService = services.find((service) => service.id === activeServiceId) || null;
@@ -915,6 +943,7 @@ export default function App() {
             onLogout={handleLogout} 
             isOpen={isSidebarOpen}
             onToggle={() => setIsSidebarOpen(!isSidebarOpen)}
+            currentUser={currentUser}
           />
         )}
 
@@ -954,19 +983,23 @@ export default function App() {
               </div>
 
               <div className="flex items-center gap-2">
-                <button 
-                  onClick={() => navigateTo('settings')}
-                  className="p-2.5 rounded-xl bg-white text-slate-500 hover:text-primary transition-all active:scale-95 border border-slate-100 shadow-sm"
-                >
-                  <SettingsIcon className="w-5 h-5" />
-                </button>
-                <Notifications 
-                  isOpen={isNotificationsOpen}
-                  onClose={() => setIsNotificationsOpen(!isNotificationsOpen)}
-                  notifications={notifications}
-                  onMarkAsRead={handleMarkAsRead}
-                  onClearAll={handleClearNotifications}
-                />
+                {!isClientUser && (
+                  <button 
+                    onClick={() => navigateTo('settings')}
+                    className="p-2.5 rounded-xl bg-white text-slate-500 hover:text-primary transition-all active:scale-95 border border-slate-100 shadow-sm"
+                  >
+                    <SettingsIcon className="w-5 h-5" />
+                  </button>
+                )}
+                {!isClientUser && (
+                  <Notifications 
+                    isOpen={isNotificationsOpen}
+                    onClose={() => setIsNotificationsOpen(!isNotificationsOpen)}
+                    notifications={notifications}
+                    onMarkAsRead={handleMarkAsRead}
+                    onClearAll={handleClearNotifications}
+                  />
+                )}
               </div>
             </header>
           )}
@@ -989,7 +1022,7 @@ export default function App() {
           </main>
 
           {/* Bottom Navigation (Mobile Only) */}
-          {isAuthenticated && !['checkin', 'inspection-pre', 'inspection-post', 'payment'].includes(currentScreen) && (
+          {isAuthenticated && !isClientUser && !['checkin', 'inspection-pre', 'inspection-post', 'payment'].includes(currentScreen) && (
             <nav className="lg:hidden fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-md border-t border-slate-100 px-2 pb-8 pt-3 flex items-center justify-around z-50 transition-colors">
               <NavButton 
                 active={currentScreen === 'dashboard'} 
@@ -1013,7 +1046,7 @@ export default function App() {
           )}
 
           {/* Floating AI Assistant Button */}
-          {isAuthenticated && (
+          {isAuthenticated && !isClientUser && (
             <button 
               onClick={() => setIsAssistantOpen(true)}
               className="fixed bottom-24 lg:bottom-8 right-6 w-14 h-14 bg-primary text-white rounded-2xl shadow-2xl shadow-primary/40 flex items-center justify-center hover:scale-110 active:scale-95 transition-all z-40 group"

@@ -22,12 +22,13 @@ const PERMISSIONS: Permission[] = [
   { id: 'edit_services', label: 'Editar Serviços', description: 'Alterar preços ou tipos de serviços em andamento.', icon: <Edit3 className="w-4 h-4" /> },
   { id: 'delete_services', label: 'Excluir Serviços', description: 'Remover registros de serviços do sistema.', icon: <Trash2 className="w-4 h-4" /> },
   { id: 'bypass_inspection', label: 'Pular Inspeção', description: 'Permitir iniciar lavagem sem fotos obrigatórias.', icon: <Eye className="w-4 h-4" /> },
-  { id: 'manage_b2b', label: 'Filiais', description: 'Gerenciar contratos e frotas de empresas.', icon: <Shield className="w-4 h-4" /> },
+  { id: 'manage_b2b', label: 'Base', description: 'Controlar a base que o cliente pode acompanhar na agenda e fila.', icon: <Shield className="w-4 h-4" /> },
 ];
 
 const INITIAL_RULES: RoleRules[] = [
   { role: 'Administrador', permissions: PERMISSIONS.map(p => p.id) },
   { role: 'Lavador', permissions: [] },
+  { role: 'Clientes', permissions: ['manage_b2b'] },
 ];
 
 export default function Settings({ 
@@ -400,6 +401,9 @@ export default function Settings({
   };
 
   const currentRoleRules = rules.find(r => r.role === activeRole);
+  const visiblePermissions = activeRole === 'Clientes'
+    ? PERMISSIONS.filter((permission) => permission.id === 'manage_b2b')
+    : PERMISSIONS;
 
   return (
     <div className="flex flex-col min-h-full bg-white pb-24">
@@ -463,7 +467,7 @@ export default function Settings({
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {PERMISSIONS.map((perm) => {
+                {visiblePermissions.map((perm) => {
                   const isEnabled = currentRoleRules?.permissions.includes(perm.id);
                   const isDisabled = activeRole === 'Administrador';
 
