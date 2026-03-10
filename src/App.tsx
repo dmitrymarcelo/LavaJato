@@ -37,9 +37,10 @@ import { getElapsedMinutes, getServicePreviewImage, getTodayDate, normalizeDateK
 import { api, ApiError, Appointment, BootstrapPayload } from './services/api';
 import { getBaseById } from './data/bases';
 
-const BOOTSTRAP_CACHE_KEY = 'bootstrapCacheV2';
+const BOOTSTRAP_CACHE_KEY = 'bootstrapCacheV3';
 const VEHICLE_DB_CACHE_KEY = 'vehicleDbCacheV1';
 const AUTH_USER_CACHE_KEY = 'authUserV1';
+const LEGACY_BOOTSTRAP_CACHE_KEYS = ['bootstrapCacheV2'];
 
 function readJsonCache<T>(key: string, fallback: T): T {
   try {
@@ -60,6 +61,19 @@ function clearJsonCache(key: string) {
   try {
     window.localStorage.removeItem(key);
   } catch (error) {}
+}
+
+function sanitizeServiceForCache(service: Service): Service {
+  const sanitizedImage = typeof service.image === 'string' && service.image.startsWith('data:')
+    ? undefined
+    : service.image;
+
+  return {
+    ...service,
+    image: sanitizedImage,
+    preInspectionPhotos: {},
+    postInspectionPhotos: {},
+  };
 }
 
 export default function App() {
@@ -198,7 +212,7 @@ export default function App() {
 
     writeJsonCache(BOOTSTRAP_CACHE_KEY, {
       serviceTypes,
-      services,
+      services: services.map(sanitizeServiceForCache),
       appointments,
       products,
       team,
@@ -257,6 +271,10 @@ export default function App() {
     document.documentElement.classList.remove('dark');
   }, []);
 
+  useEffect(() => {
+    LEGACY_BOOTSTRAP_CACHE_KEYS.forEach(clearJsonCache);
+  }, []);
+
   const handleSendMessage = async () => {
     if (!chatInput.trim()) return;
     const userMsg = chatInput;
@@ -292,7 +310,7 @@ export default function App() {
       setTeam(nextTeam);
       writeJsonCache(BOOTSTRAP_CACHE_KEY, {
         serviceTypes: nextServiceTypes,
-        services: nextServices,
+        services: nextServices.map(sanitizeServiceForCache),
         appointments: nextAppointments,
         products: nextProducts,
         team: nextTeam,
