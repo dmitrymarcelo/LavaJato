@@ -16,6 +16,7 @@ export type Screen =
   | 'history'
   | 'customer-history'
   | 'vehicle-history'
+  | 'vehicle-history-detail'
   | 'scheduling'
   | 'team'
   | 'settings'

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   AlertTriangle,
   Car,
@@ -16,7 +16,7 @@ import { formatElapsedMinutes, getDurationMinutes } from '../utils/app';
 
 type VehicleHistoryScope = 'history' | 'all';
 
-type VehicleHistoryGroup = {
+export type VehicleHistoryGroup = {
   plate: string;
   customer: string;
   model: string;
@@ -68,90 +68,95 @@ const getStatusClassName = (status: Service['status']) => {
   return 'bg-slate-50 text-slate-600 border-slate-100';
 };
 
+export const buildVehicleHistoryGroups = (
+  services: Service[],
+  vehicleDb: VehicleRegistration[]
+) => {
+  const serviceMap = new Map<string, Service[]>();
+
+  services.forEach((service) => {
+    const key = service.plate.toUpperCase();
+    const current = serviceMap.get(key) || [];
+    current.push(service);
+    serviceMap.set(key, current);
+  });
+
+  const knownPlates = new Set<string>();
+  const result: VehicleHistoryGroup[] = [];
+
+  vehicleDb.forEach((vehicle) => {
+    const plate = vehicle.plate.toUpperCase();
+    knownPlates.add(plate);
+    const records = [...(serviceMap.get(plate) || [])].sort((left, right) =>
+      getServiceEventDate(right).localeCompare(getServiceEventDate(left))
+    );
+    const latestRecord = records[0];
+
+    result.push({
+      plate,
+      customer: latestRecord?.customer || vehicle.customer || 'Nao informado',
+      model: latestRecord?.model || vehicle.model || 'Veiculo nao informado',
+      type: vehicle.type,
+      previewImage: latestRecord?.image,
+      records,
+      completedCount: records.filter((item) => item.status === 'completed').length,
+      noShowCount: records.filter((item) => item.status === 'no_show').length,
+      activeCount: records.filter((item) => ['pending', 'in_progress', 'waiting_payment'].includes(item.status)).length,
+      totalRevenue: records.filter((item) => item.status === 'completed').reduce((total, item) => total + item.price, 0),
+      lastRecordedAt: latestRecord ? getServiceEventDate(latestRecord) : undefined,
+      lastBaseName: latestRecord?.baseName,
+    });
+  });
+
+  serviceMap.forEach((records, plate) => {
+    if (knownPlates.has(plate)) {
+      return;
+    }
+
+    const sortedRecords = [...records].sort((left, right) =>
+      getServiceEventDate(right).localeCompare(getServiceEventDate(left))
+    );
+    const latestRecord = sortedRecords[0];
+
+    result.push({
+      plate,
+      customer: latestRecord?.customer || 'Nao informado',
+      model: latestRecord?.model || 'Veiculo nao informado',
+      previewImage: latestRecord?.image,
+      records: sortedRecords,
+      completedCount: sortedRecords.filter((item) => item.status === 'completed').length,
+      noShowCount: sortedRecords.filter((item) => item.status === 'no_show').length,
+      activeCount: sortedRecords.filter((item) => ['pending', 'in_progress', 'waiting_payment'].includes(item.status)).length,
+      totalRevenue: sortedRecords.filter((item) => item.status === 'completed').reduce((total, item) => total + item.price, 0),
+      lastRecordedAt: latestRecord ? getServiceEventDate(latestRecord) : undefined,
+      lastBaseName: latestRecord?.baseName,
+    });
+  });
+
+  return result.sort((left, right) => {
+    const rightDate = right.lastRecordedAt || '';
+    const leftDate = left.lastRecordedAt || '';
+    if (rightDate !== leftDate) {
+      return rightDate.localeCompare(leftDate);
+    }
+    return left.plate.localeCompare(right.plate);
+  });
+};
+
 export default function VehicleHistory({
   onNavigate,
+  onOpenVehicle,
   services,
   vehicleDb,
 }: {
   onNavigate: (screen: Screen, serviceId?: string) => void;
+  onOpenVehicle: (plate: string) => void;
   services: Service[];
   vehicleDb: VehicleRegistration[];
 }) {
   const [query, setQuery] = useState('');
   const [scope, setScope] = useState<VehicleHistoryScope>('history');
-  const [selectedPlate, setSelectedPlate] = useState<string | null>(null);
-
-  const groups = useMemo<VehicleHistoryGroup[]>(() => {
-    const serviceMap = new Map<string, Service[]>();
-
-    services.forEach((service) => {
-      const key = service.plate.toUpperCase();
-      const current = serviceMap.get(key) || [];
-      current.push(service);
-      serviceMap.set(key, current);
-    });
-
-    const knownPlates = new Set<string>();
-    const result: VehicleHistoryGroup[] = [];
-
-    vehicleDb.forEach((vehicle) => {
-      const plate = vehicle.plate.toUpperCase();
-      knownPlates.add(plate);
-      const records = [...(serviceMap.get(plate) || [])].sort((left, right) =>
-        getServiceEventDate(right).localeCompare(getServiceEventDate(left))
-      );
-      const latestRecord = records[0];
-
-      result.push({
-        plate,
-        customer: latestRecord?.customer || vehicle.customer || 'Nao informado',
-        model: latestRecord?.model || vehicle.model || 'Veiculo nao informado',
-        type: latestRecord?.type === undefined ? vehicle.type : vehicle.type,
-        previewImage: latestRecord?.image,
-        records,
-        completedCount: records.filter((item) => item.status === 'completed').length,
-        noShowCount: records.filter((item) => item.status === 'no_show').length,
-        activeCount: records.filter((item) => ['pending', 'in_progress', 'waiting_payment'].includes(item.status)).length,
-        totalRevenue: records.filter((item) => item.status === 'completed').reduce((total, item) => total + item.price, 0),
-        lastRecordedAt: latestRecord ? getServiceEventDate(latestRecord) : undefined,
-        lastBaseName: latestRecord?.baseName,
-      });
-    });
-
-    serviceMap.forEach((records, plate) => {
-      if (knownPlates.has(plate)) {
-        return;
-      }
-
-      const sortedRecords = [...records].sort((left, right) =>
-        getServiceEventDate(right).localeCompare(getServiceEventDate(left))
-      );
-      const latestRecord = sortedRecords[0];
-
-      result.push({
-        plate,
-        customer: latestRecord?.customer || 'Nao informado',
-        model: latestRecord?.model || 'Veiculo nao informado',
-        previewImage: latestRecord?.image,
-        records: sortedRecords,
-        completedCount: sortedRecords.filter((item) => item.status === 'completed').length,
-        noShowCount: sortedRecords.filter((item) => item.status === 'no_show').length,
-        activeCount: sortedRecords.filter((item) => ['pending', 'in_progress', 'waiting_payment'].includes(item.status)).length,
-        totalRevenue: sortedRecords.filter((item) => item.status === 'completed').reduce((total, item) => total + item.price, 0),
-        lastRecordedAt: latestRecord ? getServiceEventDate(latestRecord) : undefined,
-        lastBaseName: latestRecord?.baseName,
-      });
-    });
-
-    return result.sort((left, right) => {
-      const rightDate = right.lastRecordedAt || '';
-      const leftDate = left.lastRecordedAt || '';
-      if (rightDate !== leftDate) {
-        return rightDate.localeCompare(leftDate);
-      }
-      return left.plate.localeCompare(right.plate);
-    });
-  }, [services, vehicleDb]);
+  const groups = useMemo(() => buildVehicleHistoryGroups(services, vehicleDb), [services, vehicleDb]);
 
   const filteredGroups = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
@@ -165,29 +170,10 @@ export default function VehicleHistory({
         return true;
       }
 
-      return [
-        group.plate,
-        group.customer,
-        group.model,
-        group.lastBaseName || '',
-      ].some((value) => value.toLowerCase().includes(normalizedQuery));
+      return [group.plate, group.customer, group.model, group.lastBaseName || '']
+        .some((value) => value.toLowerCase().includes(normalizedQuery));
     });
   }, [groups, query, scope]);
-
-  useEffect(() => {
-    if (!filteredGroups.length) {
-      setSelectedPlate(null);
-      return;
-    }
-
-    if (selectedPlate && filteredGroups.some((group) => group.plate === selectedPlate)) {
-      return;
-    }
-
-    setSelectedPlate(filteredGroups[0].plate);
-  }, [filteredGroups, selectedPlate]);
-
-  const selectedVehicle = filteredGroups.find((group) => group.plate === selectedPlate) || filteredGroups[0] || null;
 
   const totalVehiclesWithHistory = groups.filter((group) => group.records.length > 0).length;
   const totalRecords = groups.reduce((total, group) => total + group.records.length, 0);
@@ -210,7 +196,7 @@ export default function VehicleHistory({
         <p className="text-[10px] font-bold uppercase tracking-widest text-primary">Area dedicada</p>
         <h1 className="text-2xl font-black text-slate-900">Historico de Veiculos</h1>
         <p className="text-sm text-slate-500 max-w-3xl">
-          Consulte todo o historico operacional de cada veiculo em um unico lugar, com status, tempos, base, valor, responsaveis e os registros de atendimento.
+          Consulte todos os veiculos cadastrados e abra uma pagina exclusiva com o historico completo do veiculo selecionado.
         </p>
       </section>
 
@@ -239,28 +225,36 @@ export default function VehicleHistory({
           </div>
         </div>
 
-        <div className="grid gap-6 xl:grid-cols-[360px,minmax(0,1fr)]">
-          <div className="space-y-3 max-h-[70vh] overflow-y-auto pr-1">
-            {filteredGroups.length === 0 ? (
-              <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-8 text-center text-slate-400 font-medium">
-                Nenhum veiculo encontrado para o filtro atual.
-              </div>
-            ) : (
-              filteredGroups.map((group) => {
-                const isSelected = selectedVehicle?.plate === group.plate;
-                return (
-                  <button
-                    key={group.plate}
-                    onClick={() => setSelectedPlate(group.plate)}
-                    className={`w-full rounded-2xl border p-4 text-left transition-all ${isSelected ? 'border-primary bg-primary/5 shadow-sm' : 'border-slate-100 bg-white hover:border-slate-200'}`}
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <p className="text-lg font-black text-slate-900">{group.plate}</p>
-                        <p className="text-sm font-bold text-slate-700">{group.model}</p>
-                        <p className="text-xs text-slate-500">{group.customer}</p>
+        <div className="grid gap-4 md:grid-cols-2 2xl:grid-cols-3">
+          {filteredGroups.length === 0 ? (
+            <div className="md:col-span-2 2xl:col-span-3 rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-8 text-center text-slate-400 font-medium">
+              Nenhum veiculo encontrado para o filtro atual.
+            </div>
+          ) : (
+            filteredGroups.map((group) => (
+              <button
+                key={group.plate}
+                onClick={() => onOpenVehicle(group.plate)}
+                className="rounded-3xl border border-slate-100 bg-white p-4 text-left shadow-sm transition-all hover:border-primary hover:shadow-md active:scale-[0.99]"
+              >
+                <div className="flex items-start gap-4">
+                  <div className="w-16 h-16 rounded-2xl overflow-hidden bg-slate-100 border border-slate-100 shrink-0">
+                    {group.previewImage ? (
+                      <img src={group.previewImage} alt={group.model} className="w-full h-full object-cover" />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center text-primary">
+                        <Car className="w-7 h-7" />
                       </div>
-                      <div className="text-right">
+                    )}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="text-lg font-black text-slate-900">{group.plate}</p>
+                        <p className="text-sm font-bold text-slate-700 truncate">{group.model}</p>
+                        <p className="text-xs text-slate-500 truncate">{group.customer}</p>
+                      </div>
+                      <div className="text-right shrink-0">
                         <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Registros</p>
                         <p className="text-xl font-black text-primary">{group.records.length}</p>
                       </div>
@@ -278,34 +272,50 @@ export default function VehicleHistory({
                       <p>Ultimo registro: {group.lastRecordedAt ? formatDateTime(group.lastRecordedAt) : 'Sem historico'}</p>
                       <p>Ultima base: {group.lastBaseName || 'Nao registrada'}</p>
                     </div>
-                  </button>
-                );
-              })
-            )}
-          </div>
-
-          <div className="rounded-3xl border border-slate-100 bg-slate-50/60 p-4 sm:p-5">
-            {!selectedVehicle ? (
-              <div className="rounded-2xl border border-dashed border-slate-200 bg-white p-10 text-center text-slate-400 font-medium">
-                Selecione um veiculo para visualizar o historico consolidado.
-              </div>
-            ) : (
-              <VehicleDetail group={selectedVehicle} onNavigate={onNavigate} />
-            )}
-          </div>
+                  </div>
+                </div>
+              </button>
+            ))
+          )}
         </div>
       </section>
     </div>
   );
 }
 
-function VehicleDetail({
-  group,
+export function VehicleHistoryDetail({
+  plate,
   onNavigate,
+  services,
+  vehicleDb,
 }: {
-  group: VehicleHistoryGroup;
+  plate?: string | null;
   onNavigate: (screen: Screen, serviceId?: string) => void;
+  services: Service[];
+  vehicleDb: VehicleRegistration[];
 }) {
+  const group = useMemo(
+    () => buildVehicleHistoryGroups(services, vehicleDb).find((item) => item.plate === plate) || null,
+    [services, vehicleDb, plate]
+  );
+
+  if (!plate || !group) {
+    return (
+      <div className="min-h-full bg-white p-4">
+        <button
+          onClick={() => onNavigate('vehicle-history')}
+          className="mb-4 flex items-center gap-2 text-slate-500 hover:text-primary transition-colors font-bold text-sm"
+        >
+          <ChevronLeft className="w-5 h-5" />
+          Voltar
+        </button>
+        <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-8 text-center text-slate-400 font-medium">
+          Nenhum veiculo selecionado para detalhamento.
+        </div>
+      </div>
+    );
+  }
+
   const averageWashMinutes = group.records
     .map((record) => getDurationMinutes(record.timeline?.washStartedAt || record.startTime, record.timeline?.washCompletedAt || record.endTime))
     .filter((value): value is number => typeof value === 'number' && value > 0);
@@ -314,102 +324,112 @@ function VehicleDetail({
     : null;
 
   return (
-    <div className="space-y-5">
-      <div className="rounded-3xl border border-slate-100 bg-white p-5 shadow-sm">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-          <div className="flex items-center gap-4">
-            <div className="w-20 h-20 rounded-3xl overflow-hidden bg-slate-100 border border-slate-100 shrink-0">
-              {group.previewImage ? (
-                <img src={group.previewImage} alt={group.model} className="w-full h-full object-cover" />
-              ) : (
-                <div className="w-full h-full flex items-center justify-center text-primary">
-                  <Car className="w-8 h-8" />
-                </div>
-              )}
-            </div>
-            <div className="space-y-1">
-              <p className="text-[10px] font-bold uppercase tracking-widest text-primary">Veiculo selecionado</p>
-              <h2 className="text-2xl font-black text-slate-900">{group.plate}</h2>
-              <p className="text-sm font-bold text-slate-700">{group.model}</p>
-              <p className="text-sm text-slate-500">{group.customer}</p>
-              <p className="text-[11px] font-bold uppercase tracking-widest text-slate-400">{getVehicleTypeLabel(group.type)}</p>
-            </div>
-          </div>
+    <div className="min-h-full bg-white p-4 pb-24 space-y-6">
+      <button
+        onClick={() => onNavigate('vehicle-history')}
+        className="flex items-center gap-2 text-slate-500 hover:text-primary transition-colors font-bold text-sm"
+      >
+        <ChevronLeft className="w-5 h-5" />
+        Voltar para lista
+      </button>
 
-          <div className="rounded-2xl bg-primary/5 border border-primary/10 px-4 py-3">
-            <p className="text-[10px] font-bold uppercase tracking-widest text-primary">Faturamento realizado</p>
-            <p className="text-xl font-black text-primary">R$ {group.totalRevenue.toFixed(2)}</p>
-          </div>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
-        <MetricCard label="Total de registros" value={String(group.records.length)} icon={<History className="w-4 h-4 text-primary" />} compact />
-        <MetricCard label="Finalizados" value={String(group.completedCount)} icon={<WashingMachine className="w-4 h-4 text-emerald-500" />} compact />
-        <MetricCard label="Nao compareceram" value={String(group.noShowCount)} icon={<AlertTriangle className="w-4 h-4 text-rose-500" />} compact />
-        <MetricCard label="Media de lavagem" value={averageWash ? formatElapsedMinutes(averageWash) : 'Sem base'} icon={<Clock3 className="w-4 h-4 text-sky-500" />} compact />
-      </div>
-
-      {group.records.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-slate-200 bg-white p-8 text-center text-slate-400 font-medium">
-          Este veiculo esta cadastrado, mas ainda nao possui historico operacional registrado.
-        </div>
-      ) : (
-        <div className="space-y-4">
-          {group.records.map((record) => {
-            const waitingMinutes = getDurationMinutes(record.timeline?.checkInAt || record.timeline?.createdAt, record.timeline?.washStartedAt || record.startTime || record.timeline?.noShowAt);
-            const washMinutes = getDurationMinutes(record.timeline?.washStartedAt || record.startTime, record.timeline?.washCompletedAt || record.endTime);
-            const paymentMinutes = getDurationMinutes(record.timeline?.paymentStartedAt, record.timeline?.paymentCompletedAt);
-            const totalMinutes = getDurationMinutes(
-              record.timeline?.checkInAt || record.timeline?.createdAt || record.timeline?.washStartedAt || record.startTime,
-              record.timeline?.completedAt || record.timeline?.noShowAt || record.timeline?.paymentCompletedAt || record.timeline?.washCompletedAt || record.endTime
-            );
-
-            return (
-              <div key={record.id} className="rounded-3xl border border-slate-100 bg-white p-4 shadow-sm space-y-4">
-                <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-                  <div className="space-y-2">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <Badge label={getStatusLabel(record.status)} className={getStatusClassName(record.status)} />
-                      <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">{record.type}</span>
-                    </div>
-                    <p className="text-sm font-bold text-slate-900">{formatDateTime(getServiceEventDate(record))}</p>
-                    <div className="flex flex-wrap gap-3 text-[11px] text-slate-500 font-medium">
-                      <span className="inline-flex items-center gap-1"><MapPin className="w-3.5 h-3.5" />{record.baseName || 'Base nao registrada'}</span>
-                      <span className="inline-flex items-center gap-1"><CreditCard className="w-3.5 h-3.5" />R$ {record.price.toFixed(2)}</span>
-                      <span className="inline-flex items-center gap-1"><User className="w-3.5 h-3.5" />{record.washers?.length ? record.washers.join(', ') : 'Sem responsavel'}</span>
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => onNavigate('history', record.id)}
-                    className="inline-flex items-center justify-center rounded-2xl border border-slate-200 px-4 py-2 text-sm font-bold text-slate-600 hover:border-primary hover:text-primary transition-colors"
-                  >
-                    Abrir servico
-                  </button>
-                </div>
-
-                <div className="grid grid-cols-2 xl:grid-cols-4 gap-3">
-                  <MiniMetric label="Agendado em" value={formatDateTime(record.timeline?.createdAt)} />
-                  <MiniMetric label="Entrada / fila" value={formatDateTime(record.timeline?.checkInAt || record.timeline?.createdAt)} />
-                  <MiniMetric label="Tempo de espera" value={waitingMinutes ? formatElapsedMinutes(waitingMinutes) : 'Nao registrado'} />
-                  <MiniMetric label="Tempo de lavagem" value={washMinutes ? formatElapsedMinutes(washMinutes) : 'Nao registrado'} />
-                  <MiniMetric label="Tempo de pagamento" value={paymentMinutes ? formatElapsedMinutes(paymentMinutes) : 'Nao registrado'} />
-                  <MiniMetric label="Tempo total" value={totalMinutes ? formatElapsedMinutes(totalMinutes) : 'Nao registrado'} emphasis="text-primary" />
-                  <MiniMetric label="Inicio do servico" value={formatDateTime(record.timeline?.washStartedAt || record.startTime)} />
-                  <MiniMetric label="Fim do servico" value={formatDateTime(record.timeline?.completedAt || record.timeline?.noShowAt || record.endTime)} />
-                </div>
-
-                {record.observations && (
-                  <div className="rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3">
-                    <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Observacoes</p>
-                    <p className="mt-1 text-sm text-slate-600">{record.observations}</p>
+      <div className="space-y-5">
+        <div className="rounded-3xl border border-slate-100 bg-white p-5 shadow-sm">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+            <div className="flex items-center gap-4">
+              <div className="w-20 h-20 rounded-3xl overflow-hidden bg-slate-100 border border-slate-100 shrink-0">
+                {group.previewImage ? (
+                  <img src={group.previewImage} alt={group.model} className="w-full h-full object-cover" />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center text-primary">
+                    <Car className="w-8 h-8" />
                   </div>
                 )}
               </div>
-            );
-          })}
+              <div className="space-y-1">
+                <p className="text-[10px] font-bold uppercase tracking-widest text-primary">Veiculo selecionado</p>
+                <h1 className="text-2xl font-black text-slate-900">{group.plate}</h1>
+                <p className="text-sm font-bold text-slate-700">{group.model}</p>
+                <p className="text-sm text-slate-500">{group.customer}</p>
+                <p className="text-[11px] font-bold uppercase tracking-widest text-slate-400">{getVehicleTypeLabel(group.type)}</p>
+              </div>
+            </div>
+
+            <div className="rounded-2xl bg-primary/5 border border-primary/10 px-4 py-3">
+              <p className="text-[10px] font-bold uppercase tracking-widest text-primary">Faturamento realizado</p>
+              <p className="text-xl font-black text-primary">R$ {group.totalRevenue.toFixed(2)}</p>
+            </div>
+          </div>
         </div>
-      )}
+
+        <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
+          <MetricCard label="Total de registros" value={String(group.records.length)} icon={<History className="w-4 h-4 text-primary" />} compact />
+          <MetricCard label="Finalizados" value={String(group.completedCount)} icon={<WashingMachine className="w-4 h-4 text-emerald-500" />} compact />
+          <MetricCard label="Nao compareceram" value={String(group.noShowCount)} icon={<AlertTriangle className="w-4 h-4 text-rose-500" />} compact />
+          <MetricCard label="Media de lavagem" value={averageWash ? formatElapsedMinutes(averageWash) : 'Sem base'} icon={<Clock3 className="w-4 h-4 text-sky-500" />} compact />
+        </div>
+
+        {group.records.length === 0 ? (
+          <div className="rounded-2xl border border-dashed border-slate-200 bg-white p-8 text-center text-slate-400 font-medium">
+            Este veiculo esta cadastrado, mas ainda nao possui historico operacional registrado.
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {group.records.map((record) => {
+              const waitingMinutes = getDurationMinutes(record.timeline?.checkInAt || record.timeline?.createdAt, record.timeline?.washStartedAt || record.startTime || record.timeline?.noShowAt);
+              const washMinutes = getDurationMinutes(record.timeline?.washStartedAt || record.startTime, record.timeline?.washCompletedAt || record.endTime);
+              const paymentMinutes = getDurationMinutes(record.timeline?.paymentStartedAt, record.timeline?.paymentCompletedAt);
+              const totalMinutes = getDurationMinutes(
+                record.timeline?.checkInAt || record.timeline?.createdAt || record.timeline?.washStartedAt || record.startTime,
+                record.timeline?.completedAt || record.timeline?.noShowAt || record.timeline?.paymentCompletedAt || record.timeline?.washCompletedAt || record.endTime
+              );
+
+              return (
+                <div key={record.id} className="rounded-3xl border border-slate-100 bg-white p-4 shadow-sm space-y-4">
+                  <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                    <div className="space-y-2">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Badge label={getStatusLabel(record.status)} className={getStatusClassName(record.status)} />
+                        <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">{record.type}</span>
+                      </div>
+                      <p className="text-sm font-bold text-slate-900">{formatDateTime(getServiceEventDate(record))}</p>
+                      <div className="flex flex-wrap gap-3 text-[11px] text-slate-500 font-medium">
+                        <span className="inline-flex items-center gap-1"><MapPin className="w-3.5 h-3.5" />{record.baseName || 'Base nao registrada'}</span>
+                        <span className="inline-flex items-center gap-1"><CreditCard className="w-3.5 h-3.5" />R$ {record.price.toFixed(2)}</span>
+                        <span className="inline-flex items-center gap-1"><User className="w-3.5 h-3.5" />{record.washers?.length ? record.washers.join(', ') : 'Sem responsavel'}</span>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => onNavigate('history', record.id)}
+                      className="inline-flex items-center justify-center rounded-2xl border border-slate-200 px-4 py-2 text-sm font-bold text-slate-600 hover:border-primary hover:text-primary transition-colors"
+                    >
+                      Abrir servico
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-2 xl:grid-cols-4 gap-3">
+                    <MiniMetric label="Agendado em" value={formatDateTime(record.timeline?.createdAt)} />
+                    <MiniMetric label="Entrada / fila" value={formatDateTime(record.timeline?.checkInAt || record.timeline?.createdAt)} />
+                    <MiniMetric label="Tempo de espera" value={waitingMinutes ? formatElapsedMinutes(waitingMinutes) : 'Nao registrado'} />
+                    <MiniMetric label="Tempo de lavagem" value={washMinutes ? formatElapsedMinutes(washMinutes) : 'Nao registrado'} />
+                    <MiniMetric label="Tempo de pagamento" value={paymentMinutes ? formatElapsedMinutes(paymentMinutes) : 'Nao registrado'} />
+                    <MiniMetric label="Tempo total" value={totalMinutes ? formatElapsedMinutes(totalMinutes) : 'Nao registrado'} emphasis="text-primary" />
+                    <MiniMetric label="Inicio do servico" value={formatDateTime(record.timeline?.washStartedAt || record.startTime)} />
+                    <MiniMetric label="Fim do servico" value={formatDateTime(record.timeline?.completedAt || record.timeline?.noShowAt || record.endTime)} />
+                  </div>
+
+                  {record.observations && (
+                    <div className="rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3">
+                      <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Observacoes</p>
+                      <p className="mt-1 text-sm text-slate-600">{record.observations}</p>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

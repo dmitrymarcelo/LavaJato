@@ -37,6 +37,7 @@ const Payment = lazy(() => import('./components/Payment'));
 const ServiceHistory = lazy(() => import('./components/ServiceHistory'));
 const CustomerHistory = lazy(() => import('./components/CustomerHistory'));
 const VehicleHistory = lazy(() => import('./components/VehicleHistory'));
+const VehicleHistoryDetail = lazy(() => import('./components/VehicleHistory').then((module) => ({ default: module.VehicleHistoryDetail })));
 const Settings = lazy(() => import('./components/Settings'));
 const Inventory = lazy(() => import('./components/Inventory'));
 
@@ -60,6 +61,7 @@ export default function App() {
   const [team, setTeam] = useState<TeamMember[]>([]);
   const [accessRules, setAccessRules] = useState<RoleAccessRule[]>([]);
   const [activeServiceId, setActiveServiceId] = useState<string | null>(null);
+  const [selectedVehiclePlate, setSelectedVehiclePlate] = useState<string | null>(null);
   const [selectedBase, setSelectedBase] = useState<string | null>(null);
   const [authToken, setAuthToken] = useState<string | null>(() => api.getAuthToken());
   const [currentUser, setCurrentUser] = useState<TeamMember | null>(null);
@@ -251,7 +253,7 @@ export default function App() {
       return;
     }
 
-    if (!['checkin', 'settings', 'vehicle-history'].includes(currentScreen)) {
+    if (!['checkin', 'settings', 'vehicle-history', 'vehicle-history-detail'].includes(currentScreen)) {
       return;
     }
 
@@ -357,6 +359,7 @@ export default function App() {
     setAuthToken(null);
     setCurrentUser(null);
     setActiveServiceId(null);
+    setSelectedVehiclePlate(null);
     setSelectedBase(null);
     setAccessRules([]);
     setServices([]);
@@ -619,6 +622,10 @@ export default function App() {
       return;
     }
 
+    if (normalized !== 'vehicle-history-detail') {
+      setSelectedVehiclePlate(null);
+    }
+
     setCurrentScreen(normalized);
   };
 
@@ -640,6 +647,14 @@ export default function App() {
     }
 
     navigateTo(screen);
+  };
+
+  const handleNavigateWithVehicle = (screen: Screen, plate?: string) => {
+    if (plate) {
+      setSelectedVehiclePlate(plate.toUpperCase());
+    }
+
+    setCurrentScreen(normalizeScreen(screen));
   };
 
   const handleLogout = async () => {
@@ -824,7 +839,8 @@ export default function App() {
       }} />;
       case 'history': return <ServiceHistory onNavigate={handleNavigateWithService} service={activeService} />;
       case 'customer-history': return <CustomerHistory onNavigate={handleNavigateWithService} selectedService={activeService} services={services} />;
-      case 'vehicle-history': return <VehicleHistory onNavigate={handleNavigateWithService} services={services} vehicleDb={vehicleDb} />;
+      case 'vehicle-history': return <VehicleHistory onNavigate={handleNavigateWithService} onOpenVehicle={(plate) => handleNavigateWithVehicle('vehicle-history-detail', plate)} services={services} vehicleDb={vehicleDb} />;
+      case 'vehicle-history-detail': return <VehicleHistoryDetail plate={selectedVehiclePlate} onNavigate={handleNavigateWithService} services={services} vehicleDb={vehicleDb} />;
       case 'queue':
       case 'scheduling': 
         return <Scheduling currentDateKey={currentDateKey} appointments={appointments} onUpdateAppointments={persistAppointments} onCreateBooking={createScheduledBooking} onNavigate={handleNavigateWithService} services={services} onReorder={reorderServices} serviceTypes={serviceTypes} vehicleDb={vehicleDb} availableBases={availableBases} isClientUser={isClientUser} selectedBaseId={selectedBaseInfo?.id} selectedBaseName={selectedBaseInfo?.name} onSelectBase={(baseId) => {
@@ -911,6 +927,7 @@ export default function App() {
                    currentScreen === 'history' ? 'Histórico' :
                    currentScreen === 'customer-history' ? 'Histórico Clientes' :
                    currentScreen === 'vehicle-history' ? 'Histórico de Veículos' :
+                   currentScreen === 'vehicle-history-detail' ? 'Detalhe do Veículo' :
                    currentScreen === 'inventory' ? 'Estoque' :
                    currentScreen === 'settings' ? 'Configurações' : currentScreen.replace('-', ' ')}
                 </h2>
@@ -980,7 +997,7 @@ export default function App() {
                 label="Estoque"
               />
               <NavButton 
-                active={currentScreen === 'vehicle-history'} 
+                active={currentScreen === 'vehicle-history' || currentScreen === 'vehicle-history-detail'} 
                 onClick={() => navigateTo('vehicle-history')}
                 icon={<History className="w-6 h-6" />}
                 label="Histórico"

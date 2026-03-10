@@ -9,8 +9,8 @@ import {
   Package,
   Droplets
 } from 'lucide-react';
-import { Screen, TeamMember } from '../types';
 import { motion } from 'motion/react';
+import { Screen, TeamMember } from '../types';
 
 interface SidebarProps {
   currentScreen: Screen;
@@ -25,10 +25,11 @@ export default function Sidebar({ currentScreen, onNavigate, onLogout, isOpen, o
   const menuItems = [
     { id: 'dashboard', label: 'Painel', icon: <LayoutDashboard className="w-5 h-5" /> },
     { id: 'scheduling', label: 'Agenda & Fila', icon: <Droplets className="w-5 h-5" /> },
-    { id: 'vehicle-history', label: 'Histórico Veículos', icon: <History className="w-5 h-5" /> },
+    { id: 'vehicle-history', label: 'Historico de Veiculos', icon: <History className="w-5 h-5" /> },
     { id: 'inventory', label: 'Estoque', icon: <Package className="w-5 h-5" /> },
     { id: 'settings', label: 'Configuracoes', icon: <Settings className="w-5 h-5" /> },
   ];
+
   const visibleMenuItems = currentUser?.role === 'Clientes'
     ? menuItems.filter((item) => item.id === 'scheduling')
     : menuItems;
@@ -52,26 +53,30 @@ export default function Sidebar({ currentScreen, onNavigate, onLogout, isOpen, o
         </div>
 
         <nav className={`flex-1 space-y-2 py-4 transition-all duration-300 ${isOpen ? 'px-4 min-w-[288px]' : 'px-3 min-w-[88px]'}`}>
-          {visibleMenuItems.map((item) => (
-            <button
-              key={item.id}
-              onClick={() => onNavigate(item.id as Screen)}
-              title={!isOpen ? item.label : undefined}
-              className={`w-full flex items-center rounded-2xl transition-all group ${
-                isOpen ? 'justify-between px-4 py-3.5' : 'justify-center p-3.5'
-              } ${
-                currentScreen === item.id
-                  ? 'bg-primary text-white shadow-lg shadow-primary/20'
-                  : 'text-slate-500 hover:bg-slate-50 hover:text-slate-900'
-              }`}
-            >
-              <div className="flex items-center gap-3">
-                {item.icon}
-                {isOpen && <span className="font-bold text-sm whitespace-nowrap">{item.label}</span>}
-              </div>
-              {isOpen && <ChevronRight className={`w-4 h-4 transition-transform shrink-0 ${currentScreen === item.id ? 'opacity-100' : 'opacity-0 group-hover:opacity-100 group-hover:translate-x-1'}`} />}
-            </button>
-          ))}
+          {visibleMenuItems.map((item) => {
+            const isActive = currentScreen === item.id || (item.id === 'vehicle-history' && currentScreen === 'vehicle-history-detail');
+
+            return (
+              <button
+                key={item.id}
+                onClick={() => onNavigate(item.id as Screen)}
+                title={!isOpen ? item.label : undefined}
+                className={`w-full flex items-center rounded-2xl transition-all group ${
+                  isOpen ? 'justify-between px-4 py-3.5' : 'justify-center p-3.5'
+                } ${
+                  isActive
+                    ? 'bg-primary text-white shadow-lg shadow-primary/20'
+                    : 'text-slate-500 hover:bg-slate-50 hover:text-slate-900'
+                }`}
+              >
+                <div className="flex items-center gap-3">
+                  {item.icon}
+                  {isOpen && <span className="font-bold text-sm whitespace-nowrap">{item.label}</span>}
+                </div>
+                {isOpen && <ChevronRight className={`w-4 h-4 transition-transform shrink-0 ${isActive ? 'opacity-100' : 'opacity-0 group-hover:opacity-100 group-hover:translate-x-1'}`} />}
+              </button>
+            );
+          })}
         </nav>
 
         <div className={`border-t border-slate-100 transition-all duration-300 ${isOpen ? 'p-6 min-w-[288px]' : 'p-4 min-w-[88px] flex flex-col items-center'}`}>
