@@ -4,7 +4,7 @@
  */
 
 import React, { Suspense, lazy, useState, ReactNode, useEffect, useRef } from 'react';
-import { 
+import {
   LayoutDashboard, 
   Settings as SettingsIcon, 
   MessageSquare,
@@ -14,7 +14,7 @@ import {
   Package
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Screen, Service, Notification, INITIAL_SERVICE_TYPES, VehicleCategory, VehicleType, VehicleRegistration, Product, TeamMember } from './types';
+import { Screen, Service, Notification, INITIAL_SERVICE_TYPES, RoleAccessRule, VehicleCategory, VehicleType, VehicleRegistration, Product, TeamMember } from './types';
 import { getCarCareTips } from './services/geminiService';
 
 import Sidebar from './components/Sidebar';
@@ -22,27 +22,9 @@ import Notifications from './components/Notifications';
 import Scheduling, { QueueSection } from './components/Scheduling';
 import { getElapsedMinutes, getServicePreviewImage, getTodayDate, normalizeDateKey } from './utils/app';
 import { api, ApiError, Appointment } from './services/api';
-import { getBaseById } from './data/bases';
+import { BASES, getBaseById } from './data/bases';
 
-const AUTH_USER_CACHE_KEY = 'authUserV1';
-const APP_CACHE_VERSION_KEY = 'appCacheVersion';
-const APP_CACHE_VERSION = '2026-03-10-memory-hotfix-2';
-const LEGACY_BOOTSTRAP_CACHE_KEYS = ['bootstrapCacheV2', 'bootstrapCacheV3', 'vehicleDbCacheV1'];
-
-function readJsonCache<T>(key: string, fallback: T): T {
-  try {
-    const raw = window.localStorage.getItem(key);
-    return raw ? JSON.parse(raw) as T : fallback;
-  } catch (error) {
-    return fallback;
-  }
-}
-
-function clearJsonCache(key: string) {
-  try {
-    window.localStorage.removeItem(key);
-  } catch (error) {}
-}
+const LEGACY_STORAGE_KEYS = ['bootstrapCacheV2', 'bootstrapCacheV3', 'vehicleDbCacheV1', 'authUserV1', 'selectedBase', 'activeServiceId', 'access_rules', 'appCacheVersion', 'authToken'];
 
 const Login = lazy(() => import('./components/Login'));
 const Dashboard = lazy(() => import('./components/Dashboard'));
@@ -73,31 +55,11 @@ export default function App() {
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [team, setTeam] = useState<TeamMember[]>([]);
-
-  const [activeServiceId, setActiveServiceId] = useState<string | null>(() => {
-    try {
-      return localStorage.getItem('activeServiceId');
-    } catch (e) {
-      return null;
-    }
-  });
-  const [selectedBase, setSelectedBase] = useState<string | null>(() => {
-    try {
-      return localStorage.getItem('selectedBase');
-    } catch (e) {
-      return null;
-    }
-  });
-  const [authToken, setAuthToken] = useState<string | null>(() => {
-    try {
-      return localStorage.getItem('authToken');
-    } catch (e) {
-      return null;
-    }
-  });
-  const [currentUser, setCurrentUser] = useState<TeamMember | null>(() => typeof window !== 'undefined'
-    ? readJsonCache<TeamMember | null>(AUTH_USER_CACHE_KEY, null)
-    : null);
+  const [accessRules, setAccessRules] = useState<RoleAccessRule[]>([]);
+  const [activeServiceId, setActiveServiceId] = useState<string | null>(null);
+  const [selectedBase, setSelectedBase] = useState<string | null>(null);
+  const [authToken, setAuthToken] = useState<string | null>(() => api.getAuthToken());
+  const [currentUser, setCurrentUser] = useState<TeamMember | null>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
@@ -183,48 +145,12 @@ export default function App() {
   }, [authToken]);
 
   useEffect(() => {
-    if (currentUser) {
-      try {
-        window.localStorage.setItem(AUTH_USER_CACHE_KEY, JSON.stringify(currentUser));
-      } catch (error) {}
-    } else {
-      clearJsonCache(AUTH_USER_CACHE_KEY);
-    }
-  }, [currentUser]);
-
-  useEffect(() => {
-    try {
-      if (selectedBase) {
-        localStorage.setItem('selectedBase', selectedBase);
-      } else {
-        localStorage.removeItem('selectedBase');
-      }
-    } catch (e) {}
-  }, [selectedBase]);
-
-  useEffect(() => {
-    try {
-      if (activeServiceId) {
-        localStorage.setItem('activeServiceId', activeServiceId);
-      } else {
-        localStorage.removeItem('activeServiceId');
-      }
-    } catch (e) {}
-  }, [activeServiceId]);
-
-  useEffect(() => {
     document.documentElement.classList.remove('dark');
   }, []);
 
   useEffect(() => {
-    LEGACY_BOOTSTRAP_CACHE_KEYS.forEach(clearJsonCache);
-
     try {
-      const currentVersion = window.localStorage.getItem(APP_CACHE_VERSION_KEY);
-      if (currentVersion !== APP_CACHE_VERSION) {
-        LEGACY_BOOTSTRAP_CACHE_KEYS.forEach(clearJsonCache);
-        window.localStorage.setItem(APP_CACHE_VERSION_KEY, APP_CACHE_VERSION);
-      }
+      LEGACY_STORAGE_KEYS.forEach((key) => window.localStorage.removeItem(key));
     } catch (error) {}
   }, []);
 
@@ -263,6 +189,8 @@ export default function App() {
       const nextTeam = data.team || [];
 
       setServiceTypes(nextServiceTypes);
+      setCurrentUser(data.currentUser || null);
+      setAccessRules(Array.isArray(data.accessRules) ? data.accessRules : []);
       setServices(nextServices);
       setAppointments(nextAppointments);
       setProducts(nextProducts);
@@ -293,11 +221,34 @@ export default function App() {
   }, [isAuthenticated, isClientUser, currentScreen]);
 
   useEffect(() => {
+    if (!currentUser) {
+      setSelectedBase(null);
+      return;
+    }
+
+    if (currentUser.role !== 'Clientes') {
+      if (selectedBase && !getBaseById(selectedBase)) {
+        setSelectedBase(null);
+      }
+      return;
+    }
+
+    const allowedBaseIds = (currentUser.allowedBaseIds || []).filter((baseId) => Boolean(getBaseById(baseId)));
+    const nextBaseId = selectedBase && allowedBaseIds.includes(selectedBase)
+      ? selectedBase
+      : (allowedBaseIds[0] || null);
+
+    if (nextBaseId !== selectedBase) {
+      setSelectedBase(nextBaseId);
+    }
+  }, [currentUser, selectedBase]);
+
+  useEffect(() => {
     if (!isAuthenticated) {
       return;
     }
 
-    if (!['checkin', 'scheduling', 'settings'].includes(currentScreen)) {
+    if (!['checkin', 'settings'].includes(currentScreen)) {
       return;
     }
 
@@ -344,6 +295,11 @@ export default function App() {
     const merged = mergeServiceTypes(next);
     setServiceTypes(merged);
     await api.saveServiceTypes(merged);
+  };
+
+  const persistAccessRules = async (next: RoleAccessRule[]) => {
+    setAccessRules(next);
+    await api.saveAccessRules(next);
   };
 
   const normalizeServicesForPersistence = (next: Service[]) => {
@@ -399,6 +355,7 @@ export default function App() {
     setCurrentUser(null);
     setActiveServiceId(null);
     setSelectedBase(null);
+    setAccessRules([]);
     setServices([]);
     setAppointments([]);
     setProducts([]);
@@ -406,8 +363,6 @@ export default function App() {
     setVehicleDb([]);
     setHasLoadedVehicleDbFromApi(false);
     setNotifications([]);
-    LEGACY_BOOTSTRAP_CACHE_KEYS.forEach(clearJsonCache);
-    clearJsonCache(AUTH_USER_CACHE_KEY);
     navigateTo('login');
   };
 
@@ -698,11 +653,15 @@ export default function App() {
     const response = await api.login(registration, password);
     setCurrentUser(response.user);
     setAuthToken(response.token);
+    setSelectedBase(response.user.role === 'Clientes' ? (response.user.allowedBaseIds?.[0] || null) : null);
     setCurrentScreen(response.user.role === 'Clientes' ? 'scheduling' : 'dashboard');
   };
 
   const activeService = services.find((service) => service.id === activeServiceId) || null;
   const activeServiceElapsedMinutes = getElapsedMinutes(activeService?.startTime, clockNow);
+  const availableBases = currentUser?.role === 'Clientes'
+    ? BASES.filter((base) => (currentUser.allowedBaseIds || []).includes(base.id))
+    : BASES;
   const selectedBaseInfo = getBaseById(selectedBase);
 
   useEffect(() => {
@@ -864,9 +823,18 @@ export default function App() {
       case 'customer-history': return <CustomerHistory onNavigate={handleNavigateWithService} selectedService={activeService} services={services} />;
       case 'queue':
       case 'scheduling': 
-        return <Scheduling currentDateKey={currentDateKey} appointments={appointments} onUpdateAppointments={persistAppointments} onCreateBooking={createScheduledBooking} onNavigate={handleNavigateWithService} services={services} onAddService={addService} onReorder={reorderServices} serviceTypes={serviceTypes} vehicleDb={vehicleDb} selectedBaseId={selectedBaseInfo?.id} selectedBaseName={selectedBaseInfo?.name} onSelectBase={(baseId) => {
+        return <Scheduling currentDateKey={currentDateKey} appointments={appointments} onUpdateAppointments={persistAppointments} onCreateBooking={createScheduledBooking} onNavigate={handleNavigateWithService} services={services} onReorder={reorderServices} serviceTypes={serviceTypes} vehicleDb={vehicleDb} availableBases={availableBases} isClientUser={isClientUser} selectedBaseId={selectedBaseInfo?.id} selectedBaseName={selectedBaseInfo?.name} onSelectBase={(baseId) => {
           setSelectedBase(baseId);
+        }} onResetBaseFilter={() => {
+          if (!isClientUser) {
+            setSelectedBase(null);
+          }
         }} onClearBase={() => {
+          if (isClientUser) {
+            setSelectedBase(availableBases[0]?.id || null);
+            return;
+          }
+
           setSelectedBase(null);
           navigateTo('dashboard');
         }} />;
@@ -895,7 +863,7 @@ export default function App() {
           />
         </div>
       );
-      case 'settings': return <Settings onNavigate={navigateTo} serviceTypes={serviceTypes} onUpdateServiceTypes={persistServiceTypes} vehicleDb={vehicleDb} onUpdateVehicleDb={persistVehicleDb} team={team} onUpdateTeam={persistTeam} />;
+      case 'settings': return <Settings onNavigate={navigateTo} serviceTypes={serviceTypes} onUpdateServiceTypes={persistServiceTypes} vehicleDb={vehicleDb} onUpdateVehicleDb={persistVehicleDb} team={team} onUpdateTeam={persistTeam} accessRules={accessRules} onUpdateAccessRules={persistAccessRules} />;
       default: return <Dashboard onNavigate={handleNavigateWithService} services={services} appointments={appointments} currentDateKey={currentDateKey} team={team} />;
     }
   };

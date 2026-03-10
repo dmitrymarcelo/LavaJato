@@ -1,4 +1,4 @@
-import { Product, Service, TeamMember, VehicleCategory, VehicleRegistration, VehicleType } from '../types';
+import { Product, RoleAccessRule, Service, TeamMember, VehicleCategory, VehicleRegistration, VehicleType } from '../types';
 
 const AUTH_TOKEN_KEY = 'authToken';
 
@@ -20,8 +20,9 @@ export interface Appointment {
 }
 
 export interface BootstrapPayload {
+  currentUser: TeamMember;
   serviceTypes: Record<VehicleType, VehicleCategory>;
-  vehicleDb?: VehicleRegistration[];
+  accessRules: RoleAccessRule[];
   services: Service[];
   appointments: Appointment[];
   products: Product[];
@@ -59,7 +60,7 @@ function readStoredAuthToken() {
   }
 
   try {
-    authTokenCache = window.localStorage.getItem(AUTH_TOKEN_KEY);
+    authTokenCache = window.sessionStorage.getItem(AUTH_TOKEN_KEY);
   } catch (error) {
     authTokenCache = null;
   }
@@ -72,9 +73,9 @@ function storeAuthToken(token: string | null) {
 
   try {
     if (token) {
-      window.localStorage.setItem(AUTH_TOKEN_KEY, token);
+      window.sessionStorage.setItem(AUTH_TOKEN_KEY, token);
     } else {
-      window.localStorage.removeItem(AUTH_TOKEN_KEY);
+      window.sessionStorage.removeItem(AUTH_TOKEN_KEY);
     }
   } catch (error) {}
 }
@@ -134,8 +135,12 @@ export const api = {
   bootstrap: () => request<BootstrapPayload>('/bootstrap'),
   getVehicles: () =>
     request<VehicleRegistration[]>('/vehicles'),
+  findVehicleByPlate: (plate: string) =>
+    request<VehicleRegistration>(`/vehicles/lookup?plate=${encodeURIComponent(plate)}`),
   saveServiceTypes: (serviceTypes: Record<VehicleType, VehicleCategory>) =>
     request('/service-types', { method: 'PUT', body: JSON.stringify(serviceTypes) }),
+  saveAccessRules: (rules: RoleAccessRule[]) =>
+    request<RoleAccessRule[]>('/access-rules', { method: 'PUT', body: JSON.stringify(rules) }),
   saveVehicles: (vehicles: VehicleRegistration[]) =>
     request('/vehicles', { method: 'PUT', body: JSON.stringify(vehicles) }),
   upsertVehicle: (vehicle: VehicleRegistration) =>

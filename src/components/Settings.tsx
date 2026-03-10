@@ -1,19 +1,15 @@
 ﻿import React, { useState } from 'react';
 import { Shield, UserCog, CheckCircle2, XCircle, Save, Info, Lock, Eye, Edit3, Trash2, BarChart3, Users, UserPlus, Star, Clock, MoreVertical, Search, Filter, ShieldCheck, Car, Bike, Truck, Ship, Plus, Upload, FileSpreadsheet, Download } from 'lucide-react';
-import { Screen, TeamMember, VehicleCategory, VehicleType, ServiceTypeOption, VehicleRegistration } from '../types';
+import { RoleAccessRule, Screen, TeamMember, VehicleCategory, VehicleType, ServiceTypeOption, VehicleRegistration } from '../types';
 import { motion, AnimatePresence } from 'motion/react';
 import { digitsOnly, formatCpf, generateId, isValidCpf, validateStrongPassword } from '../utils/app';
+import { BASES } from '../data/bases';
 
 interface Permission {
   id: string;
   label: string;
   description: string;
   icon: React.ReactNode;
-}
-
-interface RoleRules {
-  role: string;
-  permissions: string[];
 }
 
 const PERMISSIONS: Permission[] = [
@@ -25,7 +21,7 @@ const PERMISSIONS: Permission[] = [
   { id: 'manage_b2b', label: 'Base', description: 'Controlar a base que o cliente pode acompanhar na agenda e fila.', icon: <Shield className="w-4 h-4" /> },
 ];
 
-const INITIAL_RULES: RoleRules[] = [
+const INITIAL_RULES: RoleAccessRule[] = [
   { role: 'Administrador', permissions: PERMISSIONS.map(p => p.id) },
   { role: 'Lavador', permissions: [] },
   { role: 'Clientes', permissions: ['manage_b2b'] },
@@ -38,7 +34,9 @@ export default function Settings({
   vehicleDb,
   onUpdateVehicleDb,
   team: teamProp,
-  onUpdateTeam
+  onUpdateTeam,
+  accessRules,
+  onUpdateAccessRules,
 }: { 
   onNavigate: (screen: Screen) => void, 
   serviceTypes?: Record<VehicleType, VehicleCategory>, 
@@ -46,9 +44,11 @@ export default function Settings({
   vehicleDb?: VehicleRegistration[],
   onUpdateVehicleDb?: (db: VehicleRegistration[]) => Promise<void> | void,
   team?: TeamMember[],
-  onUpdateTeam?: (team: TeamMember[]) => Promise<void> | void
+  onUpdateTeam?: (team: TeamMember[]) => Promise<void> | void,
+  accessRules?: RoleAccessRule[],
+  onUpdateAccessRules?: (rules: RoleAccessRule[]) => Promise<void> | void
 }) {
-  const [rules, setRules] = useState<RoleRules[]>(INITIAL_RULES);
+  const [rules, setRules] = useState<RoleAccessRule[]>(accessRules?.length ? accessRules : INITIAL_RULES);
   const [activeRole, setActiveRole] = useState<string>('Administrador');
   const [activeTab, setActiveTab] = useState<'access' | 'services' | 'database'>('access');
   const [isSaving, setIsSaving] = useState(false);
@@ -96,22 +96,23 @@ export default function Settings({
   const [newMemberRegistration, setNewMemberRegistration] = useState('');
   const [newMemberPassword, setNewMemberPassword] = useState('');
   const [newMemberAvatar, setNewMemberAvatar] = useState('');
+  const [newMemberAllowedBaseIds, setNewMemberAllowedBaseIds] = useState<string[]>([]);
+  const [editingMemberId, setEditingMemberId] = useState<string | null>(null);
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const newMemberPasswordError = newMemberPassword ? validateStrongPassword(newMemberPassword) : null;
 
-  // Load saved data on mount
   React.useEffect(() => {
-    const savedRules = localStorage.getItem('access_rules');
-    if (savedRules) setRules(JSON.parse(savedRules));
-    
+    setRules(accessRules?.length ? accessRules : INITIAL_RULES);
     setTeam(teamProp ?? []);
-  }, [teamProp]);
+  }, [accessRules, teamProp]);
 
   const resetMemberForm = () => {
+    setEditingMemberId(null);
     setNewMemberName('');
     setNewMemberRegistration('');
     setNewMemberPassword('');
     setNewMemberAvatar('');
+    setNewMemberAllowedBaseIds([]);
     setIsAddingMember(false);
   };
 
@@ -135,35 +136,45 @@ export default function Settings({
   };
 
   const handleAddMember = async () => {
-    if (!newMemberName.trim() || !newMemberRegistration.trim() || !newMemberPassword.trim()) {
+    const existingMember = editingMemberId ? team.find((member) => member.id === editingMemberId) : null;
+
+    if (!newMemberName.trim() || !newMemberRegistration.trim() || (!editingMemberId && !newMemberPassword.trim())) {
       alert('Preencha todos os campos.');
       return;
     }
 
-    if (newMemberPasswordError) {
+    if (newMemberPassword && newMemberPasswordError) {
       alert(newMemberPasswordError);
       return;
     }
 
+    if (activeRole === 'Clientes' && newMemberAllowedBaseIds.length === 0) {
+      alert('Selecione ao menos uma base para este cliente.');
+      return;
+    }
+
     const newMember: TeamMember = {
-      id: generateId(),
+      id: editingMemberId || generateId(),
       name: newMemberName,
       registration: newMemberRegistration,
-      password: newMemberPassword,
+      password: newMemberPassword || undefined,
       role: activeRole,
-      rating: 5.0,
-      servicesCount: 0,
-      status: 'active',
-      avatar: newMemberAvatar || `https://i.pravatar.cc/150?u=${generateId()}`,
-      efficiency: '100%'
+      allowedBaseIds: activeRole === 'Clientes' ? newMemberAllowedBaseIds : [],
+      rating: existingMember?.rating || 5.0,
+      servicesCount: existingMember?.servicesCount || 0,
+      status: existingMember?.status || 'active',
+      avatar: newMemberAvatar || existingMember?.avatar || `https://i.pravatar.cc/150?u=${generateId()}`,
+      efficiency: existingMember?.efficiency || '100%'
     };
 
-    const updatedTeam = [...team, newMember];
+    const updatedTeam = editingMemberId
+      ? team.map((member) => member.id === editingMemberId ? { ...member, ...newMember, password: newMemberPassword || undefined } : member)
+      : [...team, newMember];
     setTeam(updatedTeam);
     await onUpdateTeam?.(updatedTeam);
     
     resetMemberForm();
-    alert('Colaborador adicionado com sucesso!');
+    alert(editingMemberId ? 'Colaborador atualizado com sucesso!' : 'Colaborador adicionado com sucesso!');
   };
 
   const handleDeleteMember = async (id: string) => {
@@ -175,13 +186,37 @@ export default function Settings({
     }
   };
 
+  const handleEditMember = (member: TeamMember) => {
+    setEditingMemberId(member.id);
+    setNewMemberName(member.name);
+    setNewMemberRegistration(member.registration);
+    setNewMemberPassword('');
+    setNewMemberAvatar(member.avatar);
+    setNewMemberAllowedBaseIds(member.allowedBaseIds || []);
+    setIsAddingMember(true);
+    setOpenMenuId(null);
+  };
+
+  const toggleAllowedBase = (baseId: string) => {
+    setNewMemberAllowedBaseIds((prev) =>
+      prev.includes(baseId)
+        ? prev.filter((id) => id !== baseId)
+        : [...prev, baseId]
+    );
+  };
+
   const handleSave = () => {
     setIsSaving(true);
-    setTimeout(() => {
-      localStorage.setItem('access_rules', JSON.stringify(rules));
+    Promise.resolve(onUpdateAccessRules?.(rules))
+      .then(() => {
       setIsSaving(false);
       alert('Configurações atualizadas com sucesso!');
-    }, 1000);
+      })
+      .catch((error) => {
+        console.error(error);
+        setIsSaving(false);
+        alert(error instanceof Error ? error.message : 'Nao foi possivel salvar as configuracoes.');
+      });
   };
 
   const handleUpdateService = (vehicle: VehicleType, serviceId: string, field: keyof ServiceTypeOption, value: string | number) => {
@@ -466,6 +501,12 @@ export default function Settings({
                 )}
               </div>
 
+              {activeRole === 'Clientes' && (
+                <div className="rounded-2xl border border-primary/10 bg-primary/5 px-4 py-3 text-xs font-medium text-primary">
+                  A definição de quais filiais cada cliente pode acessar e usar no agendamento é feita no cadastro individual do usuário logo abaixo.
+                </div>
+              )}
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {visiblePermissions.map((perm) => {
                   const isEnabled = currentRoleRules?.permissions.includes(perm.id);
@@ -516,10 +557,12 @@ export default function Settings({
                   </div>
                   <button 
                     onClick={() => {
+                      setEditingMemberId(null);
                       setNewMemberName('');
                       setNewMemberRegistration('');
                       setNewMemberPassword('');
                       setNewMemberAvatar('');
+                      setNewMemberAllowedBaseIds([]);
                       setIsAddingMember(true);
                     }}
                     className="bg-primary text-white px-4 py-2 rounded-xl font-bold text-xs flex items-center gap-2 active:scale-95 transition-all shadow-lg shadow-primary/20"
@@ -578,6 +621,24 @@ export default function Settings({
                               <span className="text-[9px] font-bold text-slate-700">{member.servicesCount} serv.</span>
                             </div>
                           </div>
+                          {member.role === 'Clientes' && (
+                            <div className="flex flex-wrap gap-1 mt-2">
+                              {(member.allowedBaseIds || []).length === 0 ? (
+                                <span className="text-[9px] font-bold text-amber-700 bg-amber-50 border border-amber-100 px-2 py-1 rounded-full">
+                                  Nenhuma base liberada
+                                </span>
+                              ) : (
+                                (member.allowedBaseIds || []).map((baseId) => {
+                                  const base = BASES.find((item) => item.id === baseId);
+                                  return (
+                                    <span key={baseId} className="text-[9px] font-bold text-primary bg-primary/5 border border-primary/10 px-2 py-1 rounded-full">
+                                      {base?.name || baseId}
+                                    </span>
+                                  );
+                                })
+                              )}
+                            </div>
+                          )}
                         </div>
 
                         <div className="relative">
@@ -592,6 +653,13 @@ export default function Settings({
                             <>
                               <div className="fixed inset-0 z-10" onClick={() => setOpenMenuId(null)} />
                               <div className="absolute right-0 top-full mt-1 w-32 bg-white rounded-xl shadow-xl border border-slate-100 z-20 overflow-hidden">
+                                <button
+                                  onClick={() => handleEditMember(member)}
+                                  className="w-full text-left px-4 py-3 text-xs font-bold text-slate-700 hover:bg-slate-50 flex items-center gap-2"
+                                >
+                                  <Edit3 className="w-3.5 h-3.5" />
+                                  Editar
+                                </button>
                                 <button 
                                   onClick={() => handleDeleteMember(member.id)}
                                   className="w-full text-left px-4 py-3 text-xs font-bold text-rose-500 hover:bg-rose-50 flex items-center gap-2"
@@ -804,7 +872,7 @@ export default function Settings({
               className="bg-white w-full max-w-[400px] rounded-t-[32px] p-6 shadow-2xl space-y-6"
             >
               <div className="flex justify-between items-center">
-                <h3 className="text-xl font-black text-slate-900">Novo {activeRole}</h3>
+                <h3 className="text-xl font-black text-slate-900">{editingMemberId ? `Editar ${activeRole}` : `Novo ${activeRole}`}</h3>
                 <button onClick={resetMemberForm} className="text-slate-400 hover:text-slate-600 font-bold">Fechar</button>
               </div>
 
@@ -865,17 +933,45 @@ export default function Settings({
                   <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400 ml-1">Senha</label>
                   <input 
                     type="password" 
-                    placeholder="••••••••"
+                    placeholder={editingMemberId ? 'Deixe em branco para manter a atual' : '••••••••'}
                     value={newMemberPassword}
                     onChange={(e) => setNewMemberPassword(e.target.value)}
-                    minLength={12}
+                    minLength={editingMemberId ? undefined : 12}
                     autoComplete="new-password"
                     className="w-full h-14 px-4 bg-slate-50 border border-slate-100 rounded-2xl outline-none focus:border-primary transition-all text-slate-900"
                   />
                   <p className={`text-[10px] font-bold ml-1 ${newMemberPasswordError ? 'text-rose-500' : 'text-slate-400'}`}>
-                    {newMemberPasswordError || 'Senha forte: 12+ caracteres, maiuscula, minuscula, numero e simbolo.'}
+                    {newMemberPasswordError || (editingMemberId ? 'Opcional na edicao. Se informar, a senha precisa seguir a regra forte.' : 'Senha forte: 12+ caracteres, maiuscula, minuscula, numero e simbolo.')}
                   </p>
                 </div>
+
+                {activeRole === 'Clientes' && (
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400 ml-1">Bases Permitidas</label>
+                    <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4 space-y-2">
+                      {BASES.map((base) => {
+                        const checked = newMemberAllowedBaseIds.includes(base.id);
+                        return (
+                          <label key={base.id} className="flex items-center gap-3 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              onChange={() => toggleAllowedBase(base.id)}
+                              className="w-4 h-4 text-primary rounded border-slate-300 focus:ring-primary"
+                            />
+                            <div className="flex flex-col">
+                              <span className="text-sm font-bold text-slate-700">{base.name}</span>
+                              <span className="text-[10px] font-medium text-slate-400">{base.responsible}</span>
+                            </div>
+                          </label>
+                        );
+                      })}
+                    </div>
+                    <p className="text-[10px] font-bold ml-1 text-slate-400">
+                      Defina exatamente em quais filiais este cliente podera consultar e agendar.
+                    </p>
+                  </div>
+                )}
                 
                 <div className="pt-2">
                   <button 
@@ -883,7 +979,7 @@ export default function Settings({
                     disabled={!!newMemberPasswordError}
                     className="w-full bg-primary text-white font-bold py-4 rounded-2xl shadow-lg shadow-primary/20 active:scale-[0.98] transition-all disabled:opacity-70"
                   >
-                    Confirmar Cadastro
+                    {editingMemberId ? 'Salvar Alteracoes' : 'Confirmar Cadastro'}
                   </button>
                 </div>
               </div>

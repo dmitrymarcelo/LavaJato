@@ -10,6 +10,7 @@ CREATE TABLE IF NOT EXISTS team_members (
     registration TEXT NOT NULL UNIQUE,
     password_hash TEXT NOT NULL,
     role TEXT NOT NULL,
+    allowed_base_ids JSONB NOT NULL DEFAULT '[]'::jsonb,
     rating NUMERIC(3,2) NOT NULL DEFAULT 5.0,
     services_count INTEGER NOT NULL DEFAULT 0,
     status TEXT NOT NULL DEFAULT 'offline',
@@ -18,6 +19,16 @@ CREATE TABLE IF NOT EXISTS team_members (
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+ALTER TABLE team_members
+    ADD COLUMN IF NOT EXISTS allowed_base_ids JSONB NOT NULL DEFAULT '[]'::jsonb;
+
+UPDATE team_members
+SET
+    allowed_base_ids = '["flores","sao-jose","cidade-nova","ponta-negra","taruma"]'::jsonb,
+    updated_at = NOW()
+WHERE role = 'Clientes'
+  AND COALESCE(jsonb_array_length(allowed_base_ids), 0) = 0;
 
 CREATE TABLE IF NOT EXISTS vehicles (
     plate TEXT PRIMARY KEY,

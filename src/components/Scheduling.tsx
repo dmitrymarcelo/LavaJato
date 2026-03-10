@@ -26,9 +26,9 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Screen, Service, VehicleCategory, VehicleType, VehicleRegistration } from '../types';
-import { Appointment } from '../services/api';
-import { addDays, digitsOnly, formatCpf, generateId, getElapsedMinutes, getServicePreviewImage, getTodayDate, normalizeDateKey } from '../utils/app';
-import { BASES, getBaseById } from '../data/bases';
+import { api, ApiError, Appointment } from '../services/api';
+import { addDays, digitsOnly, formatCpf, generateId, getElapsedMinutes, getServicePreviewImage, normalizeDateKey } from '../utils/app';
+import { BASES, BaseInfo, getBaseById } from '../data/bases';
 
 const TIME_SLOTS = ['07:00', '09:00', '11:00', '13:00', '15:00', '17:00'];
 const ACTIVE_APPOINTMENT_STATUSES: Appointment['status'][] = ['confirmed', 'pending'];
@@ -88,14 +88,16 @@ export default function Scheduling({
   onCreateBooking,
   onNavigate,
   services,
-  onAddService,
   onReorder,
   serviceTypes,
   vehicleDb,
+  availableBases = BASES,
+  isClientUser = false,
   selectedBaseId,
   selectedBaseName,
   onSelectBase,
   onClearBase,
+  onResetBaseFilter,
 }: {
   currentDateKey: string;
   appointments: Appointment[];
@@ -103,14 +105,16 @@ export default function Scheduling({
   onCreateBooking: (appointment: Appointment, service: Service) => Promise<void> | void;
   onNavigate: (screen: Screen, serviceId?: string) => void;
   services: Service[];
-  onAddService: (service: Service) => Promise<void> | void;
   onReorder: (newServices: Service[]) => Promise<void> | void;
   serviceTypes: Record<VehicleType, VehicleCategory>;
   vehicleDb?: VehicleRegistration[];
+  availableBases?: BaseInfo[];
+  isClientUser?: boolean;
   selectedBaseId?: string | null;
   selectedBaseName?: string | null;
   onSelectBase?: (baseId: string) => void;
   onClearBase?: () => void;
+  onResetBaseFilter?: () => void;
 }) {
   const [isAdding, setIsAdding] = useState(false);
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
@@ -120,6 +124,8 @@ export default function Scheduling({
   const [activeTab, setActiveTab] = useState<'appointments' | 'waiting' | 'washing' | 'completed'>('appointments');
   const [clockNow, setClockNow] = useState(() => Date.now());
   const [isSavingAppointment, setIsSavingAppointment] = useState(false);
+  const [isLookingUpVehicle, setIsLookingUpVehicle] = useState(false);
+  const [plateLookupError, setPlateLookupError] = useState<string | null>(null);
 
   const [plate, setPlate] = useState('');
   const [customer, setCustomer] = useState('');
@@ -130,7 +136,7 @@ export default function Scheduling({
   const [thirdPartyName, setThirdPartyName] = useState('');
   const [thirdPartyCpf, setThirdPartyCpf] = useState('');
   const [isVehicleFound, setIsVehicleFound] = useState(false);
-  const [appointmentBaseId, setAppointmentBaseId] = useState(selectedBaseId || BASES[0]?.id || '');
+  const [appointmentBaseId, setAppointmentBaseId] = useState(selectedBaseId || availableBases[0]?.id || BASES[0]?.id || '');
 
   const resetAppointmentForm = () => {
     setIsAdding(false);
@@ -144,7 +150,8 @@ export default function Scheduling({
     setThirdPartyName('');
     setThirdPartyCpf('');
     setIsVehicleFound(false);
-    setAppointmentBaseId(selectedBaseId || BASES[0]?.id || '');
+    setPlateLookupError(null);
+    setAppointmentBaseId(selectedBaseId || availableBases[0]?.id || BASES[0]?.id || '');
   };
 
   useEffect(() => {
@@ -156,8 +163,8 @@ export default function Scheduling({
   }, [appointmentsProp]);
 
   useEffect(() => {
-    setAppointmentBaseId(selectedBaseId || BASES[0]?.id || '');
-  }, [selectedBaseId]);
+    setAppointmentBaseId(selectedBaseId || availableBases[0]?.id || BASES[0]?.id || '');
+  }, [selectedBaseId, availableBases]);
 
   useEffect(() => {
     const interval = window.setInterval(() => {
@@ -194,10 +201,11 @@ export default function Scheduling({
   const handlePlateChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const nextPlate = event.target.value.toUpperCase();
     setPlate(nextPlate);
+    setPlateLookupError(null);
+  };
 
-    const matchedVehicle = vehicleDb?.find(vehicle => normalizePlate(vehicle.plate) === normalizePlate(nextPlate));
-
-    if (!matchedVehicle) {
+  useEffect(() => {
+    const resetMatchedVehicle = () => {
       setIsVehicleFound(false);
       setCustomer('');
       setVehicleModel('');
@@ -205,24 +213,79 @@ export default function Scheduling({
       setIsThirdParty(false);
       setThirdPartyName('');
       setThirdPartyCpf('');
+    };
+
+    const fillMatchedVehicle = (matchedVehicle: VehicleRegistration) => {
+      setIsVehicleFound(true);
+      setCustomer(matchedVehicle.customer);
+      setVehicleModel(matchedVehicle.model);
+      setVehicleType(matchedVehicle.type);
+
+      if (matchedVehicle.thirdPartyName || matchedVehicle.thirdPartyCpf) {
+        setIsThirdParty(true);
+        setThirdPartyName(matchedVehicle.thirdPartyName || '');
+        setThirdPartyCpf(matchedVehicle.thirdPartyCpf || '');
+      } else {
+        setIsThirdParty(false);
+        setThirdPartyName('');
+        setThirdPartyCpf('');
+      }
+    };
+
+    const normalizedPlate = normalizePlate(plate);
+
+    if (!normalizedPlate) {
+      resetMatchedVehicle();
+      setPlateLookupError(null);
       return;
     }
 
-    setIsVehicleFound(true);
-    setCustomer(matchedVehicle.customer);
-    setVehicleModel(matchedVehicle.model);
-    setVehicleType(matchedVehicle.type);
-
-    if (matchedVehicle.thirdPartyName || matchedVehicle.thirdPartyCpf) {
-      setIsThirdParty(true);
-      setThirdPartyName(matchedVehicle.thirdPartyName || '');
-      setThirdPartyCpf(matchedVehicle.thirdPartyCpf || '');
-    } else {
-      setIsThirdParty(false);
-      setThirdPartyName('');
-      setThirdPartyCpf('');
+    const matchedVehicle = vehicleDb?.find((vehicle) => normalizePlate(vehicle.plate) === normalizedPlate);
+    if (matchedVehicle) {
+      setPlateLookupError(null);
+      fillMatchedVehicle(matchedVehicle);
+      return;
     }
-  };
+
+    if (normalizedPlate.length < 7) {
+      resetMatchedVehicle();
+      return;
+    }
+
+    let cancelled = false;
+    const timeoutId = window.setTimeout(async () => {
+      setIsLookingUpVehicle(true);
+      try {
+        const remoteVehicle = await api.findVehicleByPlate(normalizedPlate);
+        if (cancelled) {
+          return;
+        }
+
+        setPlateLookupError(null);
+        fillMatchedVehicle(remoteVehicle);
+      } catch (error) {
+        if (cancelled) {
+          return;
+        }
+
+        resetMatchedVehicle();
+        if (error instanceof ApiError && error.status === 404) {
+          setPlateLookupError('Cadastre a placa na base de veículos antes de criar o agendamento.');
+        } else {
+          setPlateLookupError(error instanceof Error ? error.message : 'Nao foi possivel consultar a placa.');
+        }
+      } finally {
+        if (!cancelled) {
+          setIsLookingUpVehicle(false);
+        }
+      }
+    }, 250);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timeoutId);
+    };
+  }, [plate, vehicleDb]);
 
   const handleAction = (service: Service) => {
     if (service.status === 'pending') {
@@ -345,8 +408,13 @@ export default function Scheduling({
   const handleAddAppointment = async (event: React.FormEvent) => {
     event.preventDefault();
 
+    if (isClientUser && availableBases.length === 0) {
+      alert('Este cliente nao possui bases liberadas para agendamento.');
+      return;
+    }
+
     if (!isVehicleFound) {
-      alert('Cadastre a placa na base de veiculos antes de criar o agendamento.');
+      alert(plateLookupError || 'Cadastre a placa na base de veiculos antes de criar o agendamento.');
       return;
     }
 
@@ -456,28 +524,60 @@ export default function Scheduling({
   return (
     <div className="flex flex-col min-h-full bg-white pb-24">
       <div className="px-4 pt-6 pb-2 flex justify-between items-center">
-        <button
-          onClick={() => onClearBase?.()}
-          className="flex items-center gap-2 text-slate-500 hover:text-primary transition-colors font-bold text-sm"
-        >
-          <ChevronLeft className="w-5 h-5" />
-          Voltar
-        </button>
+        {isClientUser ? (
+          <div className="text-xs font-bold uppercase tracking-widest text-slate-400">Agenda & Fila</div>
+        ) : (
+          <button
+            onClick={() => onClearBase?.()}
+            className="flex items-center gap-2 text-slate-500 hover:text-primary transition-colors font-bold text-sm"
+          >
+            <ChevronLeft className="w-5 h-5" />
+            Voltar
+          </button>
+        )}
         <button
           onClick={() => {
             resetAppointmentForm();
             setIsAdding(true);
           }}
+          disabled={isClientUser && availableBases.length === 0}
           className="bg-primary text-white p-3 rounded-2xl shadow-xl shadow-primary/20 active:scale-95 transition-transform"
         >
           <Plus className="w-7 h-7" />
         </button>
       </div>
 
-      {selectedBaseName && (
+      {(availableBases.length > 0 || selectedBaseName) && (
         <div className="px-4 pb-2">
-          <div className="rounded-2xl border border-primary/10 bg-primary/5 px-4 py-3 text-xs font-bold text-primary">
-            Base em foco: {selectedBaseName}
+          <div className="rounded-2xl border border-primary/10 bg-primary/5 px-4 py-3 flex flex-col gap-2">
+            <span className="text-[10px] font-bold uppercase tracking-widest text-primary/70">Base em foco</span>
+            <select
+              value={selectedBaseId || '__all__'}
+              onChange={(event) => {
+                if (event.target.value === '__all__') {
+                  onResetBaseFilter?.();
+                  return;
+                }
+
+                onSelectBase?.(event.target.value);
+              }}
+              className="w-full h-11 px-3 rounded-xl border border-primary/10 bg-white text-sm font-bold text-primary outline-none"
+            >
+              {!isClientUser && <option value="__all__">Todas as bases</option>}
+              {availableBases.map((base) => (
+                <option key={base.id} value={base.id}>
+                  {base.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+      )}
+
+      {isClientUser && availableBases.length === 0 && (
+        <div className="px-4 pb-2">
+          <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs font-bold text-amber-700">
+            Este cliente ainda nao possui bases liberadas para agendamento.
           </div>
         </div>
       )}
@@ -712,10 +812,12 @@ export default function Scheduling({
                   <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 text-amber-700">
                     <div className="flex items-center gap-2 mb-1">
                       <AlertCircle className="w-5 h-5" />
-                      <span className="font-bold text-sm">Placa nao cadastrada</span>
+                      <span className="font-bold text-sm">{isLookingUpVehicle ? 'Consultando placa' : 'Placa nao cadastrada'}</span>
                     </div>
                     <p className="text-xs font-medium leading-relaxed">
-                      Centro de custo, veiculo e tipo so aparecem automaticamente para placas ja cadastradas.
+                      {isLookingUpVehicle
+                        ? 'Consultando a base de veiculos cadastrados para preencher os dados automaticamente.'
+                        : (plateLookupError || 'Centro de custo, veiculo e tipo so aparecem automaticamente para placas ja cadastradas.')}
                     </p>
                   </div>
                 )}
@@ -731,7 +833,7 @@ export default function Scheduling({
                         className="w-full h-14 px-4 bg-slate-50 border border-slate-100 rounded-2xl focus:border-primary outline-none appearance-none text-slate-900"
                         required
                       >
-                        {BASES.map((base) => (
+                        {availableBases.map((base) => (
                           <option key={base.id} value={base.id}>
                             {base.name}
                           </option>
@@ -785,7 +887,6 @@ export default function Scheduling({
                           name="date"
                           type="date"
                           value={appointmentDate}
-                          min={currentDateKey}
                           onChange={event => {
                             const nextDate = event.target.value;
                             if (isSundayDate(nextDate)) {

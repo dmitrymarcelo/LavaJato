@@ -114,8 +114,8 @@ export async function seedDatabase() {
       await client.query(
         `
         INSERT INTO team_members (
-          id, name, registration, password_hash, role, rating, services_count, status, avatar, efficiency
-        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+          id, name, registration, password_hash, role, allowed_base_ids, rating, services_count, status, avatar, efficiency
+        ) VALUES ($1,$2,$3,$4,$5,$6::jsonb,$7,$8,$9,$10,$11)
         ON CONFLICT (registration) DO NOTHING
         `,
         [
@@ -124,6 +124,7 @@ export async function seedDatabase() {
           member.registration,
           passwordHash,
           member.role,
+          JSON.stringify(member.allowed_base_ids || []),
           member.rating,
           member.services_count,
           member.status,

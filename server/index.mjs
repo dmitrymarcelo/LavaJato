@@ -15,9 +15,64 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const port = Number(process.env.API_PORT || 4000);
 const authSessionDays = Number(process.env.AUTH_SESSION_DAYS || 7);
+const ALL_BASE_IDS = ['flores', 'sao-jose', 'cidade-nova', 'ponta-negra', 'taruma'];
 
 app.use(cors());
 app.use(express.json({ limit: '80mb' }));
+
+function normalizeAllowedBaseIds(value) {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return Array.from(
+    new Set(
+      value
+        .map((item) => String(item || '').trim())
+        .filter((item) => ALL_BASE_IDS.includes(item))
+    )
+  );
+}
+
+function getAllowedBaseIdsForMember(member) {
+  if (!member) {
+    return [];
+  }
+
+  const rawIds = Array.isArray(member.allowed_base_ids)
+    ? member.allowed_base_ids
+    : Array.isArray(member.allowedBaseIds)
+      ? member.allowedBaseIds
+      : [];
+  const normalized = normalizeAllowedBaseIds(rawIds);
+
+  if (String(member.role || '').trim() === 'Clientes') {
+    return normalized.length ? normalized : ALL_BASE_IDS;
+  }
+
+  return normalized;
+}
+
+function getBaseFilterForUser(user) {
+  if (!user || user.role !== 'Clientes') {
+    return null;
+  }
+
+  return getAllowedBaseIdsForMember(user);
+}
+
+function assertUserCanAccessBase(user, baseId) {
+  if (!user || user.role !== 'Clientes') {
+    return;
+  }
+
+  const allowedBaseIds = getAllowedBaseIdsForMember(user);
+  if (!baseId || !allowedBaseIds.includes(baseId)) {
+    const error = new Error('Voce nao tem acesso a esta base.');
+    error.statusCode = 403;
+    throw error;
+  }
+}
 
 function toCamelProduct(row) {
   return {
@@ -112,6 +167,7 @@ function toCamelTeam(row) {
     name: row.name,
     registration: row.registration,
     role: row.role,
+    allowedBaseIds: getAllowedBaseIdsForMember(row),
     rating: Number(row.rating),
     servicesCount: row.services_count,
     status: row.status,
@@ -326,17 +382,21 @@ async function upsertTeamMemberRow(member, executor = query) {
   const passwordHash = member.passwordHash
     || (member.password ? await bcrypt.hash(member.password, 10) : currentMember.rows[0]?.password_hash)
     || await bcrypt.hash('Admin@123456!', 10);
+  const allowedBaseIds = member.role === 'Clientes'
+    ? getAllowedBaseIdsForMember(member)
+    : [];
 
   await executor(
     `
     INSERT INTO team_members (
-      id, name, registration, password_hash, role, rating, services_count, status, avatar, efficiency, updated_at
-    ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,NOW())
+      id, name, registration, password_hash, role, allowed_base_ids, rating, services_count, status, avatar, efficiency, updated_at
+    ) VALUES ($1,$2,$3,$4,$5,$6::jsonb,$7,$8,$9,$10,$11,NOW())
     ON CONFLICT (id) DO UPDATE SET
       name = EXCLUDED.name,
       registration = EXCLUDED.registration,
       password_hash = EXCLUDED.password_hash,
       role = EXCLUDED.role,
+      allowed_base_ids = EXCLUDED.allowed_base_ids,
       rating = EXCLUDED.rating,
       services_count = EXCLUDED.services_count,
       status = EXCLUDED.status,
@@ -350,6 +410,7 @@ async function upsertTeamMemberRow(member, executor = query) {
       registration,
       passwordHash,
       member.role,
+      JSON.stringify(allowedBaseIds),
       member.rating || 5,
       member.servicesCount || 0,
       member.status || 'active',
@@ -550,22 +611,46 @@ app.get('/api/assistant/weather', async (req, res) => {
   res.json({ text });
 });
 
-app.get('/api/bootstrap', async (_req, res) => {
-  const [serviceTypesResult, servicesResult, appointmentsResult, productsResult, teamResult] = await Promise.all([
+app.get('/api/bootstrap', async (req, res) => {
+  const baseFilter = getBaseFilterForUser(req.user);
+  const [serviceTypesResult, accessRulesResult, servicesResult, appointmentsResult, productsResult, teamResult] = await Promise.all([
     query("SELECT value FROM app_settings WHERE key = 'service_types'"),
+    query("SELECT value FROM app_settings WHERE key = 'access_rules'"),
     query(`SELECT * FROM services ORDER BY ${servicesOrderSql}`),
     query('SELECT * FROM appointments ORDER BY date DESC, time DESC'),
     query('SELECT * FROM products ORDER BY name'),
     query('SELECT * FROM team_members ORDER BY name'),
   ]);
 
+  const services = servicesResult.rows
+    .filter((row) => !baseFilter || baseFilter.includes(row.base_id))
+    .map((row) => toCamelService(row, { includePhotos: false }));
+  const appointments = appointmentsResult.rows
+    .filter((row) => !baseFilter || baseFilter.includes(row.base_id))
+    .map(toCamelAppointment);
+
   res.json({
+    currentUser: toCamelTeam(req.user),
     serviceTypes: serviceTypesResult.rows[0]?.value || {},
-    services: servicesResult.rows.map((row) => toCamelService(row, { includePhotos: false })),
-    appointments: appointmentsResult.rows.map(toCamelAppointment),
-    products: productsResult.rows.map(toCamelProduct),
-    team: teamResult.rows.map(toCamelTeam),
+    accessRules: accessRulesResult.rows[0]?.value || [],
+    services,
+    appointments,
+    products: req.user?.role === 'Clientes' ? [] : productsResult.rows.map(toCamelProduct),
+    team: req.user?.role === 'Clientes' ? [] : teamResult.rows.map(toCamelTeam),
   });
+});
+
+app.put('/api/access-rules', async (req, res) => {
+  const value = Array.isArray(req.body) ? req.body : [];
+  await query(
+    `
+    INSERT INTO app_settings (key, value, updated_at)
+    VALUES ('access_rules', $1::jsonb, NOW())
+    ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()
+    `,
+    [JSON.stringify(value)]
+  );
+  res.json(value);
 });
 
 app.put('/api/service-types', async (req, res) => {
@@ -584,6 +669,22 @@ app.put('/api/service-types', async (req, res) => {
 app.get('/api/vehicles', async (_req, res) => {
   const result = await query('SELECT * FROM vehicles ORDER BY plate');
   res.json(result.rows.map(toCamelVehicle));
+});
+
+app.get('/api/vehicles/lookup', async (req, res) => {
+  const plate = String(req.query.plate || '').toUpperCase().trim();
+  if (!plate) {
+    return res.status(400).json({ error: 'Informe a placa para consulta.' });
+  }
+
+  const result = await query('SELECT * FROM vehicles WHERE UPPER(plate) = UPPER($1) LIMIT 1', [plate]);
+  const row = result.rows[0];
+
+  if (!row) {
+    return res.status(404).json({ error: 'Placa nao encontrada na base cadastrada.' });
+  }
+
+  res.json(toCamelVehicle(row));
 });
 
 app.post('/api/vehicles/upsert', async (req, res) => {
@@ -619,9 +720,14 @@ app.put('/api/vehicles', async (req, res) => {
   res.json({ count: vehicles.length });
 });
 
-app.get('/api/services', async (_req, res) => {
+app.get('/api/services', async (req, res) => {
   const result = await query(`SELECT * FROM services ORDER BY ${servicesOrderSql}`);
-  res.json(result.rows.map((row) => toCamelService(row, { includePhotos: false })));
+  const baseFilter = getBaseFilterForUser(req.user);
+  res.json(
+    result.rows
+      .filter((row) => !baseFilter || baseFilter.includes(row.base_id))
+      .map((row) => toCamelService(row, { includePhotos: false }))
+  );
 });
 
 app.get('/api/services/:id', async (req, res) => {
@@ -632,6 +738,8 @@ app.get('/api/services/:id', async (req, res) => {
     return res.status(404).json({ error: 'Servico nao encontrado.' });
   }
 
+  assertUserCanAccessBase(req.user, row.base_id);
+
   res.json(toCamelService(row));
 });
 
@@ -640,6 +748,8 @@ app.post('/api/services/upsert', async (req, res) => {
   if (!service.id) {
     return res.status(400).json({ error: 'Id do servico e obrigatorio.' });
   }
+
+  assertUserCanAccessBase(req.user, service.baseId || null);
 
   await upsertServiceRow(service);
   const result = await query('SELECT * FROM services WHERE id = $1', [service.id]);
@@ -652,6 +762,9 @@ app.post('/api/scheduling/book', async (req, res) => {
   if (!appointment?.id || !service?.id) {
     return res.status(400).json({ error: 'Agendamento e servico sao obrigatorios.' });
   }
+
+  const requestedBaseId = appointment.baseId || service.baseId || null;
+  assertUserCanAccessBase(req.user, requestedBaseId);
 
   const payload = await withTransaction(async (client) => {
     const executor = (text, params = []) => client.query(text, params);
@@ -674,6 +787,11 @@ app.post('/api/scheduling/book', async (req, res) => {
 });
 
 app.delete('/api/services/:id', async (req, res) => {
+  const existing = await query('SELECT base_id FROM services WHERE id = $1', [req.params.id]);
+  const row = existing.rows[0];
+  if (row) {
+    assertUserCanAccessBase(req.user, row.base_id);
+  }
   await query('DELETE FROM services WHERE id = $1', [req.params.id]);
   res.status(204).end();
 });
@@ -697,9 +815,10 @@ app.put('/api/services', async (req, res) => {
   res.json({ count: services.length });
 });
 
-app.get('/api/appointments', async (_req, res) => {
+app.get('/api/appointments', async (req, res) => {
   const result = await query('SELECT * FROM appointments ORDER BY date DESC, time DESC');
-  res.json(result.rows.map(toCamelAppointment));
+  const baseFilter = getBaseFilterForUser(req.user);
+  res.json(result.rows.filter((row) => !baseFilter || baseFilter.includes(row.base_id)).map(toCamelAppointment));
 });
 
 app.post('/api/appointments/upsert', async (req, res) => {
@@ -708,12 +827,19 @@ app.post('/api/appointments/upsert', async (req, res) => {
     return res.status(400).json({ error: 'Id do agendamento e obrigatorio.' });
   }
 
+  assertUserCanAccessBase(req.user, appointment.baseId || null);
+
   await upsertAppointmentRow(appointment);
   const result = await query('SELECT * FROM appointments WHERE id = $1', [appointment.id]);
   res.json(toCamelAppointment(result.rows[0]));
 });
 
 app.delete('/api/appointments/:id', async (req, res) => {
+  const existing = await query('SELECT base_id FROM appointments WHERE id = $1', [req.params.id]);
+  const row = existing.rows[0];
+  if (row) {
+    assertUserCanAccessBase(req.user, row.base_id);
+  }
   await query('DELETE FROM appointments WHERE id = $1', [req.params.id]);
   res.status(204).end();
 });

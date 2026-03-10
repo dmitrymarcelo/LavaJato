@@ -101,6 +101,11 @@ export interface Notification {
   type: 'info' | 'success' | 'warning' | 'error';
 }
 
+export interface RoleAccessRule {
+  role: string;
+  permissions: string[];
+}
+
 export interface TeamMember {
   id: string;
   name: string;
@@ -108,6 +113,7 @@ export interface TeamMember {
   password?: string;
   passwordHash?: string;
   role: string;
+  allowedBaseIds?: string[];
   rating: number;
   servicesCount: number;
   status: 'active' | 'break' | 'offline';
