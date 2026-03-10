@@ -4,6 +4,17 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Lava Jato - Norte Tech</title>
+    <script>
+      try {
+        const versionKey = 'appCacheVersion';
+        const versionValue = '2026-03-10-memory-hotfix-2';
+        const staleKeys = ['bootstrapCacheV2', 'bootstrapCacheV3', 'vehicleDbCacheV1'];
+        if (localStorage.getItem(versionKey) !== versionValue) {
+          staleKeys.forEach((key) => localStorage.removeItem(key));
+          localStorage.setItem(versionKey, versionValue);
+        }
+      } catch (error) {}
+    </script>
   </head>
   <body>
     <div id="root"></div>

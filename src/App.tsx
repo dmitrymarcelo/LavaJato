@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, ReactNode, useEffect, useRef } from 'react';
+import React, { Suspense, lazy, useState, ReactNode, useEffect, useRef } from 'react';
 import { 
   LayoutDashboard, 
   Settings as SettingsIcon, 
@@ -17,32 +17,17 @@ import { motion, AnimatePresence } from 'motion/react';
 import { Screen, Service, Notification, INITIAL_SERVICE_TYPES, VehicleCategory, VehicleType, VehicleRegistration, Product, TeamMember } from './types';
 import { getCarCareTips } from './services/geminiService';
 
-// Components
-import Login from './components/Login';
 import Sidebar from './components/Sidebar';
 import Notifications from './components/Notifications';
-
-// Screens (to be implemented in separate files or as components here)
-import Dashboard from './components/Dashboard';
-import CheckIn from './components/CheckIn';
-import InspectionPre from './components/InspectionPre';
-import InspectionPost from './components/InspectionPost';
-import Payment from './components/Payment';
-import ServiceHistory from './components/ServiceHistory';
-import CustomerHistory from './components/CustomerHistory';
 import Scheduling, { QueueSection } from './components/Scheduling';
-import Settings from './components/Settings';
-import Inventory from './components/Inventory';
 import { getElapsedMinutes, getServicePreviewImage, getTodayDate, normalizeDateKey } from './utils/app';
-import { api, ApiError, Appointment, BootstrapPayload } from './services/api';
+import { api, ApiError, Appointment } from './services/api';
 import { getBaseById } from './data/bases';
 
-const BOOTSTRAP_CACHE_KEY = 'bootstrapCacheV3';
-const VEHICLE_DB_CACHE_KEY = 'vehicleDbCacheV1';
 const AUTH_USER_CACHE_KEY = 'authUserV1';
 const APP_CACHE_VERSION_KEY = 'appCacheVersion';
-const APP_CACHE_VERSION = '2026-03-10-incident-1';
-const LEGACY_BOOTSTRAP_CACHE_KEYS = ['bootstrapCacheV2'];
+const APP_CACHE_VERSION = '2026-03-10-memory-hotfix-2';
+const LEGACY_BOOTSTRAP_CACHE_KEYS = ['bootstrapCacheV2', 'bootstrapCacheV3', 'vehicleDbCacheV1'];
 
 function readJsonCache<T>(key: string, fallback: T): T {
   try {
@@ -53,63 +38,41 @@ function readJsonCache<T>(key: string, fallback: T): T {
   }
 }
 
-function writeJsonCache<T>(key: string, value: T) {
-  try {
-    window.localStorage.setItem(key, JSON.stringify(value));
-  } catch (error) {}
-}
-
 function clearJsonCache(key: string) {
   try {
     window.localStorage.removeItem(key);
   } catch (error) {}
 }
 
-function sanitizeServiceForCache(service: Service): Service {
-  const sanitizedImage = typeof service.image === 'string' && service.image.startsWith('data:')
-    ? undefined
-    : service.image;
-
-  return {
-    ...service,
-    image: sanitizedImage,
-    preInspectionPhotos: {},
-    postInspectionPhotos: {},
-  };
-}
+const Login = lazy(() => import('./components/Login'));
+const Dashboard = lazy(() => import('./components/Dashboard'));
+const CheckIn = lazy(() => import('./components/CheckIn'));
+const InspectionPre = lazy(() => import('./components/InspectionPre'));
+const InspectionPost = lazy(() => import('./components/InspectionPost'));
+const Payment = lazy(() => import('./components/Payment'));
+const ServiceHistory = lazy(() => import('./components/ServiceHistory'));
+const CustomerHistory = lazy(() => import('./components/CustomerHistory'));
+const Settings = lazy(() => import('./components/Settings'));
+const Inventory = lazy(() => import('./components/Inventory'));
 
 export default function App() {
-  const cachedBootstrap = typeof window !== 'undefined'
-    ? readJsonCache<Partial<BootstrapPayload> | null>(BOOTSTRAP_CACHE_KEY, null)
-    : null;
-  const cachedVehicleDb = typeof window !== 'undefined'
-    ? readJsonCache<VehicleRegistration[]>(VEHICLE_DB_CACHE_KEY, [])
-    : [];
   const normalizeScreen = (screen: Screen): Screen => screen === 'queue' ? 'scheduling' : screen;
   const mergeServiceTypes = (next?: Partial<Record<VehicleType, VehicleCategory>> | null): Record<VehicleType, VehicleCategory> => ({
     ...INITIAL_SERVICE_TYPES,
     ...(next || {}),
   });
-  const hydrateServices = (next?: Service[] | null) => (next || []).map(service => ({
-    ...service,
-    scheduledDate: normalizeDateKey(service.scheduledDate),
-  }));
-  const hydrateAppointments = (next?: Appointment[] | null) => (next || []).map(appointment => ({
-    ...appointment,
-    date: normalizeDateKey(appointment.date),
-  }));
 
   const [currentScreen, setCurrentScreen] = useState<Screen>('dashboard');
   const [isAssistantOpen, setIsAssistantOpen] = useState(false);
   const [chatInput, setChatInput] = useState('');
   const [chatHistory, setChatHistory] = useState<{role: 'user' | 'ai', text: string}[]>([]);
   const [isTyping, setIsTyping] = useState(false);
-  const [services, setServices] = useState<Service[]>(() => hydrateServices(cachedBootstrap?.services));
-  const [serviceTypes, setServiceTypes] = useState<Record<VehicleType, VehicleCategory>>(() => mergeServiceTypes(cachedBootstrap?.serviceTypes));
-  const [vehicleDb, setVehicleDb] = useState<VehicleRegistration[]>(() => cachedVehicleDb);
-  const [appointments, setAppointments] = useState<Appointment[]>(() => hydrateAppointments(cachedBootstrap?.appointments));
-  const [products, setProducts] = useState<Product[]>(() => cachedBootstrap?.products || []);
-  const [team, setTeam] = useState<TeamMember[]>(() => cachedBootstrap?.team || []);
+  const [services, setServices] = useState<Service[]>([]);
+  const [serviceTypes, setServiceTypes] = useState<Record<VehicleType, VehicleCategory>>(INITIAL_SERVICE_TYPES);
+  const [vehicleDb, setVehicleDb] = useState<VehicleRegistration[]>([]);
+  const [appointments, setAppointments] = useState<Appointment[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [team, setTeam] = useState<TeamMember[]>([]);
 
   const [activeServiceId, setActiveServiceId] = useState<string | null>(() => {
     try {
@@ -207,28 +170,6 @@ export default function App() {
     teamRef.current = team;
   }, [team]);
 
-  useEffect(() => {
-    if (!isAuthenticated) {
-      return;
-    }
-
-    writeJsonCache(BOOTSTRAP_CACHE_KEY, {
-      serviceTypes,
-      services: services.map(sanitizeServiceForCache),
-      appointments,
-      products,
-      team,
-    });
-  }, [isAuthenticated, serviceTypes, services, appointments, products, team]);
-
-  useEffect(() => {
-    if (!isAuthenticated) {
-      return;
-    }
-
-    writeJsonCache(VEHICLE_DB_CACHE_KEY, vehicleDb);
-  }, [isAuthenticated, vehicleDb]);
-
   const handleMarkAsRead = (id: string) => {
     setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
   };
@@ -243,7 +184,9 @@ export default function App() {
 
   useEffect(() => {
     if (currentUser) {
-      writeJsonCache(AUTH_USER_CACHE_KEY, currentUser);
+      try {
+        window.localStorage.setItem(AUTH_USER_CACHE_KEY, JSON.stringify(currentUser));
+      } catch (error) {}
     } else {
       clearJsonCache(AUTH_USER_CACHE_KEY);
     }
@@ -279,8 +222,7 @@ export default function App() {
     try {
       const currentVersion = window.localStorage.getItem(APP_CACHE_VERSION_KEY);
       if (currentVersion !== APP_CACHE_VERSION) {
-        clearJsonCache(BOOTSTRAP_CACHE_KEY);
-        clearJsonCache(VEHICLE_DB_CACHE_KEY);
+        LEGACY_BOOTSTRAP_CACHE_KEYS.forEach(clearJsonCache);
         window.localStorage.setItem(APP_CACHE_VERSION_KEY, APP_CACHE_VERSION);
       }
     } catch (error) {}
@@ -304,13 +246,19 @@ export default function App() {
   };
 
   const loadBootstrap = async () => {
-    setIsBootstrapping(!cachedBootstrap);
+    setIsBootstrapping(true);
     setBackendError(null);
     try {
       const data = await api.bootstrap();
       const nextServiceTypes = mergeServiceTypes(data.serviceTypes);
-      const nextServices = hydrateServices(data.services);
-      const nextAppointments = hydrateAppointments(data.appointments);
+      const nextServices = (data.services || []).map(service => ({
+        ...service,
+        scheduledDate: normalizeDateKey(service.scheduledDate),
+      }));
+      const nextAppointments = (data.appointments || []).map(appointment => ({
+        ...appointment,
+        date: normalizeDateKey(appointment.date),
+      }));
       const nextProducts = data.products || [];
       const nextTeam = data.team || [];
 
@@ -319,13 +267,6 @@ export default function App() {
       setAppointments(nextAppointments);
       setProducts(nextProducts);
       setTeam(nextTeam);
-      writeJsonCache(BOOTSTRAP_CACHE_KEY, {
-        serviceTypes: nextServiceTypes,
-        services: nextServices.map(sanitizeServiceForCache),
-        appointments: nextAppointments,
-        products: nextProducts,
-        team: nextTeam,
-      });
     } catch (error: any) {
       if (error instanceof ApiError && error.status === 401) {
         performClientLogout();
@@ -376,7 +317,6 @@ export default function App() {
 
         setVehicleDb(vehicles);
         vehicleDbRef.current = vehicles;
-        writeJsonCache(VEHICLE_DB_CACHE_KEY, vehicles);
         setHasLoadedVehicleDbFromApi(true);
       } catch (error: any) {
         console.error(error);
@@ -466,8 +406,7 @@ export default function App() {
     setVehicleDb([]);
     setHasLoadedVehicleDbFromApi(false);
     setNotifications([]);
-    clearJsonCache(BOOTSTRAP_CACHE_KEY);
-    clearJsonCache(VEHICLE_DB_CACHE_KEY);
+    LEGACY_BOOTSTRAP_CACHE_KEYS.forEach(clearJsonCache);
     clearJsonCache(AUTH_USER_CACHE_KEY);
     navigateTo('login');
   };
@@ -522,7 +461,6 @@ export default function App() {
     const previous = vehicleDbRef.current;
     setVehicleDb(next);
     vehicleDbRef.current = next;
-    writeJsonCache(VEHICLE_DB_CACHE_KEY, next);
     setHasLoadedVehicleDbFromApi(true);
 
     return queueVehiclesSync(async () => {
@@ -845,8 +783,8 @@ export default function App() {
 
   const renderScreen = () => {
     if (!isAuthenticated) return <Login onLogin={handleLogin} />;
-    if (isBootstrapping && !cachedBootstrap) return <div className="min-h-screen flex items-center justify-center text-slate-500 font-bold">Carregando dados persistentes...</div>;
-    if (backendError && !cachedBootstrap) return <div className="min-h-screen flex items-center justify-center p-6 text-center text-rose-600 font-bold">{backendError}</div>;
+    if (isBootstrapping) return <div className="min-h-screen flex items-center justify-center text-slate-500 font-bold">Carregando dados persistentes...</div>;
+    if (backendError) return <div className="min-h-screen flex items-center justify-center p-6 text-center text-rose-600 font-bold">{backendError}</div>;
 
     switch (currentScreen) {
       case 'dashboard': return <Dashboard onNavigate={handleNavigateWithService} services={services} appointments={appointments} currentDateKey={currentDateKey} team={team} />;
@@ -977,11 +915,6 @@ export default function App() {
         )}
 
         <div className="flex-1 flex flex-col min-h-screen relative overflow-hidden">
-          {isAuthenticated && backendError && (
-            <div className="bg-amber-50 border-b border-amber-200 px-4 py-2 text-[11px] font-bold text-amber-700 text-center">
-              Sincronizacao com o servidor indisponivel no momento. Exibindo os ultimos dados locais.
-            </div>
-          )}
           {/* Header */}
           {isAuthenticated && (
             <header className="sticky top-0 z-40 bg-white/80 backdrop-blur-md border-b border-slate-100 px-4 py-4 flex items-center justify-between transition-colors">
@@ -1044,7 +977,9 @@ export default function App() {
                   transition={{ duration: 0.2 }}
                   className="h-full"
                 >
-                  {renderScreen()}
+                  <Suspense fallback={<div className="min-h-screen flex items-center justify-center text-slate-500 font-bold">Carregando tela...</div>}>
+                    {renderScreen()}
+                  </Suspense>
                 </motion.div>
               </AnimatePresence>
             </div>
