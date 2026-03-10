@@ -55,14 +55,6 @@ const isTimeBlockedByBusinessRules = (date: string, time: string) => {
 
   return isSaturdayDate(date) && isSaturdayAfternoonSlot(time);
 };
-const getNextBookableDate = (date: string) => {
-  let nextDate = date;
-  while (isSundayDate(nextDate)) {
-    nextDate = addDays(nextDate, 1);
-  }
-  return nextDate;
-};
-
 const getVehicleTypeLabel = (type: VehicleType) => {
   if (type === 'motorcycle') return 'Moto';
   if (type === 'truck') return 'Caminhao';
@@ -123,7 +115,7 @@ export default function Scheduling({
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
   const [appointments, setAppointments] = useState<Appointment[]>(appointmentsProp);
   const [filterDate, setFilterDate] = useState(currentDateKey);
-  const [appointmentDate, setAppointmentDate] = useState(getNextBookableDate(currentDateKey));
+  const [appointmentDate, setAppointmentDate] = useState(currentDateKey);
   const [activeTab, setActiveTab] = useState<'appointments' | 'waiting' | 'washing' | 'completed'>('appointments');
   const [clockNow, setClockNow] = useState(() => Date.now());
   const [isSavingAppointment, setIsSavingAppointment] = useState(false);
@@ -141,7 +133,7 @@ export default function Scheduling({
 
   const resetAppointmentForm = () => {
     setIsAdding(false);
-    setAppointmentDate(getNextBookableDate(currentDateKey));
+    setAppointmentDate(currentDateKey);
     setSelectedTime(null);
     setPlate('');
     setCustomer('');
@@ -197,10 +189,6 @@ export default function Scheduling({
       ];
     })
   );
-
-  const nextDays = Array.from({ length: 7 }, (_, index) => addDays(currentDateKey, index));
-  const isDateInNextDays = nextDays.includes(filterDate);
-  const isPastDate = filterDate < currentDateKey;
 
   const handlePlateChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const nextPlate = event.target.value.toUpperCase();
@@ -341,8 +329,6 @@ export default function Scheduling({
           : otherCount >= SLOT_LIMITS.other
         : false);
 
-    const todayStr = getTodayDate();
-    const isPastSlotDate = date < todayStr;
     const isBlockedBySchedule = isTimeBlockedByBusinessRules(date, time);
 
     return {
@@ -350,7 +336,7 @@ export default function Scheduling({
       truckCount,
       otherCount,
       isFull,
-      isPast: isPastSlotDate,
+      isPast: false,
       isBlockedBySchedule,
     };
   };
@@ -397,7 +383,7 @@ export default function Scheduling({
       return;
     }
 
-    const { isFull, isPast, isBlockedBySchedule } = getSlotStatus(appointmentDate, selectedTime, vehicleType);
+    const { isFull, isBlockedBySchedule } = getSlotStatus(appointmentDate, selectedTime, vehicleType);
     if (isFull) {
       alert('Este horario esta lotado.');
       return;
@@ -405,11 +391,6 @@ export default function Scheduling({
 
     if (isBlockedBySchedule) {
       alert('Aos sabados atendemos somente ate as 12:00. Selecione 07:00, 09:00 ou 11:00.');
-      return;
-    }
-
-    if (isPast) {
-      alert('Nao e possivel agendar em horarios passados.');
       return;
     }
 
@@ -481,17 +462,15 @@ export default function Scheduling({
           <ChevronLeft className="w-5 h-5" />
           Voltar
         </button>
-        {!isPastDate && (
-          <button
-            onClick={() => {
-              resetAppointmentForm();
-              setIsAdding(true);
-            }}
-            className="bg-primary text-white p-3 rounded-2xl shadow-xl shadow-primary/20 active:scale-95 transition-transform"
-          >
-            <Plus className="w-7 h-7" />
-          </button>
-        )}
+        <button
+          onClick={() => {
+            resetAppointmentForm();
+            setIsAdding(true);
+          }}
+          className="bg-primary text-white p-3 rounded-2xl shadow-xl shadow-primary/20 active:scale-95 transition-transform"
+        >
+          <Plus className="w-7 h-7" />
+        </button>
       </div>
 
       {selectedBaseName && (
@@ -535,28 +514,17 @@ export default function Scheduling({
         <div className="flex items-center gap-3 px-4 py-4 overflow-x-auto no-scrollbar">
           <button
             onClick={() => setIsCalendarOpen(true)}
-            className={`relative shrink-0 flex flex-col items-center justify-center min-w-[72px] h-[84px] p-4 rounded-2xl border transition-all active:scale-95 ${
-              !isDateInNextDays
-                ? 'bg-primary border-primary text-white shadow-xl shadow-primary/20'
-                : 'bg-white border-slate-100 text-primary shadow-sm'
-            }`}
+            className="relative shrink-0 flex flex-col items-center justify-center min-w-[72px] h-[84px] p-4 rounded-2xl border transition-all active:scale-95 bg-primary border-primary text-white shadow-xl shadow-primary/20"
           >
-            {!isDateInNextDays ? (
-              <>
-                <span className="text-[10px] font-bold uppercase tracking-widest opacity-70 mb-1">
-                  {new Date(`${filterDate}T00:00:00`).toLocaleDateString('pt-BR', { weekday: 'short' })}
-                </span>
-                <span className="text-xl font-black">{new Date(`${filterDate}T00:00:00`).getDate()}</span>
-              </>
-            ) : (
-              <>
-                <CalendarIcon className="w-6 h-6 mb-1" />
-                <span className="text-[10px] font-bold uppercase tracking-widest">Outro</span>
-              </>
-            )}
+            <>
+              <span className="text-[10px] font-bold uppercase tracking-widest opacity-70 mb-1">
+                {new Date(`${filterDate}T00:00:00`).toLocaleDateString('pt-BR', { weekday: 'short' })}
+              </span>
+              <span className="text-xl font-black">{new Date(`${filterDate}T00:00:00`).getDate()}</span>
+            </>
           </button>
 
-          {nextDays.map((date, index) => (
+          {Array.from({ length: 7 }, (_, index) => addDays(currentDateKey, index)).map((date, index) => (
             <button
               key={date}
               onClick={() => setFilterDate(date)}
@@ -625,7 +593,7 @@ export default function Scheduling({
                     <div className="flex justify-between items-start">
                       <h4 className="font-black text-slate-900 truncate text-base">{appointment.customer}</h4>
                       <StatusSelector
-                        status={isPastDate ? 'completed' : appointment.status}
+                        status={appointment.status}
                         onStatusChange={newStatus => handleStatusChange(appointment.id, newStatus)}
                         readOnly
                       />
@@ -669,17 +637,15 @@ export default function Scheduling({
                     <CalendarIcon className="w-8 h-8" />
                   </div>
                   <p className="text-slate-400 text-sm font-medium">Nenhum agendamento para este dia.</p>
-                  {!isPastDate && (
-                    <button
-                      onClick={() => {
-                        resetAppointmentForm();
-                        setIsAdding(true);
-                      }}
-                      className="text-primary text-sm font-bold hover:underline active:scale-95 transition-transform"
-                    >
-                      Agendar agora
-                    </button>
-                  )}
+                  <button
+                    onClick={() => {
+                      resetAppointmentForm();
+                      setIsAdding(true);
+                    }}
+                    className="text-primary text-sm font-bold hover:underline active:scale-95 transition-transform"
+                  >
+                    Agendar agora
+                  </button>
                 </div>
               )}
             </motion.div>
@@ -862,11 +828,6 @@ export default function Scheduling({
                                     return;
                                   }
 
-                                  if (isPast) {
-                                    alert('Nao e possivel agendar em horarios passados.');
-                                    return;
-                                  }
-
                                   setSelectedTime(time);
                                 }}
                                 className={`py-2 rounded-xl text-xs font-bold transition-all relative ${
@@ -876,9 +837,7 @@ export default function Scheduling({
                                       ? 'bg-slate-50 text-slate-300 border border-slate-100 cursor-not-allowed'
                                       : isFull
                                       ? 'bg-rose-50 text-rose-300 border border-rose-100 cursor-not-allowed'
-                                      : isPast
-                                        ? 'bg-slate-50 text-slate-300 cursor-not-allowed'
-                                        : 'bg-white border border-slate-200 text-slate-600 hover:border-primary hover:text-primary'
+                                      : 'bg-white border border-slate-200 text-slate-600 hover:border-primary hover:text-primary'
                                 }`}
                               >
                                 <span className="block">{time}</span>
@@ -888,7 +847,7 @@ export default function Scheduling({
                                     !
                                   </span>
                                 )}
-                                {!isFull && !isPast && !isBlockedBySchedule && count > 0 && (
+                                {!isFull && !isBlockedBySchedule && count > 0 && (
                                   <span className="absolute -top-1 -right-1 w-4 h-4 bg-amber-500 text-white text-[8px] flex items-center justify-center rounded-full border border-white">
                                     {count}
                                   </span>
@@ -1050,21 +1009,16 @@ function CalendarModal({
             const dateStr = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
             const isSelected = dateStr === selectedDate;
             const isToday = dateStr === new Date().toISOString().split('T')[0];
-            const isPast = new Date(dateStr) < new Date(new Date().setHours(0, 0, 0, 0));
-
             return (
               <button
                 key={day}
-                onClick={() => !isPast && handleSelectDay(day)}
-                disabled={isPast}
+                onClick={() => handleSelectDay(day)}
                 className={`aspect-square rounded-xl flex items-center justify-center text-sm font-bold transition-all active:scale-90 ${
                   isSelected
                     ? 'bg-primary text-white shadow-lg shadow-primary/30'
                     : isToday
                       ? 'bg-slate-100 text-primary border border-primary/20'
-                      : isPast
-                        ? 'text-slate-200 cursor-not-allowed'
-                        : 'hover:bg-slate-50 text-slate-700'
+                      : 'hover:bg-slate-50 text-slate-700'
                 }`}
               >
                 {day}
