@@ -551,9 +551,8 @@ app.get('/api/assistant/weather', async (req, res) => {
 });
 
 app.get('/api/bootstrap', async (_req, res) => {
-  const [serviceTypesResult, vehiclesResult, servicesResult, appointmentsResult, productsResult, teamResult] = await Promise.all([
+  const [serviceTypesResult, servicesResult, appointmentsResult, productsResult, teamResult] = await Promise.all([
     query("SELECT value FROM app_settings WHERE key = 'service_types'"),
-    query('SELECT * FROM vehicles ORDER BY plate'),
     query(`SELECT * FROM services ORDER BY ${servicesOrderSql}`),
     query('SELECT * FROM appointments ORDER BY date DESC, time DESC'),
     query('SELECT * FROM products ORDER BY name'),
@@ -562,7 +561,6 @@ app.get('/api/bootstrap', async (_req, res) => {
 
   res.json({
     serviceTypes: serviceTypesResult.rows[0]?.value || {},
-    vehicleDb: vehiclesResult.rows.map(toCamelVehicle),
     services: servicesResult.rows.map((row) => toCamelService(row, { includePhotos: false })),
     appointments: appointmentsResult.rows.map(toCamelAppointment),
     products: productsResult.rows.map(toCamelProduct),

@@ -21,7 +21,7 @@ export interface Appointment {
 
 export interface BootstrapPayload {
   serviceTypes: Record<VehicleType, VehicleCategory>;
-  vehicleDb: VehicleRegistration[];
+  vehicleDb?: VehicleRegistration[];
   services: Service[];
   appointments: Appointment[];
   products: Product[];
@@ -132,6 +132,8 @@ export const api = {
       method: 'POST',
     }),
   bootstrap: () => request<BootstrapPayload>('/bootstrap'),
+  getVehicles: () =>
+    request<VehicleRegistration[]>('/vehicles'),
   saveServiceTypes: (serviceTypes: Record<VehicleType, VehicleCategory>) =>
     request('/service-types', { method: 'PUT', body: JSON.stringify(serviceTypes) }),
   saveVehicles: (vehicles: VehicleRegistration[]) =>
