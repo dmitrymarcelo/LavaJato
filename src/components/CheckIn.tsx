@@ -148,7 +148,7 @@ export default function CheckIn({
         <div className="flex justify-between items-center ml-1">
           <label className="text-sm font-bold text-slate-600 uppercase tracking-wider">Cliente / Contrato</label>
           <button
-            onClick={() => onNavigate('customer-history')}
+            onClick={() => onNavigate('vehicle-history')}
             className="text-[10px] font-black uppercase tracking-widest text-primary hover:underline active:scale-95 transition-transform"
           >
             Ver Historico

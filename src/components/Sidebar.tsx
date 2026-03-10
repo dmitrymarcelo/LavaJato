@@ -3,6 +3,7 @@ import {
   LayoutDashboard,
   Settings,
   LogOut,
+  History,
   ChevronRight,
   ChevronLeft,
   Package,
@@ -24,6 +25,7 @@ export default function Sidebar({ currentScreen, onNavigate, onLogout, isOpen, o
   const menuItems = [
     { id: 'dashboard', label: 'Painel', icon: <LayoutDashboard className="w-5 h-5" /> },
     { id: 'scheduling', label: 'Agenda & Fila', icon: <Droplets className="w-5 h-5" /> },
+    { id: 'vehicle-history', label: 'Histórico Veículos', icon: <History className="w-5 h-5" /> },
     { id: 'inventory', label: 'Estoque', icon: <Package className="w-5 h-5" /> },
     { id: 'settings', label: 'Configuracoes', icon: <Settings className="w-5 h-5" /> },
   ];

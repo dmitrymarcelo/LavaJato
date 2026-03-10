@@ -6,6 +6,7 @@
 import React, { Suspense, lazy, useState, ReactNode, useEffect, useRef } from 'react';
 import {
   LayoutDashboard, 
+  History,
   Settings as SettingsIcon, 
   MessageSquare,
   Sparkles,
@@ -35,6 +36,7 @@ const InspectionPost = lazy(() => import('./components/InspectionPost'));
 const Payment = lazy(() => import('./components/Payment'));
 const ServiceHistory = lazy(() => import('./components/ServiceHistory'));
 const CustomerHistory = lazy(() => import('./components/CustomerHistory'));
+const VehicleHistory = lazy(() => import('./components/VehicleHistory'));
 const Settings = lazy(() => import('./components/Settings'));
 const Inventory = lazy(() => import('./components/Inventory'));
 
@@ -249,7 +251,7 @@ export default function App() {
       return;
     }
 
-    if (!['checkin', 'settings'].includes(currentScreen)) {
+    if (!['checkin', 'settings', 'vehicle-history'].includes(currentScreen)) {
       return;
     }
 
@@ -822,6 +824,7 @@ export default function App() {
       }} />;
       case 'history': return <ServiceHistory onNavigate={handleNavigateWithService} service={activeService} />;
       case 'customer-history': return <CustomerHistory onNavigate={handleNavigateWithService} selectedService={activeService} services={services} />;
+      case 'vehicle-history': return <VehicleHistory onNavigate={handleNavigateWithService} services={services} vehicleDb={vehicleDb} />;
       case 'queue':
       case 'scheduling': 
         return <Scheduling currentDateKey={currentDateKey} appointments={appointments} onUpdateAppointments={persistAppointments} onCreateBooking={createScheduledBooking} onNavigate={handleNavigateWithService} services={services} onReorder={reorderServices} serviceTypes={serviceTypes} vehicleDb={vehicleDb} availableBases={availableBases} isClientUser={isClientUser} selectedBaseId={selectedBaseInfo?.id} selectedBaseName={selectedBaseInfo?.name} onSelectBase={(baseId) => {
@@ -907,6 +910,7 @@ export default function App() {
                    currentScreen === 'payment' ? 'Pagamento' :
                    currentScreen === 'history' ? 'Histórico' :
                    currentScreen === 'customer-history' ? 'Histórico Clientes' :
+                   currentScreen === 'vehicle-history' ? 'Histórico de Veículos' :
                    currentScreen === 'inventory' ? 'Estoque' :
                    currentScreen === 'settings' ? 'Configurações' : currentScreen.replace('-', ' ')}
                 </h2>
@@ -974,6 +978,12 @@ export default function App() {
                 onClick={() => navigateTo('inventory')}
                 icon={<Package className="w-6 h-6" />}
                 label="Estoque"
+              />
+              <NavButton 
+                active={currentScreen === 'vehicle-history'} 
+                onClick={() => navigateTo('vehicle-history')}
+                icon={<History className="w-6 h-6" />}
+                label="Histórico"
               />
             </nav>
           )}

@@ -15,6 +15,7 @@ export type Screen =
   | 'analytics' 
   | 'history'
   | 'customer-history'
+  | 'vehicle-history'
   | 'scheduling'
   | 'team'
   | 'settings'
