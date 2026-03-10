@@ -29,6 +29,13 @@ const serviceTypes = {
       { id: 'complete', label: 'Lavagem Completa', price: 250 },
     ],
   },
+  pickup_4x4: {
+    label: 'Caminhonete 4X4',
+    services: [
+      { id: 'simple', label: 'Lavagem Simples', price: 95 },
+      { id: 'complete', label: 'Lavagem Completa', price: 130 },
+    ],
+  },
   boat: {
     label: 'Lancha',
     services: [{ id: 'simple', label: 'Lavagem', price: 200 }],

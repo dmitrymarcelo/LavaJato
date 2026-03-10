@@ -39,6 +39,10 @@ import { getBaseById } from './data/bases';
 
 export default function App() {
   const normalizeScreen = (screen: Screen): Screen => screen === 'queue' ? 'scheduling' : screen;
+  const mergeServiceTypes = (next?: Partial<Record<VehicleType, VehicleCategory>> | null): Record<VehicleType, VehicleCategory> => ({
+    ...INITIAL_SERVICE_TYPES,
+    ...(next || {}),
+  });
 
   const [currentScreen, setCurrentScreen] = useState<Screen>('dashboard');
   const [isAssistantOpen, setIsAssistantOpen] = useState(false);
@@ -200,7 +204,7 @@ export default function App() {
     setBackendError(null);
     try {
       const data = await api.bootstrap();
-      setServiceTypes(data.serviceTypes || INITIAL_SERVICE_TYPES);
+      setServiceTypes(mergeServiceTypes(data.serviceTypes));
       setVehicleDb(data.vehicleDb || []);
       setServices((data.services || []).map(service => ({
         ...service,
@@ -238,8 +242,9 @@ export default function App() {
   }, [services, activeServiceId]);
 
   const persistServiceTypes = async (next: Record<VehicleType, VehicleCategory>) => {
-    setServiceTypes(next);
-    await api.saveServiceTypes(next);
+    const merged = mergeServiceTypes(next);
+    setServiceTypes(merged);
+    await api.saveServiceTypes(merged);
   };
 
   const normalizeServicesForPersistence = (next: Service[]) => {

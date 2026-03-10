@@ -207,6 +207,7 @@ export default function Settings({
     if (type === 'car') return 'Carro';
     if (type === 'motorcycle') return 'Moto';
     if (type === 'truck') return 'Caminhão';
+    if (type === 'pickup_4x4') return 'Caminhonete 4X4';
     return 'Lancha';
   };
 
@@ -251,6 +252,12 @@ export default function Settings({
     }
 
     const updatedTypes = { ...serviceTypes };
+    if (!updatedTypes[serviceFormVehicle]) {
+      updatedTypes[serviceFormVehicle] = {
+        label: getVehicleTypeLabel(serviceFormVehicle),
+        services: [],
+      };
+    }
 
     if (editingService) {
       updatedTypes[editingService.vehicle] = {
@@ -1033,6 +1040,7 @@ export default function Settings({
                   >
                     <option value="car">Carro</option>
                     <option value="motorcycle">Moto</option>
+                    <option value="pickup_4x4">Caminhonete 4X4</option>
                     <option value="boat">Lancha</option>
                     <option value="truck">Caminhão</option>
                   </select>

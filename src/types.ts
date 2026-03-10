@@ -171,7 +171,7 @@ export interface VehicleCategory {
   services: ServiceTypeOption[];
 }
 
-export type VehicleType = 'car' | 'motorcycle' | 'truck' | 'boat';
+export type VehicleType = 'car' | 'motorcycle' | 'truck' | 'boat' | 'pickup_4x4';
 
 export interface VehicleRegistration {
   plate: string;
@@ -205,6 +205,13 @@ export const INITIAL_SERVICE_TYPES: Record<VehicleType, VehicleCategory> = {
     services: [
       { id: 'simple', label: 'Lavagem Simples', price: 180 },
       { id: 'complete', label: 'Lavagem Completa', price: 250 },
+    ]
+  },
+  pickup_4x4: {
+    label: 'Caminhonete 4X4',
+    services: [
+      { id: 'simple', label: 'Lavagem Simples', price: 95 },
+      { id: 'complete', label: 'Lavagem Completa', price: 130 },
     ]
   },
   boat: {

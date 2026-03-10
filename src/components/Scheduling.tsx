@@ -58,6 +58,7 @@ const isTimeBlockedByBusinessRules = (date: string, time: string) => {
 const getVehicleTypeLabel = (type: VehicleType) => {
   if (type === 'motorcycle') return 'Moto';
   if (type === 'truck') return 'Caminhao';
+  if (type === 'pickup_4x4') return 'Caminhonete 4X4';
   if (type === 'boat') return 'Embarcacao';
   return 'Carro';
 };
