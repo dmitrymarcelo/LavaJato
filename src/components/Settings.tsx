@@ -41,7 +41,7 @@ export default function Settings({
 }: { 
   onNavigate: (screen: Screen) => void, 
   serviceTypes?: Record<VehicleType, VehicleCategory>, 
-  onUpdateServiceTypes?: (types: Record<VehicleType, VehicleCategory>) => void,
+  onUpdateServiceTypes?: (types: Record<VehicleType, VehicleCategory>) => Promise<void> | void,
   vehicleDb?: VehicleRegistration[],
   onUpdateVehicleDb?: (db: VehicleRegistration[]) => Promise<void> | void,
   team?: TeamMember[],
@@ -56,6 +56,10 @@ export default function Settings({
   const [searchQuery, setSearchQuery] = useState('');
   const [dbSearchQuery, setDbSearchQuery] = useState('');
   const [editingService, setEditingService] = useState<{ vehicle: VehicleType, service: ServiceTypeOption } | null>(null);
+  const [isServiceModalOpen, setIsServiceModalOpen] = useState(false);
+  const [serviceFormVehicle, setServiceFormVehicle] = useState<VehicleType>('car');
+  const [serviceFormLabel, setServiceFormLabel] = useState('');
+  const [serviceFormPrice, setServiceFormPrice] = useState('');
   const [isAddingVehicle, setIsAddingVehicle] = useState(false);
   const [newVehicle, setNewVehicle] = useState<Partial<VehicleRegistration>>({ type: 'car' });
   const newVehicleCpfError = newVehicle.thirdPartyCpf ? (!isValidCpf(newVehicle.thirdPartyCpf) ? 'CPF invalido.' : null) : null;
@@ -199,22 +203,93 @@ export default function Settings({
     }
   };
 
-  const handleAddService = (vehicle: VehicleType) => {
+  const getVehicleTypeLabel = (type: VehicleType) => {
+    if (type === 'car') return 'Carro';
+    if (type === 'motorcycle') return 'Moto';
+    if (type === 'truck') return 'Caminhão';
+    return 'Lancha';
+  };
+
+  const resetServiceForm = () => {
+    setEditingService(null);
+    setServiceFormVehicle('car');
+    setServiceFormLabel('');
+    setServiceFormPrice('');
+    setIsServiceModalOpen(false);
+  };
+
+  const openNewServiceModal = (vehicle?: VehicleType) => {
+    setEditingService(null);
+    setServiceFormVehicle(vehicle || 'car');
+    setServiceFormLabel('');
+    setServiceFormPrice('');
+    setIsServiceModalOpen(true);
+  };
+
+  const openEditServiceModal = (vehicle: VehicleType, service: ServiceTypeOption) => {
+    setEditingService({ vehicle, service });
+    setServiceFormVehicle(vehicle);
+    setServiceFormLabel(service.label);
+    setServiceFormPrice(String(service.price));
+    setIsServiceModalOpen(true);
+  };
+
+  const handleSaveServiceForm = async () => {
     if (!serviceTypes || !onUpdateServiceTypes) return;
-    
-    const newService: ServiceTypeOption = {
-      id: generateId(),
-      label: 'Novo Serviço',
-      price: 0
+
+    const normalizedLabel = serviceFormLabel.trim();
+    const normalizedPrice = Number(serviceFormPrice);
+
+    if (!normalizedLabel) {
+      alert('Informe o nome do serviço.');
+      return;
+    }
+
+    if (!Number.isFinite(normalizedPrice) || normalizedPrice < 0) {
+      alert('Informe um valor válido para o serviço.');
+      return;
+    }
+
+    const updatedTypes = { ...serviceTypes };
+
+    if (editingService) {
+      updatedTypes[editingService.vehicle] = {
+        ...updatedTypes[editingService.vehicle],
+        services: updatedTypes[editingService.vehicle].services.filter(
+          (service) => service.id !== editingService.service.id
+        ),
+      };
+    }
+
+    const nextService: ServiceTypeOption = {
+      id: editingService?.service.id || generateId(),
+      label: normalizedLabel,
+      price: normalizedPrice,
     };
-    
+
+    updatedTypes[serviceFormVehicle] = {
+      ...updatedTypes[serviceFormVehicle],
+      services: [...updatedTypes[serviceFormVehicle].services, nextService],
+    };
+
+    await onUpdateServiceTypes(updatedTypes);
+    resetServiceForm();
+  };
+
+  const handleDeleteServiceType = async (vehicle: VehicleType, serviceId: string) => {
+    if (!serviceTypes || !onUpdateServiceTypes) return;
+
+    if (!confirm('Tem certeza que deseja excluir este serviço?')) {
+      return;
+    }
+
     const updatedTypes = { ...serviceTypes };
     updatedTypes[vehicle] = {
       ...updatedTypes[vehicle],
-      services: [...updatedTypes[vehicle].services, newService]
+      services: updatedTypes[vehicle].services.filter((service) => service.id !== serviceId),
     };
-    
-    onUpdateServiceTypes(updatedTypes);
+
+    await onUpdateServiceTypes(updatedTypes);
   };
 
   const handleAddVehicle = async () => {
@@ -526,6 +601,20 @@ export default function Settings({
           </>
         ) : activeTab === 'services' ? (
           <div className="flex-1 p-6 space-y-8">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-lg font-black text-slate-900">Serviços por tipo de veículo</h3>
+                <p className="text-xs text-slate-500">Cadastre e edite os serviços com nome, valor e categoria do veículo.</p>
+              </div>
+              <button
+                onClick={() => openNewServiceModal()}
+                className="bg-primary text-white px-4 py-2 rounded-xl font-bold text-xs flex items-center gap-2 active:scale-95 transition-all shadow-sm hover:bg-blue-600"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Adicionar Serviço</span>
+              </button>
+            </div>
+
             {serviceTypes && Object.entries(serviceTypes).map(([type, category]) => (
               <div key={type} className="space-y-4">
                 <div className="flex items-center justify-between">
@@ -538,35 +627,43 @@ export default function Settings({
                     </div>
                     <h3 className="text-lg font-black text-slate-900">{category.label}</h3>
                   </div>
-                  <button 
-                    onClick={() => handleAddService(type as VehicleType)}
+                  <button
+                    onClick={() => openNewServiceModal(type as VehicleType)}
                     className="flex items-center gap-1 text-xs font-bold text-primary hover:bg-primary/5 px-3 py-1.5 rounded-lg transition-colors"
                   >
                     <Plus className="w-4 h-4" />
-                    Adicionar Serviço
+                    Adicionar
                   </button>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {category.services.map((service) => (
-                    <div key={service.id} className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex items-center justify-between">
-                      <div className="flex-1">
-                        <input 
-                          type="text"
-                          value={service.label}
-                          onChange={(e) => handleUpdateService(type as VehicleType, service.id, 'label', e.target.value)}
-                          className="font-bold text-slate-900 bg-transparent border-none p-0 focus:ring-0 w-full mb-1"
-                        />
-                        <p className="text-xs text-slate-400 font-medium uppercase tracking-wide">Preço Base</p>
+                    <div key={service.id} className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex items-center justify-between gap-4">
+                      <div className="flex-1 min-w-0">
+                        <p className="font-bold text-slate-900 truncate">{service.label}</p>
+                        <p className="text-xs text-slate-400 font-medium uppercase tracking-wide mt-1">
+                          {getVehicleTypeLabel(type as VehicleType)}
+                        </p>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-slate-400 text-sm font-medium">R$</span>
-                        <input 
-                          type="number"
-                          value={service.price}
-                          onChange={(e) => handleUpdateService(type as VehicleType, service.id, 'price', Number(e.target.value))}
-                          className="w-20 font-black text-lg text-primary bg-slate-50 border-none rounded-lg px-2 py-1 text-right focus:ring-2 focus:ring-primary/20"
-                        />
+                      <div className="flex items-center gap-3 shrink-0">
+                        <div className="text-right">
+                          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Valor</p>
+                          <p className="text-lg font-black text-primary">
+                            {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(service.price)}
+                          </p>
+                        </div>
+                        <button
+                          onClick={() => openEditServiceModal(type as VehicleType, service)}
+                          className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 text-slate-500 hover:border-primary hover:text-primary transition-colors"
+                        >
+                          <Edit3 className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => handleDeleteServiceType(type as VehicleType, service.id)}
+                          className="flex h-10 w-10 items-center justify-center rounded-xl border border-rose-200 text-rose-500 hover:bg-rose-50 transition-colors"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
                       </div>
                     </div>
                   ))}
@@ -896,6 +993,81 @@ export default function Settings({
                     className="w-full bg-primary text-white font-bold py-4 rounded-2xl shadow-lg shadow-primary/20 active:scale-[0.98] transition-all"
                   >
                     Confirmar Cadastro
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+
+        {isServiceModalOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100] bg-black/40 backdrop-blur-sm flex items-end justify-center p-4"
+          >
+            <motion.div
+              initial={{ y: '100%' }}
+              animate={{ y: 0 }}
+              exit={{ y: '100%' }}
+              transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+              className="bg-white w-full max-w-[420px] rounded-t-[32px] p-6 shadow-2xl space-y-6"
+            >
+              <div className="flex justify-between items-center">
+                <h3 className="text-xl font-black text-slate-900">
+                  {editingService ? 'Editar Serviço' : 'Adicionar Serviço'}
+                </h3>
+                <button onClick={resetServiceForm} className="text-slate-400 hover:text-slate-600 font-bold">
+                  Fechar
+                </button>
+              </div>
+
+              <div className="space-y-4">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400 ml-1">Tipo de Veículo</label>
+                  <select
+                    value={serviceFormVehicle}
+                    onChange={(e) => setServiceFormVehicle(e.target.value as VehicleType)}
+                    className="w-full h-14 px-4 bg-slate-50 border border-slate-100 rounded-2xl outline-none focus:border-primary transition-all text-slate-900"
+                  >
+                    <option value="car">Carro</option>
+                    <option value="motorcycle">Moto</option>
+                    <option value="boat">Lancha</option>
+                    <option value="truck">Caminhão</option>
+                  </select>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400 ml-1">Tipo de Serviço</label>
+                  <input
+                    type="text"
+                    placeholder="Ex: Lavagem Completa"
+                    value={serviceFormLabel}
+                    onChange={(e) => setServiceFormLabel(e.target.value)}
+                    className="w-full h-14 px-4 bg-slate-50 border border-slate-100 rounded-2xl outline-none focus:border-primary transition-all text-slate-900"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400 ml-1">Valor</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    placeholder="0,00"
+                    value={serviceFormPrice}
+                    onChange={(e) => setServiceFormPrice(e.target.value)}
+                    className="w-full h-14 px-4 bg-slate-50 border border-slate-100 rounded-2xl outline-none focus:border-primary transition-all text-slate-900"
+                  />
+                </div>
+
+                <div className="pt-2">
+                  <button
+                    onClick={handleSaveServiceForm}
+                    className="w-full bg-primary text-white font-bold py-4 rounded-2xl shadow-lg shadow-primary/20 active:scale-[0.98] transition-all"
+                  >
+                    {editingService ? 'Salvar Alterações' : 'Cadastrar Serviço'}
                   </button>
                 </div>
               </div>
