@@ -40,6 +40,8 @@ import { getBaseById } from './data/bases';
 const BOOTSTRAP_CACHE_KEY = 'bootstrapCacheV3';
 const VEHICLE_DB_CACHE_KEY = 'vehicleDbCacheV1';
 const AUTH_USER_CACHE_KEY = 'authUserV1';
+const APP_CACHE_VERSION_KEY = 'appCacheVersion';
+const APP_CACHE_VERSION = '2026-03-10-incident-1';
 const LEGACY_BOOTSTRAP_CACHE_KEYS = ['bootstrapCacheV2'];
 
 function readJsonCache<T>(key: string, fallback: T): T {
@@ -273,6 +275,15 @@ export default function App() {
 
   useEffect(() => {
     LEGACY_BOOTSTRAP_CACHE_KEYS.forEach(clearJsonCache);
+
+    try {
+      const currentVersion = window.localStorage.getItem(APP_CACHE_VERSION_KEY);
+      if (currentVersion !== APP_CACHE_VERSION) {
+        clearJsonCache(BOOTSTRAP_CACHE_KEY);
+        clearJsonCache(VEHICLE_DB_CACHE_KEY);
+        window.localStorage.setItem(APP_CACHE_VERSION_KEY, APP_CACHE_VERSION);
+      }
+    } catch (error) {}
   }, []);
 
   const handleSendMessage = async () => {
