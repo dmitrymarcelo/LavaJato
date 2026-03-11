@@ -902,10 +902,13 @@ export default function Scheduling({
                         <div className="relative">
                           <button
                             type="button"
+                            aria-label={`Abrir menu do agendamento da placa ${appointment.plate}`}
+                            title="Mais ações"
                             onClick={(event) => {
                               event.stopPropagation();
                               setOpenAppointmentMenuId((current) => current === appointment.id ? null : appointment.id);
                             }}
+                            onMouseDown={(event) => event.stopPropagation()}
                             className="flex h-8 w-8 items-center justify-center rounded-full bg-white text-slate-700 shadow-md border border-slate-100 active:scale-90 transition-all"
                           >
                             <MoreVertical className="w-4 h-4" />
@@ -919,6 +922,7 @@ export default function Scheduling({
                                   initial={{ opacity: 0, scale: 0.95, y: -8 }}
                                   animate={{ opacity: 1, scale: 1, y: 0 }}
                                   exit={{ opacity: 0, scale: 0.95, y: -8 }}
+                                  onClick={(event) => event.stopPropagation()}
                                   className="absolute right-0 top-10 z-[120] w-44 overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-2xl"
                                 >
                                   <button
