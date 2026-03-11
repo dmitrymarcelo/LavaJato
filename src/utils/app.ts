@@ -105,6 +105,15 @@ export function validateStrongPassword(password: string) {
   return null;
 }
 
+export function isValidEmail(value: string) {
+  const normalized = String(value || '').trim();
+  if (!normalized) {
+    return false;
+  }
+
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalized);
+}
+
 export function getElapsedMinutes(startTime?: string, now = Date.now()) {
   if (!startTime) {
     return 0;

@@ -106,6 +106,7 @@ export interface TeamMember {
   id: string;
   name: string;
   registration: string;
+  email?: string;
   password?: string;
   passwordHash?: string;
   role: string;

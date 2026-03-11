@@ -8,6 +8,7 @@ CREATE TABLE IF NOT EXISTS team_members (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
     registration TEXT NOT NULL UNIQUE,
+    email TEXT,
     password_hash TEXT NOT NULL,
     role TEXT NOT NULL,
     allowed_base_ids JSONB NOT NULL DEFAULT '[]'::jsonb,
@@ -22,6 +23,14 @@ CREATE TABLE IF NOT EXISTS team_members (
 
 ALTER TABLE team_members
     ADD COLUMN IF NOT EXISTS allowed_base_ids JSONB NOT NULL DEFAULT '[]'::jsonb;
+
+ALTER TABLE team_members
+    ADD COLUMN IF NOT EXISTS email TEXT;
+
+UPDATE team_members
+SET email = NULL
+WHERE email IS NOT NULL
+  AND BTRIM(email) = '';
 
 UPDATE team_members
 SET
@@ -190,6 +199,9 @@ CREATE TABLE IF NOT EXISTS auth_sessions (
 
 CREATE INDEX IF NOT EXISTS idx_auth_sessions_member_id ON auth_sessions (member_id);
 CREATE INDEX IF NOT EXISTS idx_auth_sessions_expires_at ON auth_sessions (expires_at);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_team_members_email_unique
+    ON team_members (LOWER(email))
+    WHERE email IS NOT NULL AND BTRIM(email) <> '';
 
 WITH ranked_active_appointments AS (
     SELECT

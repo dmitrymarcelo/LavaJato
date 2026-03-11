@@ -1,14 +1,14 @@
 import React, { useState } from 'react';
 import { motion } from '../lib/motion';
 import { Lock, Mail, ArrowRight, CheckCircle2 } from 'lucide-react';
-import { digitsOnly, validateStrongPassword } from '../utils/app';
+import { validateStrongPassword } from '../utils/app';
 
 interface LoginProps {
-  onLogin: (registration: string, password: string) => Promise<void>;
+  onLogin: (identifier: string, password: string) => Promise<void>;
 }
 
 export default function Login({ onLogin }: LoginProps) {
-  const [registration, setRegistration] = useState('');
+  const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -24,7 +24,7 @@ export default function Login({ onLogin }: LoginProps) {
     setIsLoading(true);
     setError(null);
     try {
-      await onLogin(registration, password);
+      await onLogin(identifier.trim(), password);
     } catch (err: any) {
       setError(err.message || 'Falha ao autenticar.');
     } finally {
@@ -47,7 +47,9 @@ export default function Login({ onLogin }: LoginProps) {
               className="w-12 h-12 object-contain"
               referrerPolicy="no-referrer"
             />
-            <h1 className="text-2xl font-black text-slate-900 tracking-tight">Norte <span className="text-primary">Tech</span></h1>
+            <h1 className="text-2xl font-black text-slate-900 tracking-tight">
+              Norte <span className="text-primary">Tech</span>
+            </h1>
           </div>
 
           <div className="mb-10">
@@ -57,19 +59,19 @@ export default function Login({ onLogin }: LoginProps) {
 
           <form onSubmit={handleSubmit} className="space-y-6">
             <div className="space-y-2">
-              <label className="text-[10px] font-bold uppercase tracking-widest text-slate-500 ml-1">Matricula</label>
+              <label className="text-[10px] font-bold uppercase tracking-widest text-slate-500 ml-1">
+                Matricula ou email
+              </label>
               <div className="relative">
                 <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
                 <input
                   type="text"
                   required
-                  value={registration}
-                  onChange={(e) => setRegistration(digitsOnly(e.target.value))}
-                  placeholder="000000"
+                  value={identifier}
+                  onChange={(e) => setIdentifier(e.target.value)}
+                  placeholder="1001 ou cliente@empresa.com"
                   autoComplete="username"
-                  inputMode="numeric"
-                  pattern="[0-9]*"
-                  maxLength={12}
+                  inputMode="text"
                   className="w-full bg-slate-50 border border-slate-100 rounded-2xl py-4 pl-12 pr-4 text-slate-900 focus:bg-white focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all"
                 />
               </div>
@@ -78,7 +80,9 @@ export default function Login({ onLogin }: LoginProps) {
             <div className="space-y-2">
               <div className="flex items-center justify-between ml-1">
                 <label className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Senha</label>
-                <button type="button" className="text-[10px] font-bold text-primary hover:underline uppercase tracking-widest">Esqueceu?</button>
+                <button type="button" className="text-[10px] font-bold text-primary hover:underline uppercase tracking-widest">
+                  Esqueceu?
+                </button>
               </div>
               <div className="relative">
                 <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
@@ -101,7 +105,7 @@ export default function Login({ onLogin }: LoginProps) {
             <label className="flex items-center gap-3 cursor-pointer group w-fit">
               <div className="relative flex items-center justify-center">
                 <input type="checkbox" className="peer sr-only" />
-                <div className="w-5 h-5 border-2 border-slate-300 rounded-md peer-checked:bg-primary peer-checked:border-primary transition-all"></div>
+                <div className="w-5 h-5 border-2 border-slate-300 rounded-md peer-checked:bg-primary peer-checked:border-primary transition-all" />
                 <CheckCircle2 className="absolute w-3.5 h-3.5 text-white opacity-0 peer-checked:opacity-100 transition-opacity" />
               </div>
               <span className="text-sm font-medium text-slate-600 group-hover:text-slate-900 transition-colors">Manter conectado</span>
@@ -121,7 +125,12 @@ export default function Login({ onLogin }: LoginProps) {
                 </>
               )}
             </button>
-            {error && <p className="text-sm font-bold text-rose-600 text-center">{error}</p>}
+
+            {error && (
+              <div className="bg-rose-50 border border-rose-100 text-rose-600 rounded-2xl p-4 text-sm font-medium">
+                {error}
+              </div>
+            )}
           </form>
         </motion.div>
       </div>

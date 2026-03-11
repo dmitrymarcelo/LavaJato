@@ -2,7 +2,7 @@
 import { Shield, UserCog, CheckCircle2, XCircle, Save, Info, Lock, Eye, Edit3, Trash2, BarChart3, Users, UserPlus, Star, Clock, MoreVertical, Search, Filter, ShieldCheck, Car, Bike, Truck, Ship, Plus, Upload, FileSpreadsheet, Download } from 'lucide-react';
 import { RoleAccessRule, Screen, TeamMember, VehicleCategory, VehicleType, ServiceTypeOption, VehicleRegistration } from '../types';
 import { motion, AnimatePresence } from '../lib/motion';
-import { digitsOnly, formatCpf, generateId, isValidCpf, optimizeImageFile, validateStrongPassword } from '../utils/app';
+import { digitsOnly, formatCpf, generateId, isValidCpf, isValidEmail, optimizeImageFile, validateStrongPassword } from '../utils/app';
 import { BASES } from '../data/bases';
 import ModalSurface from './ModalSurface';
 
@@ -69,6 +69,8 @@ export default function Settings({
   const filteredTeam = team.filter(member => 
     member.role === activeRole && (
       member.name.toLowerCase().includes(searchQuery.toLowerCase())
+      || (member.email || '').toLowerCase().includes(searchQuery.toLowerCase())
+      || member.registration.toLowerCase().includes(searchQuery.toLowerCase())
     )
   );
 
@@ -95,12 +97,16 @@ export default function Settings({
 
   const [newMemberName, setNewMemberName] = useState('');
   const [newMemberRegistration, setNewMemberRegistration] = useState('');
+  const [newMemberEmail, setNewMemberEmail] = useState('');
   const [newMemberPassword, setNewMemberPassword] = useState('');
   const [newMemberAvatar, setNewMemberAvatar] = useState('');
   const [newMemberAllowedBaseIds, setNewMemberAllowedBaseIds] = useState<string[]>([]);
   const [editingMemberId, setEditingMemberId] = useState<string | null>(null);
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const newMemberPasswordError = newMemberPassword ? validateStrongPassword(newMemberPassword) : null;
+  const newMemberEmailError = activeRole === 'Clientes' && newMemberEmail
+    ? (!isValidEmail(newMemberEmail) ? 'Email invalido.' : null)
+    : null;
 
   React.useEffect(() => {
     setRules(accessRules?.length ? accessRules : INITIAL_RULES);
@@ -111,6 +117,7 @@ export default function Settings({
     setEditingMemberId(null);
     setNewMemberName('');
     setNewMemberRegistration('');
+    setNewMemberEmail('');
     setNewMemberPassword('');
     setNewMemberAvatar('');
     setNewMemberAllowedBaseIds([]);
@@ -139,14 +146,26 @@ export default function Settings({
 
   const handleAddMember = async () => {
     const existingMember = editingMemberId ? team.find((member) => member.id === editingMemberId) : null;
+    const requiresRegistration = activeRole !== 'Clientes';
+    const normalizedEmail = newMemberEmail.trim().toLowerCase();
 
-    if (!newMemberName.trim() || !newMemberRegistration.trim() || (!editingMemberId && !newMemberPassword.trim())) {
+    if (!newMemberName.trim() || (requiresRegistration && !newMemberRegistration.trim()) || (!editingMemberId && !newMemberPassword.trim())) {
       alert('Preencha todos os campos.');
       return;
     }
 
     if (newMemberPassword && newMemberPasswordError) {
       alert(newMemberPasswordError);
+      return;
+    }
+
+    if (activeRole === 'Clientes' && !normalizedEmail) {
+      alert('Informe o email do cliente.');
+      return;
+    }
+
+    if (newMemberEmailError) {
+      alert(newMemberEmailError);
       return;
     }
 
@@ -158,7 +177,10 @@ export default function Settings({
     const newMember: TeamMember = {
       id: editingMemberId || generateId(),
       name: newMemberName,
-      registration: newMemberRegistration,
+      registration: activeRole === 'Clientes'
+        ? (existingMember?.registration || `CLI-${Date.now()}`)
+        : newMemberRegistration,
+      email: activeRole === 'Clientes' ? normalizedEmail : '',
       password: newMemberPassword || undefined,
       role: activeRole,
       allowedBaseIds: activeRole === 'Clientes' ? newMemberAllowedBaseIds : [],
@@ -192,6 +214,7 @@ export default function Settings({
     setEditingMemberId(member.id);
     setNewMemberName(member.name);
     setNewMemberRegistration(member.registration);
+    setNewMemberEmail(member.email || '');
     setNewMemberPassword('');
     setNewMemberAvatar(member.avatar);
     setNewMemberAllowedBaseIds(member.allowedBaseIds || []);
@@ -557,16 +580,17 @@ export default function Settings({
                     <h3 className="text-lg font-black text-slate-900">Membros da Equipe ({activeRole})</h3>
                     <p className="text-xs text-slate-500">Gerencie os colaboradores vinculados a este nível de acesso.</p>
                   </div>
-                  <button 
-                    onClick={() => {
-                      setEditingMemberId(null);
-                      setNewMemberName('');
-                      setNewMemberRegistration('');
-                      setNewMemberPassword('');
-                      setNewMemberAvatar('');
-                      setNewMemberAllowedBaseIds([]);
-                      setIsAddingMember(true);
-                    }}
+                <button 
+                  onClick={() => {
+                    setEditingMemberId(null);
+                    setNewMemberName('');
+                    setNewMemberRegistration('');
+                    setNewMemberEmail('');
+                    setNewMemberPassword('');
+                    setNewMemberAvatar('');
+                    setNewMemberAllowedBaseIds([]);
+                    setIsAddingMember(true);
+                  }}
                     className="bg-primary text-white px-4 py-2 rounded-xl font-bold text-xs flex items-center gap-2 active:scale-95 transition-all shadow-lg shadow-primary/20"
                   >
                     <UserPlus className="w-4 h-4" />
@@ -609,15 +633,20 @@ export default function Settings({
                         </div>
 
                         <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2">
-                            <h4 className="font-bold text-sm text-slate-900 truncate">{member.name}</h4>
-                            {member.role.includes('Líder') && <ShieldCheck className="w-3.5 h-3.5 text-primary" />}
+                        <div className="flex items-center gap-2">
+                          <h4 className="font-bold text-sm text-slate-900 truncate">{member.name}</h4>
+                          {member.role.includes('Líder') && <ShieldCheck className="w-3.5 h-3.5 text-primary" />}
+                        </div>
+                        <p className="mt-1 text-[10px] font-bold uppercase tracking-wide text-slate-400 truncate">
+                          {member.role === 'Clientes'
+                            ? (member.email || 'Email nao informado')
+                            : `Matricula ${member.registration}`}
+                        </p>
+                        <div className="flex items-center gap-3 mt-1">
+                          <div className="flex items-center gap-1">
+                            <Star className="w-2.5 h-2.5 text-amber-500 fill-amber-500" />
+                            <span className="text-[9px] font-bold text-slate-700">{member.rating}</span>
                           </div>
-                          <div className="flex items-center gap-3 mt-1">
-                            <div className="flex items-center gap-1">
-                              <Star className="w-2.5 h-2.5 text-amber-500 fill-amber-500" />
-                              <span className="text-[9px] font-bold text-slate-700">{member.rating}</span>
-                            </div>
                             <div className="flex items-center gap-1">
                               <CheckCircle2 className="w-2.5 h-2.5 text-emerald-500" />
                               <span className="text-[9px] font-bold text-slate-700">{member.servicesCount} serv.</span>
@@ -906,19 +935,37 @@ export default function Settings({
                     </div>
                   </div>
                 </div>
-                <div className="space-y-1">
-                  <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400 ml-1">Matrícula</label>
-                  <input 
-                    type="text" 
-                    placeholder="Ex: 1001"
-                    value={newMemberRegistration}
-                    onChange={(e) => setNewMemberRegistration(digitsOnly(e.target.value))}
-                    inputMode="numeric"
-                    pattern="[0-9]*"
-                    maxLength={12}
-                    className="w-full h-14 px-4 bg-slate-50 border border-slate-100 rounded-2xl outline-none focus:border-primary transition-all text-slate-900"
-                  />
-                </div>
+                {activeRole === 'Clientes' ? (
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400 ml-1">Email</label>
+                    <input 
+                      type="email" 
+                      placeholder="cliente@empresa.com"
+                      value={newMemberEmail}
+                      onChange={(e) => setNewMemberEmail(e.target.value)}
+                      autoComplete="email"
+                      inputMode="email"
+                      className="w-full h-14 px-4 bg-slate-50 border border-slate-100 rounded-2xl outline-none focus:border-primary transition-all text-slate-900"
+                    />
+                    <p className={`text-[10px] font-bold ml-1 ${newMemberEmailError ? 'text-rose-500' : 'text-slate-400'}`}>
+                      {newMemberEmailError || 'Esse email sera usado para login do cliente no sistema.'}
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400 ml-1">Matrícula</label>
+                    <input 
+                      type="text" 
+                      placeholder="Ex: 1001"
+                      value={newMemberRegistration}
+                      onChange={(e) => setNewMemberRegistration(digitsOnly(e.target.value))}
+                      inputMode="numeric"
+                      pattern="[0-9]*"
+                      maxLength={12}
+                      className="w-full h-14 px-4 bg-slate-50 border border-slate-100 rounded-2xl outline-none focus:border-primary transition-all text-slate-900"
+                    />
+                  </div>
+                )}
                 <div className="space-y-1">
                   <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400 ml-1">Senha</label>
                   <input 
@@ -966,7 +1013,7 @@ export default function Settings({
                 <div className="pt-2">
                   <button 
                     onClick={handleAddMember}
-                    disabled={!!newMemberPasswordError}
+                    disabled={!!newMemberPasswordError || !!newMemberEmailError}
                     className="w-full bg-primary text-white font-bold py-4 rounded-2xl shadow-lg shadow-primary/20 active:scale-[0.98] transition-all disabled:opacity-70"
                   >
                     {editingMemberId ? 'Salvar Alteracoes' : 'Confirmar Cadastro'}

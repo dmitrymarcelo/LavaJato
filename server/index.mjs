@@ -117,6 +117,10 @@ function normalizeAllowedBaseIds(value) {
   );
 }
 
+function normalizeEmail(value) {
+  return String(value || '').trim().toLowerCase();
+}
+
 function getAllowedBaseIdsForMember(member) {
   if (!member) {
     return [];
@@ -251,6 +255,7 @@ function toCamelTeam(row) {
     id: row.id,
     name: row.name,
     registration: row.registration,
+    email: row.email || '',
     role: row.role,
     allowedBaseIds: getAllowedBaseIdsForMember(row),
     rating: Number(row.rating),
@@ -680,9 +685,20 @@ async function upsertProductRow(product, executor = query) {
 }
 
 async function upsertTeamMemberRow(member, executor = query) {
-  const registration = String(member.registration || '').trim();
-  if (!registration) {
+  const normalizedEmail = normalizeEmail(member.email);
+  const isClientRole = member.role === 'Clientes';
+  const registration = isClientRole
+    ? String(member.registration || '').trim() || `CLI-${Date.now()}-${randomBytes(3).toString('hex')}`
+    : String(member.registration || '').trim();
+
+  if (!isClientRole && !registration) {
     const error = new Error('Matricula do colaborador e obrigatoria.');
+    error.statusCode = 400;
+    throw error;
+  }
+
+  if (isClientRole && !normalizedEmail) {
+    const error = new Error('Email do cliente e obrigatorio.');
     error.statusCode = 400;
     throw error;
   }
@@ -704,11 +720,30 @@ async function upsertTeamMemberRow(member, executor = query) {
     throw error;
   }
 
+  if (normalizedEmail) {
+    const duplicateEmail = await executor(
+      `
+      SELECT id
+      FROM team_members
+      WHERE LOWER(COALESCE(email, '')) = $1
+        AND id <> $2
+      LIMIT 1
+      `,
+      [normalizedEmail, member.id]
+    );
+
+    if (duplicateEmail.rows[0]) {
+      const error = new Error('Ja existe um usuario com este email.');
+      error.statusCode = 409;
+      throw error;
+    }
+  }
+
   const currentMember = await executor('SELECT password_hash, avatar FROM team_members WHERE id = $1', [member.id]);
   const passwordHash = member.passwordHash
     || (member.password ? await bcrypt.hash(member.password, 10) : currentMember.rows[0]?.password_hash)
     || await bcrypt.hash('Admin@123456!', 10);
-  const allowedBaseIds = member.role === 'Clientes'
+  const allowedBaseIds = isClientRole
     ? getAllowedBaseIdsForMember(member)
     : [];
   const persistedAvatar = await persistUploadedImage(member.avatar || currentMember.rows[0]?.avatar || '', 'avatars');
@@ -716,11 +751,12 @@ async function upsertTeamMemberRow(member, executor = query) {
   await executor(
     `
     INSERT INTO team_members (
-      id, name, registration, password_hash, role, allowed_base_ids, rating, services_count, status, avatar, efficiency, updated_at
-    ) VALUES ($1,$2,$3,$4,$5,$6::jsonb,$7,$8,$9,$10,$11,NOW())
+      id, name, registration, email, password_hash, role, allowed_base_ids, rating, services_count, status, avatar, efficiency, updated_at
+    ) VALUES ($1,$2,$3,$4,$5,$6,$7::jsonb,$8,$9,$10,$11,$12,NOW())
     ON CONFLICT (id) DO UPDATE SET
       name = EXCLUDED.name,
       registration = EXCLUDED.registration,
+      email = EXCLUDED.email,
       password_hash = EXCLUDED.password_hash,
       role = EXCLUDED.role,
       allowed_base_ids = EXCLUDED.allowed_base_ids,
@@ -735,6 +771,7 @@ async function upsertTeamMemberRow(member, executor = query) {
       member.id,
       member.name,
       registration,
+      normalizedEmail || null,
       passwordHash,
       member.role,
       JSON.stringify(allowedBaseIds),
@@ -901,11 +938,23 @@ app.get('/api/health', async (_req, res) => {
 });
 
 app.post('/api/auth/login', async (req, res) => {
-  const { registration, password } = req.body || {};
-  if (!registration || !password) {
-    return res.status(400).json({ error: 'Matricula e senha sao obrigatorias.' });
+  const identifier = String(req.body?.identifier || req.body?.registration || '').trim();
+  const password = req.body?.password;
+
+  if (!identifier || !password) {
+    return res.status(400).json({ error: 'Matrícula ou email e senha sao obrigatorios.' });
   }
-  const result = await query('SELECT * FROM team_members WHERE registration = $1', [registration]);
+  const result = await query(
+    `
+    SELECT *
+    FROM team_members
+    WHERE registration = $1
+       OR LOWER(COALESCE(email, '')) = LOWER($1)
+    ORDER BY CASE WHEN registration = $1 THEN 0 ELSE 1 END
+    LIMIT 1
+    `,
+    [identifier]
+  );
   const member = result.rows[0];
   if (!member) {
     return res.status(401).json({ error: 'Credenciais invalidas.' });

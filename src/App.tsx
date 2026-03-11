@@ -701,8 +701,8 @@ export default function App() {
     performClientLogout();
   };
 
-  const handleLogin = async (registration: string, password: string) => {
-    const response = await api.login(registration, password);
+  const handleLogin = async (identifier: string, password: string) => {
+    const response = await api.login(identifier, password);
     setCurrentUser(response.user);
     setAuthToken(response.token);
     setSelectedBase(response.user.role === 'Clientes' ? (response.user.allowedBaseIds?.[0] || null) : null);

@@ -149,10 +149,10 @@ export const api = {
   getAuthToken: () => readStoredAuthToken(),
   setAuthToken: (token: string | null) => storeAuthToken(token),
   clearAuthToken: () => storeAuthToken(null),
-  login: (registration: string, password: string) =>
+  login: (identifier: string, password: string) =>
     request<LoginResponse>('/auth/login', {
       method: 'POST',
-      body: JSON.stringify({ registration, password }),
+      body: JSON.stringify({ identifier, password }),
     }),
   logout: () =>
     request<void>('/auth/logout', {
