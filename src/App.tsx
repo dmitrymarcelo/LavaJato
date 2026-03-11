@@ -753,10 +753,37 @@ export default function App() {
       .map((appointment) => appointment.id);
   };
 
+  const getRelatedPendingServiceIds = (appointment: Appointment, sourceServices = servicesRef.current) => {
+    const appointmentPlate = normalizePlateKey(appointment.plate);
+    const appointmentDate = normalizeDateKey(appointment.date);
+    const appointmentTime = appointment.time || '';
+
+    return sourceServices
+      .filter((service) =>
+        service.id === appointment.id
+        || (
+          service.status === 'pending'
+          && normalizePlateKey(service.plate) === appointmentPlate
+          && normalizeDateKey(service.scheduledDate) === appointmentDate
+          && (service.scheduledTime || '') === appointmentTime
+        )
+      )
+      .map((service) => service.id);
+  };
+
   const deleteServiceRecord = async (service: Service) => {
     const appointmentIds = new Set(getRelatedAppointmentIds(service));
     const nextServices = servicesRef.current.filter((item) => item.id !== service.id);
     const nextAppointments = appointmentsRef.current.filter((item) => !appointmentIds.has(item.id));
+
+    await persistServices(nextServices);
+    await persistAppointments(nextAppointments);
+  };
+
+  const deleteAppointmentRecord = async (appointment: Appointment) => {
+    const serviceIds = new Set(getRelatedPendingServiceIds(appointment));
+    const nextAppointments = appointmentsRef.current.filter((item) => item.id !== appointment.id);
+    const nextServices = servicesRef.current.filter((item) => !serviceIds.has(item.id));
 
     await persistServices(nextServices);
     await persistAppointments(nextAppointments);
@@ -1005,7 +1032,7 @@ export default function App() {
       case 'vehicle-history-detail': return <VehicleHistoryDetail plate={selectedVehiclePlate} onNavigate={handleNavigateWithService} />;
       case 'queue':
       case 'scheduling': 
-        return <Scheduling currentDateKey={currentDateKey} appointments={appointments} onUpdateAppointments={persistAppointments} onCreateBooking={createScheduledBooking} onNavigate={handleNavigateWithService} services={services} onReorder={reorderServices} onDeleteServiceRecord={deleteServiceRecord} serviceTypes={serviceTypes} vehicleDb={vehicleDb} availableBases={availableBases} isClientUser={isClientUser} currentUser={currentUser} onRegisterVehicle={registerVehicleFromScheduling} selectedBaseId={selectedBaseInfo?.id} selectedBaseName={selectedBaseInfo?.name} onSelectBase={(baseId) => {
+        return <Scheduling currentDateKey={currentDateKey} appointments={appointments} onUpdateAppointments={persistAppointments} onCreateBooking={createScheduledBooking} onNavigate={handleNavigateWithService} services={services} onReorder={reorderServices} onDeleteServiceRecord={deleteServiceRecord} onDeleteAppointmentRecord={deleteAppointmentRecord} serviceTypes={serviceTypes} vehicleDb={vehicleDb} availableBases={availableBases} isClientUser={isClientUser} currentUser={currentUser} onRegisterVehicle={registerVehicleFromScheduling} selectedBaseId={selectedBaseInfo?.id} selectedBaseName={selectedBaseInfo?.name} onSelectBase={(baseId) => {
           setSelectedBase(baseId);
         }} onResetBaseFilter={() => {
           if (!isClientUser) {

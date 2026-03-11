@@ -119,6 +119,7 @@ export default function Scheduling({
   services,
   onReorder,
   onDeleteServiceRecord,
+  onDeleteAppointmentRecord,
   serviceTypes,
   vehicleDb,
   availableBases = BASES,
@@ -139,6 +140,7 @@ export default function Scheduling({
   services: Service[];
   onReorder: (newServices: Service[]) => Promise<void> | void;
   onDeleteServiceRecord?: (service: Service) => Promise<void> | void;
+  onDeleteAppointmentRecord?: (appointment: Appointment) => Promise<void> | void;
   serviceTypes: Record<VehicleType, VehicleCategory>;
   vehicleDb?: VehicleRegistration[];
   availableBases?: BaseInfo[];
@@ -161,6 +163,7 @@ export default function Scheduling({
   const [isSavingAppointment, setIsSavingAppointment] = useState(false);
   const [isLookingUpVehicle, setIsLookingUpVehicle] = useState(false);
   const [plateLookupError, setPlateLookupError] = useState<string | null>(null);
+  const [openAppointmentMenuId, setOpenAppointmentMenuId] = useState<string | null>(null);
   const [isClientVehicleModalOpen, setIsClientVehicleModalOpen] = useState(false);
   const [isSavingClientVehicle, setIsSavingClientVehicle] = useState(false);
 
@@ -450,6 +453,41 @@ export default function Scheduling({
     } catch (error) {
       console.error(error);
       alert(error instanceof Error ? error.message : 'Nao foi possivel excluir o registro.');
+    }
+  };
+
+  const handleDeleteAppointment = async (appointment: Appointment) => {
+    const confirmed = window.confirm(`Excluir definitivamente o agendamento da placa ${appointment.plate}?`);
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      if (onDeleteAppointmentRecord) {
+        await onDeleteAppointmentRecord(appointment);
+        return;
+      }
+
+      const relatedPendingService = services.find((service) =>
+        service.id === appointment.id
+        || (
+          service.status === 'pending'
+          && normalizePlate(service.plate) === normalizePlate(appointment.plate)
+          && normalizeDateKey(service.scheduledDate) === normalizeDateKey(appointment.date)
+          && (service.scheduledTime || '') === (appointment.time || '')
+        )
+      );
+
+      if (relatedPendingService && onDeleteServiceRecord) {
+        await onDeleteServiceRecord(relatedPendingService);
+        return;
+      }
+
+      const nextAppointments = appointments.filter((item) => item.id !== appointment.id);
+      await onUpdateAppointments(nextAppointments);
+    } catch (error) {
+      console.error(error);
+      alert(error instanceof Error ? error.message : 'Nao foi possivel excluir o agendamento.');
     }
   };
 
@@ -855,11 +893,52 @@ export default function Scheduling({
                   <div className="flex-1 min-w-0">
                     <div className="flex justify-between items-start">
                       <h4 className="font-black text-slate-900 truncate text-base">{appointment.customer}</h4>
-                      <StatusSelector
-                        status={appointment.status}
-                        onStatusChange={newStatus => handleStatusChange(appointment.id, newStatus)}
-                        readOnly
-                      />
+                      <div className="flex items-start gap-2 shrink-0">
+                        <StatusSelector
+                          status={appointment.status}
+                          onStatusChange={newStatus => handleStatusChange(appointment.id, newStatus)}
+                          readOnly
+                        />
+                        <div className="relative">
+                          <button
+                            type="button"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              setOpenAppointmentMenuId((current) => current === appointment.id ? null : appointment.id);
+                            }}
+                            className="flex h-8 w-8 items-center justify-center rounded-full bg-white text-slate-700 shadow-md border border-slate-100 active:scale-90 transition-all"
+                          >
+                            <MoreVertical className="w-4 h-4" />
+                          </button>
+
+                          <AnimatePresence>
+                            {openAppointmentMenuId === appointment.id && (
+                              <>
+                                <div className="fixed inset-0 z-[110]" onClick={() => setOpenAppointmentMenuId(null)} />
+                                <motion.div
+                                  initial={{ opacity: 0, scale: 0.95, y: -8 }}
+                                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                                  exit={{ opacity: 0, scale: 0.95, y: -8 }}
+                                  className="absolute right-0 top-10 z-[120] w-44 overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-2xl"
+                                >
+                                  <button
+                                    type="button"
+                                    onClick={async (event) => {
+                                      event.stopPropagation();
+                                      setOpenAppointmentMenuId(null);
+                                      await handleDeleteAppointment(appointment);
+                                    }}
+                                    className="flex w-full items-center gap-2 px-3 py-3 text-left text-xs font-bold text-rose-600 hover:bg-rose-50"
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                    Excluir definitivamente
+                                  </button>
+                                </motion.div>
+                              </>
+                            )}
+                          </AnimatePresence>
+                        </div>
+                      </div>
                     </div>
 
                     {appointment.thirdPartyName && (
