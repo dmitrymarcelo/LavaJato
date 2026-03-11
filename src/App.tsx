@@ -457,6 +457,30 @@ export default function App() {
     });
   };
 
+  const registerVehicleFromScheduling = async (vehicle: VehicleRegistration) => {
+    try {
+      let savedVehicle: VehicleRegistration | null = null;
+      await queueVehiclesSync(async () => {
+        savedVehicle = await api.upsertVehicle(vehicle);
+      });
+      if (!savedVehicle) {
+        throw new Error('Nao foi possivel confirmar o cadastro do veiculo.');
+      }
+      setVehicleDb((current) => {
+        const next = current.some((item) => item.plate === savedVehicle.plate)
+          ? current.map((item) => item.plate === savedVehicle.plate ? savedVehicle : item)
+          : [...current, savedVehicle];
+        vehicleDbRef.current = next;
+        return next;
+      });
+      setHasLoadedVehicleDbFromApi(true);
+      return savedVehicle;
+    } catch (error) {
+      await handlePersistenceError(error, 'Nao foi possivel cadastrar o veiculo.');
+      throw error;
+    }
+  };
+
   const persistProducts = async (next: Product[]) => {
     const previous = productsRef.current;
     setProducts(next);
@@ -859,7 +883,7 @@ export default function App() {
       case 'vehicle-history-detail': return <VehicleHistoryDetail plate={selectedVehiclePlate} onNavigate={handleNavigateWithService} />;
       case 'queue':
       case 'scheduling': 
-        return <Scheduling currentDateKey={currentDateKey} appointments={appointments} onUpdateAppointments={persistAppointments} onCreateBooking={createScheduledBooking} onNavigate={handleNavigateWithService} services={services} onReorder={reorderServices} serviceTypes={serviceTypes} vehicleDb={vehicleDb} availableBases={availableBases} isClientUser={isClientUser} selectedBaseId={selectedBaseInfo?.id} selectedBaseName={selectedBaseInfo?.name} onSelectBase={(baseId) => {
+        return <Scheduling currentDateKey={currentDateKey} appointments={appointments} onUpdateAppointments={persistAppointments} onCreateBooking={createScheduledBooking} onNavigate={handleNavigateWithService} services={services} onReorder={reorderServices} serviceTypes={serviceTypes} vehicleDb={vehicleDb} availableBases={availableBases} isClientUser={isClientUser} currentUser={currentUser} onRegisterVehicle={registerVehicleFromScheduling} selectedBaseId={selectedBaseInfo?.id} selectedBaseName={selectedBaseInfo?.name} onSelectBase={(baseId) => {
           setSelectedBase(baseId);
         }} onResetBaseFilter={() => {
           if (!isClientUser) {

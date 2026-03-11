@@ -25,7 +25,7 @@ import {
   Zap,
 } from 'lucide-react';
 import { motion, AnimatePresence } from '../lib/motion';
-import { Screen, Service, VehicleCategory, VehicleType, VehicleRegistration, WashingZoneId } from '../types';
+import { Screen, Service, TeamMember, VehicleCategory, VehicleType, VehicleRegistration, WashingZoneId } from '../types';
 import { api, ApiError, Appointment } from '../services/api';
 import { addDays, digitsOnly, formatCpf, generateId, getElapsedMinutes, getServicePreviewImage, normalizeDateKey } from '../utils/app';
 import { BASES, BaseInfo, getBaseById } from '../data/bases';
@@ -122,11 +122,13 @@ export default function Scheduling({
   vehicleDb,
   availableBases = BASES,
   isClientUser = false,
+  currentUser,
   selectedBaseId,
   selectedBaseName,
   onSelectBase,
   onClearBase,
   onResetBaseFilter,
+  onRegisterVehicle,
 }: {
   currentDateKey: string;
   appointments: Appointment[];
@@ -139,11 +141,13 @@ export default function Scheduling({
   vehicleDb?: VehicleRegistration[];
   availableBases?: BaseInfo[];
   isClientUser?: boolean;
+  currentUser?: TeamMember | null;
   selectedBaseId?: string | null;
   selectedBaseName?: string | null;
   onSelectBase?: (baseId: string) => void;
   onClearBase?: () => void;
   onResetBaseFilter?: () => void;
+  onRegisterVehicle?: (vehicle: VehicleRegistration) => Promise<VehicleRegistration | void> | VehicleRegistration | void;
 }) {
   const [isAdding, setIsAdding] = useState(false);
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
@@ -155,11 +159,15 @@ export default function Scheduling({
   const [isSavingAppointment, setIsSavingAppointment] = useState(false);
   const [isLookingUpVehicle, setIsLookingUpVehicle] = useState(false);
   const [plateLookupError, setPlateLookupError] = useState<string | null>(null);
+  const [isClientVehicleModalOpen, setIsClientVehicleModalOpen] = useState(false);
+  const [isSavingClientVehicle, setIsSavingClientVehicle] = useState(false);
 
   const [plate, setPlate] = useState('');
   const [customer, setCustomer] = useState('');
   const [vehicleModel, setVehicleModel] = useState('');
   const [vehicleType, setVehicleType] = useState<VehicleType>('car');
+  const [clientVehicleModel, setClientVehicleModel] = useState('');
+  const [clientVehicleType, setClientVehicleType] = useState<VehicleType>('car');
   const [selectedTime, setSelectedTime] = useState<string | null>(null);
   const [isThirdParty, setIsThirdParty] = useState(false);
   const [thirdPartyName, setThirdPartyName] = useState('');
@@ -181,9 +189,40 @@ export default function Scheduling({
     setThirdPartyCpf('');
     setIsVehicleFound(false);
     setPlateLookupError(null);
+    setIsClientVehicleModalOpen(false);
+    setIsSavingClientVehicle(false);
+    setClientVehicleModel('');
+    setClientVehicleType('car');
     setAppointmentBaseId(selectedBaseId || availableBases[0]?.id || BASES[0]?.id || '');
     setAppointmentWashingZoneId('');
   };
+
+  const resetMatchedVehicle = React.useCallback(() => {
+    setIsVehicleFound(false);
+    setCustomer('');
+    setVehicleModel('');
+    setVehicleType('car');
+    setIsThirdParty(false);
+    setThirdPartyName('');
+    setThirdPartyCpf('');
+  }, []);
+
+  const fillMatchedVehicle = React.useCallback((matchedVehicle: VehicleRegistration) => {
+    setIsVehicleFound(true);
+    setCustomer(matchedVehicle.customer);
+    setVehicleModel(matchedVehicle.model);
+    setVehicleType(matchedVehicle.type);
+
+    if (matchedVehicle.thirdPartyName || matchedVehicle.thirdPartyCpf) {
+      setIsThirdParty(true);
+      setThirdPartyName(matchedVehicle.thirdPartyName || '');
+      setThirdPartyCpf(matchedVehicle.thirdPartyCpf || '');
+    } else {
+      setIsThirdParty(false);
+      setThirdPartyName('');
+      setThirdPartyCpf('');
+    }
+  }, []);
 
   useEffect(() => {
     setSelectedTime(null);
@@ -251,36 +290,12 @@ export default function Scheduling({
     const nextPlate = event.target.value.toUpperCase();
     setPlate(nextPlate);
     setPlateLookupError(null);
+    setIsClientVehicleModalOpen(false);
+    setClientVehicleModel('');
+    setClientVehicleType('car');
   };
 
   useEffect(() => {
-    const resetMatchedVehicle = () => {
-      setIsVehicleFound(false);
-      setCustomer('');
-      setVehicleModel('');
-      setVehicleType('car');
-      setIsThirdParty(false);
-      setThirdPartyName('');
-      setThirdPartyCpf('');
-    };
-
-    const fillMatchedVehicle = (matchedVehicle: VehicleRegistration) => {
-      setIsVehicleFound(true);
-      setCustomer(matchedVehicle.customer);
-      setVehicleModel(matchedVehicle.model);
-      setVehicleType(matchedVehicle.type);
-
-      if (matchedVehicle.thirdPartyName || matchedVehicle.thirdPartyCpf) {
-        setIsThirdParty(true);
-        setThirdPartyName(matchedVehicle.thirdPartyName || '');
-        setThirdPartyCpf(matchedVehicle.thirdPartyCpf || '');
-      } else {
-        setIsThirdParty(false);
-        setThirdPartyName('');
-        setThirdPartyCpf('');
-      }
-    };
-
     const normalizedPlate = normalizePlate(plate);
 
     if (!normalizedPlate) {
@@ -318,6 +333,13 @@ export default function Scheduling({
         }
 
         resetMatchedVehicle();
+        if (error instanceof ApiError && error.status === 404 && isClientUser) {
+          setPlateLookupError('Placa nao cadastrada. Complete o novo veiculo para continuar o agendamento.');
+          setClientVehicleModel('');
+          setClientVehicleType('car');
+          setIsClientVehicleModalOpen(true);
+          return;
+        }
         if (error instanceof ApiError && error.status === 404) {
           setPlateLookupError('Cadastre a placa na base de veículos antes de criar o agendamento.');
         } else {
@@ -334,7 +356,48 @@ export default function Scheduling({
       cancelled = true;
       window.clearTimeout(timeoutId);
     };
-  }, [plate, vehicleDb]);
+  }, [plate, vehicleDb, fillMatchedVehicle, isClientUser, resetMatchedVehicle]);
+
+  const handleRegisterClientVehicle = async () => {
+    const normalizedPlate = plate.trim().toUpperCase();
+    if (!normalizedPlate) {
+      alert('Informe a placa antes de cadastrar o veiculo.');
+      return;
+    }
+
+    if (!clientVehicleModel.trim()) {
+      alert('Informe o modelo do veiculo.');
+      return;
+    }
+
+    if (!onRegisterVehicle) {
+      alert('Nao foi possivel salvar o veiculo agora.');
+      return;
+    }
+
+    const customerLabel = currentUser?.name?.trim() || currentUser?.email?.trim() || 'Cliente';
+    const payload: VehicleRegistration = {
+      plate: normalizedPlate,
+      customer: customerLabel,
+      model: clientVehicleModel.trim(),
+      type: clientVehicleType,
+    };
+
+    try {
+      setIsSavingClientVehicle(true);
+      const savedVehicle = await onRegisterVehicle(payload);
+      const nextVehicle = savedVehicle || payload;
+      setPlate(nextVehicle.plate);
+      setPlateLookupError(null);
+      fillMatchedVehicle(nextVehicle);
+      setIsClientVehicleModalOpen(false);
+    } catch (error) {
+      console.error(error);
+      alert(error instanceof Error ? error.message : 'Nao foi possivel cadastrar o veiculo.');
+    } finally {
+      setIsSavingClientVehicle(false);
+    }
+  };
 
   const handleAction = (service: Service) => {
     if (service.status === 'pending') {
@@ -908,6 +971,16 @@ export default function Scheduling({
                         ? 'Consultando a base de veiculos cadastrados para preencher os dados automaticamente.'
                         : (plateLookupError || 'Centro de custo, veiculo e tipo so aparecem automaticamente para placas ja cadastradas.')}
                     </p>
+                    {isClientUser && !isLookingUpVehicle && (
+                      <button
+                        type="button"
+                        onClick={() => setIsClientVehicleModalOpen(true)}
+                        className="mt-3 inline-flex items-center gap-2 rounded-xl border border-amber-300 bg-white px-3 py-2 text-[11px] font-black uppercase tracking-wide text-amber-700 transition-colors hover:bg-amber-100"
+                      >
+                        <Plus className="w-4 h-4" />
+                        Cadastrar novo veiculo
+                      </button>
+                    )}
                   </div>
                 )}
 
@@ -1137,6 +1210,86 @@ export default function Scheduling({
                   </>
                 )}
               </form>
+          </ModalSurface>
+        )}
+        {isAdding && isClientUser && isClientVehicleModalOpen && (
+          <ModalSurface
+            onClose={() => setIsClientVehicleModalOpen(false)}
+            position="center"
+            panelClassName="max-w-[420px] p-0 border border-slate-200/80"
+          >
+            <div className="border-b border-slate-100 bg-white px-5 py-4">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <h3 className="text-xl font-black text-slate-900">Novo Veiculo</h3>
+                  <p className="mt-0.5 text-[11px] font-medium text-slate-400">
+                    Cadastre este veiculo para seguir no agendamento e entrar na base oficial.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsClientVehicleModalOpen(false)}
+                  className="text-slate-400 hover:text-slate-600 font-bold"
+                >
+                  Fechar
+                </button>
+              </div>
+            </div>
+
+            <div className="space-y-4 px-5 py-5">
+              <div className="rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3">
+                <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Placa</p>
+                <p className="mt-1 text-lg font-black text-slate-900">{plate || '-'}</p>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400 ml-1">Modelo</label>
+                <input
+                  type="text"
+                  placeholder="Ex: Ford Ranger XLS"
+                  value={clientVehicleModel}
+                  onChange={(event) => setClientVehicleModel(event.target.value)}
+                  className="w-full h-14 px-4 bg-slate-50 border border-slate-100 rounded-2xl focus:border-primary outline-none text-slate-900"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400 ml-1">Tipo</label>
+                <select
+                  value={clientVehicleType}
+                  onChange={(event) => setClientVehicleType(event.target.value as VehicleType)}
+                  className="w-full h-14 px-4 bg-slate-50 border border-slate-100 rounded-2xl focus:border-primary outline-none appearance-none text-slate-900"
+                >
+                  <option value="car">Carro</option>
+                  <option value="motorcycle">Moto</option>
+                  <option value="pickup_4x4">Caminhonete 4X4</option>
+                  <option value="truck">Caminhao</option>
+                  <option value="boat">Lancha</option>
+                </select>
+              </div>
+
+              <div className="rounded-2xl border border-primary/10 bg-primary/5 px-4 py-3">
+                <p className="text-[10px] font-bold uppercase tracking-widest text-primary/70">Servicos liberados para este tipo</p>
+                <div className="mt-2 space-y-1">
+                  {(serviceTypes[clientVehicleType]?.services || []).map((service) => (
+                    <div key={service.id} className="flex items-center justify-between gap-3 text-sm font-bold text-slate-700">
+                      <span>{service.label}</span>
+                      <span className="text-primary">R$ {service.price},00</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={handleRegisterClientVehicle}
+                disabled={isSavingClientVehicle}
+                className="w-full bg-primary text-white font-bold py-4 rounded-2xl shadow-lg shadow-primary/20 active:scale-[0.98] transition-all flex items-center justify-center gap-2 disabled:opacity-70"
+              >
+                <CheckCircle2 className="w-5 h-5" />
+                <span>{isSavingClientVehicle ? 'Salvando veiculo...' : 'Salvar Veiculo e Continuar'}</span>
+              </button>
+            </div>
           </ModalSurface>
         )}
       </AnimatePresence>
