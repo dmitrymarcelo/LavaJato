@@ -148,14 +148,10 @@ export const api = {
     request('/service-types', { method: 'PUT', body: JSON.stringify(serviceTypes) }),
   saveAccessRules: (rules: RoleAccessRule[]) =>
     request<RoleAccessRule[]>('/access-rules', { method: 'PUT', body: JSON.stringify(rules) }),
-  saveVehicles: (vehicles: VehicleRegistration[]) =>
-    request('/vehicles', { method: 'PUT', body: JSON.stringify(vehicles) }),
   upsertVehicle: (vehicle: VehicleRegistration) =>
     request<VehicleRegistration>('/vehicles/upsert', { method: 'POST', body: JSON.stringify(vehicle) }),
   deleteVehicle: (plate: string) =>
     request<void>(`/vehicles/${encodeURIComponent(plate)}`, { method: 'DELETE' }),
-  saveServices: (services: Service[]) =>
-    request('/services', { method: 'PUT', body: JSON.stringify(services) }),
   getService: (id: string) =>
     request<Service>(`/services/${encodeURIComponent(id)}`),
   upsertService: (service: Service) =>
@@ -166,8 +162,6 @@ export const api = {
     request<SchedulingBookingPayload>('/scheduling/book', { method: 'POST', body: JSON.stringify(payload) }),
   deleteService: (id: string) =>
     request<void>(`/services/${id}`, { method: 'DELETE' }),
-  saveAppointments: (appointments: Appointment[]) =>
-    request('/appointments', { method: 'PUT', body: JSON.stringify(appointments) }),
   upsertAppointment: (appointment: Appointment) =>
     request<Appointment>('/appointments/upsert', { method: 'POST', body: JSON.stringify(appointment) }),
   deleteAppointment: (id: string) =>
@@ -176,14 +170,10 @@ export const api = {
     request<{ text: string }>('/assistant/tips', { method: 'POST', body: JSON.stringify({ query }) }),
   assistantWeather: (location?: string) =>
     request<{ text: string }>(`/assistant/weather${location ? `?location=${encodeURIComponent(location)}` : ''}`),
-  saveProducts: (products: Product[]) =>
-    request('/products', { method: 'PUT', body: JSON.stringify(products) }),
   upsertProduct: (product: Product) =>
     request<Product>('/products/upsert', { method: 'POST', body: JSON.stringify(product) }),
   deleteProduct: (id: string) =>
     request<void>(`/products/${id}`, { method: 'DELETE' }),
-  saveTeam: (team: TeamMember[]) =>
-    request('/team-members', { method: 'PUT', body: JSON.stringify(team) }),
   upsertTeamMember: (member: TeamMember) =>
     request<TeamMember>('/team-members/upsert', { method: 'POST', body: JSON.stringify(member) }),
   deleteTeamMember: (id: string) =>

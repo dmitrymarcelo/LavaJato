@@ -11,6 +11,18 @@ import { getAssistantTips, getAssistantWeather } from './assistant.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+const STORAGE_DIR = path.join(__dirname, 'storage');
+const UPLOADS_DIR = path.join(STORAGE_DIR, 'uploads');
+const DATA_URL_PATTERN = /^data:(image\/[a-zA-Z0-9.+-]+);base64,(.+)$/;
+const IMAGE_EXTENSION_BY_MIME = {
+  'image/jpeg': 'jpg',
+  'image/jpg': 'jpg',
+  'image/png': 'png',
+  'image/webp': 'webp',
+  'image/gif': 'gif',
+  'image/heic': 'heic',
+  'image/heif': 'heif',
+};
 
 const app = express();
 const port = Number(process.env.API_PORT || 4000);
@@ -26,8 +38,67 @@ function inferTarumaZoneId(vehicleType) {
   return vehicleType === 'truck' ? 'dique_pesada' : 'dique_leve';
 }
 
+fs.mkdirSync(UPLOADS_DIR, { recursive: true });
+
 app.use(cors());
-app.use(express.json({ limit: '80mb' }));
+app.use(express.json({ limit: '50mb' }));
+app.use('/uploads', express.static(UPLOADS_DIR, { maxAge: '30d' }));
+
+function sanitizeUploadScope(scope = 'general') {
+  return String(scope || 'general')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9/_-]/g, '')
+    .replace(/\/{2,}/g, '/')
+    .replace(/^\/|\/$/g, '') || 'general';
+}
+
+async function persistUploadedImage(value, scope = 'general') {
+  if (!value) {
+    return null;
+  }
+
+  const normalized = String(value).trim();
+  if (!normalized) {
+    return null;
+  }
+
+  if (normalized.startsWith('/uploads/') || /^https?:\/\//i.test(normalized)) {
+    return normalized;
+  }
+
+  const match = normalized.match(DATA_URL_PATTERN);
+  if (!match) {
+    return normalized;
+  }
+
+  const mimeType = match[1].toLowerCase();
+  const base64Payload = match[2];
+  const extension = IMAGE_EXTENSION_BY_MIME[mimeType] || 'jpg';
+  const scopePath = sanitizeUploadScope(scope).split('/').filter(Boolean);
+  const targetDir = path.join(UPLOADS_DIR, ...scopePath);
+  const fileName = `${Date.now()}-${randomBytes(8).toString('hex')}.${extension}`;
+
+  await fs.promises.mkdir(targetDir, { recursive: true });
+  await fs.promises.writeFile(path.join(targetDir, fileName), Buffer.from(base64Payload, 'base64'));
+
+  return `/uploads/${[...scopePath, fileName].join('/')}`;
+}
+
+async function persistPhotoMap(photos, scope) {
+  if (!photos || typeof photos !== 'object') {
+    return {};
+  }
+
+  const entries = await Promise.all(
+    Object.entries(photos).map(async ([key, value]) => [
+      key,
+      await persistUploadedImage(value, `${scope}/${key}`),
+    ])
+  );
+
+  return Object.fromEntries(entries.filter(([, value]) => Boolean(value)));
+}
 
 function normalizeAllowedBaseIds(value) {
   if (!Array.isArray(value)) {
@@ -211,7 +282,80 @@ function toCamelAppointment(row) {
 async function runSchema() {
   const schema = fs.readFileSync(path.join(__dirname, 'schema.sql'), 'utf8');
   await pool.query(schema);
+  await migrateInlineImages();
   await seedDatabase();
+}
+
+function hasInlineImage(value) {
+  return typeof value === 'string' && DATA_URL_PATTERN.test(value.trim());
+}
+
+async function migrateInlineImages() {
+  const [servicesResult, productsResult, teamResult, appointmentsResult] = await Promise.all([
+    query('SELECT id, image, pre_inspection_photos, post_inspection_photos FROM services'),
+    query('SELECT id, image FROM products'),
+    query('SELECT id, avatar FROM team_members'),
+    query('SELECT id, photo FROM appointments'),
+  ]);
+
+  for (const row of servicesResult.rows) {
+    const originalPrePhotos = row.pre_inspection_photos || {};
+    const originalPostPhotos = row.post_inspection_photos || {};
+    const nextImage = await persistUploadedImage(row.image, 'services/preview');
+    const nextPrePhotos = await persistPhotoMap(originalPrePhotos, 'checklists/pre');
+    const nextPostPhotos = await persistPhotoMap(originalPostPhotos, 'checklists/post');
+
+    if (
+      nextImage !== row.image
+      || JSON.stringify(nextPrePhotos) !== JSON.stringify(originalPrePhotos)
+      || JSON.stringify(nextPostPhotos) !== JSON.stringify(originalPostPhotos)
+    ) {
+      await query(
+        `
+        UPDATE services
+        SET image = $2,
+            pre_inspection_photos = $3::jsonb,
+            post_inspection_photos = $4::jsonb,
+            updated_at = NOW()
+        WHERE id = $1
+        `,
+        [row.id, nextImage, JSON.stringify(nextPrePhotos), JSON.stringify(nextPostPhotos)]
+      );
+    }
+  }
+
+  for (const row of productsResult.rows) {
+    if (!hasInlineImage(row.image)) {
+      continue;
+    }
+
+    const nextImage = await persistUploadedImage(row.image, 'products');
+    if (nextImage !== row.image) {
+      await query('UPDATE products SET image = $2, updated_at = NOW() WHERE id = $1', [row.id, nextImage]);
+    }
+  }
+
+  for (const row of teamResult.rows) {
+    if (!hasInlineImage(row.avatar)) {
+      continue;
+    }
+
+    const nextAvatar = await persistUploadedImage(row.avatar, 'avatars');
+    if (nextAvatar !== row.avatar) {
+      await query('UPDATE team_members SET avatar = $2, updated_at = NOW() WHERE id = $1', [row.id, nextAvatar]);
+    }
+  }
+
+  for (const row of appointmentsResult.rows) {
+    if (!hasInlineImage(row.photo)) {
+      continue;
+    }
+
+    const nextPhoto = await persistUploadedImage(row.photo, 'appointments');
+    if (nextPhoto !== row.photo) {
+      await query('UPDATE appointments SET photo = $2, updated_at = NOW() WHERE id = $1', [row.id, nextPhoto]);
+    }
+  }
 }
 
 const servicesOrderSql = `
@@ -297,6 +441,9 @@ function normalizeTarumaZone(baseId, vehicleType, washingZoneId) {
 
 async function upsertServiceRow(service, executor = query) {
   assertCarryOverObservation(service);
+  const persistedPreInspectionPhotos = await persistPhotoMap(service.preInspectionPhotos, 'checklists/pre');
+  const persistedPostInspectionPhotos = await persistPhotoMap(service.postInspectionPhotos, 'checklists/post');
+  const persistedPreviewImage = await persistUploadedImage(service.image || null, 'services/preview');
 
   await executor(
     `
@@ -354,11 +501,11 @@ async function upsertServiceRow(service, executor = query) {
       service.washer || null,
       JSON.stringify(service.washers || []),
       JSON.stringify(service.timeline || {}),
-      JSON.stringify(service.preInspectionPhotos || {}),
-      JSON.stringify(service.postInspectionPhotos || {}),
+      JSON.stringify(persistedPreInspectionPhotos),
+      JSON.stringify(persistedPostInspectionPhotos),
       service.startTime || null,
       service.endTime || null,
-      service.image || null,
+      persistedPreviewImage,
     ]
   );
 }
@@ -402,6 +549,8 @@ async function upsertVehicleRow(vehicle, executor = query) {
 }
 
 async function upsertProductRow(product, executor = query) {
+  const persistedProductImage = await persistUploadedImage(product.image || null, 'products');
+
   await executor(
     `
     INSERT INTO products (
@@ -431,7 +580,7 @@ async function upsertProductRow(product, executor = query) {
       product.price || 0,
       product.lastRestock || null,
       product.status,
-      product.image || null,
+      persistedProductImage,
       JSON.stringify(Array.isArray(product.manualEntries) ? product.manualEntries : []),
       JSON.stringify(Array.isArray(product.manualOutputs) ? product.manualOutputs : []),
     ]
@@ -470,6 +619,7 @@ async function upsertTeamMemberRow(member, executor = query) {
   const allowedBaseIds = member.role === 'Clientes'
     ? getAllowedBaseIdsForMember(member)
     : [];
+  const persistedAvatar = await persistUploadedImage(member.avatar || currentMember.rows[0]?.avatar || '', 'avatars');
 
   await executor(
     `
@@ -499,7 +649,7 @@ async function upsertTeamMemberRow(member, executor = query) {
       member.rating || 5,
       member.servicesCount || 0,
       member.status || 'active',
-      member.avatar || currentMember.rows[0]?.avatar || '',
+      persistedAvatar || '',
       member.efficiency || '100%',
     ]
   );
@@ -553,6 +703,7 @@ async function getSessionUser(token) {
 
 async function upsertAppointmentRow(appointment, executor = query) {
   const normalizedTarumaZone = normalizeTarumaZone(appointment.baseId || null, appointment.vehicleType || null, appointment.washingZoneId);
+  const persistedAppointmentPhoto = await persistUploadedImage(appointment.photo || null, 'appointments');
 
   const duplicate = await executor(
     `
@@ -612,7 +763,7 @@ async function upsertAppointmentRow(appointment, executor = query) {
         appointment.date,
         appointment.time,
         appointment.status,
-        appointment.photo || null,
+        persistedAppointmentPhoto,
         appointment.thirdPartyName || null,
         appointment.thirdPartyCpf || null,
       ]
@@ -790,27 +941,6 @@ app.delete('/api/vehicles/:plate', async (req, res) => {
   res.status(204).end();
 });
 
-app.put('/api/vehicles', async (req, res) => {
-  const vehicles = Array.isArray(req.body) ? req.body : [];
-  await withTransaction(async (client) => {
-    const executor = (text, params = []) => client.query(text, params);
-    const plates = vehicles
-      .map((vehicle) => String(vehicle.plate || '').toUpperCase().trim())
-      .filter(Boolean);
-
-    if (plates.length) {
-      await executor('DELETE FROM vehicles WHERE NOT (plate = ANY($1::text[]))', [plates]);
-    } else {
-      await executor('DELETE FROM vehicles');
-    }
-
-    for (const vehicle of vehicles) {
-      await upsertVehicleRow(vehicle, executor);
-    }
-  });
-  res.json({ count: vehicles.length });
-});
-
 app.get('/api/services', async (req, res) => {
   const result = await query(`SELECT * FROM services ORDER BY ${servicesOrderSql}`);
   const baseFilter = getBaseFilterForUser(req.user);
@@ -938,25 +1068,6 @@ app.delete('/api/services/:id', async (req, res) => {
   res.status(204).end();
 });
 
-app.put('/api/services', async (req, res) => {
-  const services = Array.isArray(req.body) ? req.body : [];
-  await withTransaction(async (client) => {
-    const executor = (text, params = []) => client.query(text, params);
-    const ids = services.map((service) => service.id).filter(Boolean);
-
-    if (ids.length) {
-      await executor('DELETE FROM services WHERE NOT (id = ANY($1::text[]))', [ids]);
-    } else {
-      await executor('DELETE FROM services');
-    }
-
-    for (const service of services) {
-      await upsertServiceRow(service, executor);
-    }
-  });
-  res.json({ count: services.length });
-});
-
 app.get('/api/appointments', async (req, res) => {
   const result = await query('SELECT * FROM appointments ORDER BY date DESC, time DESC');
   const baseFilter = getBaseFilterForUser(req.user);
@@ -986,25 +1097,6 @@ app.delete('/api/appointments/:id', async (req, res) => {
   res.status(204).end();
 });
 
-app.put('/api/appointments', async (req, res) => {
-  const appointments = Array.isArray(req.body) ? req.body : [];
-  await withTransaction(async (client) => {
-    const executor = (text, params = []) => client.query(text, params);
-    const ids = appointments.map((appointment) => appointment.id).filter(Boolean);
-
-    if (ids.length) {
-      await executor('DELETE FROM appointments WHERE NOT (id = ANY($1::text[]))', [ids]);
-    } else {
-      await executor('DELETE FROM appointments');
-    }
-
-    for (const appointment of appointments) {
-      await upsertAppointmentRow(appointment, executor);
-    }
-  });
-  res.json({ count: appointments.length });
-});
-
 app.get('/api/products', async (_req, res) => {
   const result = await query('SELECT * FROM products ORDER BY name');
   res.json(result.rows.map(toCamelProduct));
@@ -1026,25 +1118,6 @@ app.delete('/api/products/:id', async (req, res) => {
   res.status(204).end();
 });
 
-app.put('/api/products', async (req, res) => {
-  const products = Array.isArray(req.body) ? req.body : [];
-  await withTransaction(async (client) => {
-    const executor = (text, params = []) => client.query(text, params);
-    const ids = products.map((product) => product.id).filter(Boolean);
-
-    if (ids.length) {
-      await executor('DELETE FROM products WHERE NOT (id = ANY($1::text[]))', [ids]);
-    } else {
-      await executor('DELETE FROM products');
-    }
-
-    for (const product of products) {
-      await upsertProductRow(product, executor);
-    }
-  });
-  res.json({ count: products.length });
-});
-
 app.get('/api/team-members', async (_req, res) => {
   const result = await query('SELECT * FROM team_members ORDER BY name');
   res.json(result.rows.map(toCamelTeam));
@@ -1064,27 +1137,6 @@ app.post('/api/team-members/upsert', async (req, res) => {
 app.delete('/api/team-members/:id', async (req, res) => {
   await query('DELETE FROM team_members WHERE id = $1', [req.params.id]);
   res.status(204).end();
-});
-
-app.put('/api/team-members', async (req, res) => {
-  const team = Array.isArray(req.body) ? req.body : [];
-  await withTransaction(async (client) => {
-    const executor = (text, params = []) => client.query(text, params);
-    const ids = team.map((member) => member.id).filter(Boolean);
-
-    if (ids.length) {
-      await executor('DELETE FROM auth_sessions WHERE NOT (member_id = ANY($1::text[]))', [ids]);
-      await executor('DELETE FROM team_members WHERE NOT (id = ANY($1::text[]))', [ids]);
-    } else {
-      await executor('DELETE FROM auth_sessions');
-      await executor('DELETE FROM team_members');
-    }
-
-    for (const member of team) {
-      await upsertTeamMemberRow(member, executor);
-    }
-  });
-  res.json({ count: team.length });
 });
 
 app.use((error, _req, res, _next) => {

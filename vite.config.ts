@@ -10,7 +10,6 @@ export default defineConfig({
       output: {
         manualChunks: {
           react: ['react', 'react-dom/client'],
-          motion: ['motion/react'],
           icons: ['lucide-react'],
         },
       },

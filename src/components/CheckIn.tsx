@@ -3,10 +3,13 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Search, Info, Car, PlayCircle, Zap, Truck, Bike, Ship } from 'lucide-react';
 import { Screen, Service, VehicleCategory, VehicleType, VehicleRegistration } from '../types';
 import { formatCpf, generateId, isValidCpf } from '../utils/app';
+import { api, ApiError } from '../services/api';
+
+const normalizePlate = (value: string) => value.toUpperCase().replace(/[^A-Z0-9]/g, '');
 
 export default function CheckIn({
   onNavigate,
@@ -33,28 +36,107 @@ export default function CheckIn({
   const [isThirdParty, setIsThirdParty] = useState(false);
   const [thirdPartyName, setThirdPartyName] = useState('');
   const [thirdPartyCpf, setThirdPartyCpf] = useState('');
+  const [isLookingUpVehicle, setIsLookingUpVehicle] = useState(false);
+  const [lookupMessage, setLookupMessage] = useState<string | null>(null);
 
   const currentServices = serviceTypes[vehicleType].services;
   const selectedService = currentServices.find(s => s.id === washType) || currentServices[0];
   const thirdPartyCpfError = thirdPartyCpf ? (!isValidCpf(thirdPartyCpf) ? 'CPF invalido.' : null) : null;
 
+  const applyVehicleMatch = (vehicle: VehicleRegistration) => {
+    setCustomer(vehicle.customer);
+    setModel(vehicle.model);
+    setVehicleType(vehicle.type);
+
+    if (vehicle.thirdPartyName || vehicle.thirdPartyCpf) {
+      setIsThirdParty(true);
+      setThirdPartyName(vehicle.thirdPartyName || '');
+      setThirdPartyCpf(formatCpf(vehicle.thirdPartyCpf || ''));
+    } else {
+      setIsThirdParty(false);
+      setThirdPartyName('');
+      setThirdPartyCpf('');
+    }
+  };
+
+  const resetVehicleMatch = () => {
+    setCustomer('');
+    setModel('');
+    setVehicleType('car');
+    setIsThirdParty(false);
+    setThirdPartyName('');
+    setThirdPartyCpf('');
+  };
+
+  const findVehicle = async (rawPlate: string) => {
+    const normalizedPlate = normalizePlate(rawPlate);
+    if (normalizedPlate.length < 7) {
+      return null;
+    }
+
+    const localVehicle = vehicleDb?.find((vehicle) => normalizePlate(vehicle.plate) === normalizedPlate);
+    if (localVehicle) {
+      return localVehicle;
+    }
+
+    return api.findVehicleByPlate(normalizedPlate);
+  };
+
   const handlePlateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newPlate = e.target.value.toUpperCase();
     setPlate(newPlate);
+    setLookupMessage(null);
 
-    if (vehicleDb) {
-      const vehicle = vehicleDb.find(v => v.plate === newPlate);
-      if (vehicle) {
-        setCustomer(vehicle.customer);
-        setModel(vehicle.model);
-        setVehicleType(vehicle.type);
-      } else if (!newPlate) {
-        setCustomer('');
-        setModel('');
-        setVehicleType('car');
-      }
+    if (!normalizePlate(newPlate)) {
+      resetVehicleMatch();
     }
   };
+
+  useEffect(() => {
+    const normalizedPlate = normalizePlate(plate);
+    if (!normalizedPlate) {
+      setLookupMessage(null);
+      return;
+    }
+
+    if (normalizedPlate.length < 7) {
+      return;
+    }
+
+    let cancelled = false;
+    const timeoutId = window.setTimeout(async () => {
+      setIsLookingUpVehicle(true);
+      try {
+        const vehicle = await findVehicle(normalizedPlate);
+        if (cancelled || !vehicle) {
+          return;
+        }
+
+        applyVehicleMatch(vehicle);
+        setLookupMessage('Placa encontrada e dados preenchidos automaticamente.');
+      } catch (error) {
+        if (cancelled) {
+          return;
+        }
+
+        resetVehicleMatch();
+        if (error instanceof ApiError && error.status === 404) {
+          setLookupMessage('Placa nao encontrada na base cadastrada.');
+        } else {
+          setLookupMessage(error instanceof Error ? error.message : 'Nao foi possivel consultar a placa.');
+        }
+      } finally {
+        if (!cancelled) {
+          setIsLookingUpVehicle(false);
+        }
+      }
+    }, 250);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timeoutId);
+    };
+  }, [plate, vehicleDb]);
 
   const handleStartCheckIn = async () => {
     if (!plate || !model) {
@@ -102,20 +184,30 @@ export default function CheckIn({
   };
 
   const handleVehicleLookup = () => {
-    if (!plate.trim()) {
+    const normalizedPlate = normalizePlate(plate);
+    if (!normalizedPlate) {
       alert('Informe a placa para consultar na base cadastrada.');
       return;
     }
 
-    const vehicle = vehicleDb?.find((item) => item.plate.toUpperCase() === plate.toUpperCase());
-    if (!vehicle) {
-      alert('Placa nao encontrada na base de veiculos cadastrados.');
-      return;
-    }
+    setIsLookingUpVehicle(true);
+    void findVehicle(normalizedPlate)
+      .then((vehicle) => {
+        if (!vehicle) {
+          throw new Error('Placa nao encontrada na base de veiculos cadastrados.');
+        }
 
-    setCustomer(vehicle.customer);
-    setModel(vehicle.model);
-    setVehicleType(vehicle.type);
+        applyVehicleMatch(vehicle);
+        setLookupMessage('Placa encontrada e dados preenchidos automaticamente.');
+      })
+      .catch((error) => {
+        resetVehicleMatch();
+        setLookupMessage(error instanceof Error ? error.message : 'Nao foi possivel consultar a placa.');
+        alert(error instanceof Error ? error.message : 'Nao foi possivel consultar a placa.');
+      })
+      .finally(() => {
+        setIsLookingUpVehicle(false);
+      });
   };
 
   return (
@@ -140,7 +232,7 @@ export default function CheckIn({
         </div>
         <p className="text-[10px] text-primary font-bold ml-1 flex items-center gap-1 uppercase tracking-tight">
           <Info className="w-3 h-3" />
-          Busca automatica habilitada
+          {isLookingUpVehicle ? 'Consultando placa...' : (lookupMessage || 'Busca automatica habilitada')}
         </p>
       </div>
 

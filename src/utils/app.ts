@@ -163,9 +163,9 @@ export async function optimizeImageFile(
     quality?: number;
   }
 ) {
-  const maxWidth = options?.maxWidth ?? 1280;
-  const maxHeight = options?.maxHeight ?? 1280;
-  const quality = options?.quality ?? 0.65;
+  const maxWidth = options?.maxWidth ?? 1024;
+  const maxHeight = options?.maxHeight ?? 1024;
+  const quality = options?.quality ?? 0.6;
 
   const fileDataUrl = await new Promise<string>((resolve, reject) => {
     const reader = new FileReader();

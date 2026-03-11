@@ -253,7 +253,7 @@ export default function App() {
       return;
     }
 
-    if (!['checkin', 'settings', 'vehicle-history', 'vehicle-history-detail'].includes(currentScreen)) {
+    if (!['settings', 'vehicle-history', 'vehicle-history-detail'].includes(currentScreen)) {
       return;
     }
 

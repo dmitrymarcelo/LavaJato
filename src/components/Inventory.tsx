@@ -15,81 +15,8 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from '../lib/motion';
 import { Screen, Product, ProductMovement } from '../types';
-import { generateId, getTodayDate } from '../utils/app';
+import { generateId, getTodayDate, optimizeImageFile } from '../utils/app';
 import ModalSurface from './ModalSurface';
-
-const INITIAL_PRODUCTS: Product[] = [
-  {
-    id: '1',
-    name: 'Shampoo Automotivo Neutro',
-    category: 'Limpeza Externa',
-    quantity: 15,
-    minQuantity: 5,
-    unit: 'Litros',
-    price: 45.9,
-    lastRestock: '2024-02-28',
-    status: 'ok',
-    image: 'https://images.unsplash.com/photo-1600456548090-7d1b3f0bbea5?q=80&w=200&auto=format&fit=crop',
-    manualEntries: [],
-    manualOutputs: [],
-  },
-  {
-    id: '2',
-    name: 'Cera de Carnauba Premium',
-    category: 'Acabamento',
-    quantity: 2,
-    minQuantity: 4,
-    unit: 'Unidades',
-    price: 89.9,
-    lastRestock: '2024-01-15',
-    status: 'critical',
-    image: 'https://images.unsplash.com/photo-1626806819282-2c1dc01a5e0c?q=80&w=200&auto=format&fit=crop',
-    manualEntries: [],
-    manualOutputs: [],
-  },
-  {
-    id: '3',
-    name: 'Pretinho para Pneus',
-    category: 'Acabamento',
-    quantity: 8,
-    minQuantity: 10,
-    unit: 'Litros',
-    price: 32.5,
-    lastRestock: '2024-02-10',
-    status: 'low',
-    image: 'https://images.unsplash.com/photo-1625043484555-47841a752840?q=80&w=200&auto=format&fit=crop',
-    manualEntries: [],
-    manualOutputs: [],
-  },
-  {
-    id: '4',
-    name: 'Pano de Microfibra',
-    category: 'Acessorios',
-    quantity: 50,
-    minQuantity: 20,
-    unit: 'Unidades',
-    price: 12,
-    lastRestock: '2024-02-25',
-    status: 'ok',
-    image: 'https://images.unsplash.com/photo-1584622650111-993a426fbf0a?q=80&w=200&auto=format&fit=crop',
-    manualEntries: [],
-    manualOutputs: [],
-  },
-  {
-    id: '5',
-    name: 'Desengraxante Multiuso',
-    category: 'Limpeza Pesada',
-    quantity: 25,
-    minQuantity: 10,
-    unit: 'Litros',
-    price: 55,
-    lastRestock: '2024-02-20',
-    status: 'ok',
-    image: 'https://images.unsplash.com/photo-1585751119414-ef2636f8aede?q=80&w=200&auto=format&fit=crop',
-    manualEntries: [],
-    manualOutputs: [],
-  },
-];
 
 type InventoryMovementEntry = ProductMovement & {
   kind: 'entry' | 'output';
@@ -334,11 +261,14 @@ export default function Inventory({
     const file = event.target.files?.[0];
     if (!file) return;
 
-    const reader = new FileReader();
-    reader.onload = () => {
-      setProductImage(String(reader.result || ''));
-    };
-    reader.readAsDataURL(file);
+    optimizeImageFile(file, { maxWidth: 960, maxHeight: 960, quality: 0.6 })
+      .then((imageData) => {
+        setProductImage(String(imageData || ''));
+      })
+      .catch((error) => {
+        console.error(error);
+        alert(error instanceof Error ? error.message : 'Nao foi possivel processar a imagem do produto.');
+      });
   };
 
   const getStatusColor = (status: Product['status']) => {

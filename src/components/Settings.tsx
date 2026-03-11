@@ -2,7 +2,7 @@
 import { Shield, UserCog, CheckCircle2, XCircle, Save, Info, Lock, Eye, Edit3, Trash2, BarChart3, Users, UserPlus, Star, Clock, MoreVertical, Search, Filter, ShieldCheck, Car, Bike, Truck, Ship, Plus, Upload, FileSpreadsheet, Download } from 'lucide-react';
 import { RoleAccessRule, Screen, TeamMember, VehicleCategory, VehicleType, ServiceTypeOption, VehicleRegistration } from '../types';
 import { motion, AnimatePresence } from '../lib/motion';
-import { digitsOnly, formatCpf, generateId, isValidCpf, validateStrongPassword } from '../utils/app';
+import { digitsOnly, formatCpf, generateId, isValidCpf, optimizeImageFile, validateStrongPassword } from '../utils/app';
 import { BASES } from '../data/bases';
 import ModalSurface from './ModalSurface';
 
@@ -126,13 +126,14 @@ export default function Settings({
       return;
     }
 
-    const reader = new FileReader();
-    reader.onload = () => {
-      if (typeof reader.result === 'string') {
-        setNewMemberAvatar(reader.result);
-      }
-    };
-    reader.readAsDataURL(file);
+    optimizeImageFile(file, { maxWidth: 720, maxHeight: 720, quality: 0.68 })
+      .then((imageData) => {
+        setNewMemberAvatar(imageData);
+      })
+      .catch((error) => {
+        console.error(error);
+        alert(error instanceof Error ? error.message : 'Nao foi possivel processar a foto do colaborador.');
+      });
     event.target.value = '';
   };
 

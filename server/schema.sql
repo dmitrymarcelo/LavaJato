@@ -232,7 +232,9 @@ ALTER TABLE products
     ADD COLUMN IF NOT EXISTS manual_outputs JSONB NOT NULL DEFAULT '[]'::jsonb;
 
 CREATE INDEX IF NOT EXISTS idx_services_status_date ON services (status, scheduled_date);
+CREATE INDEX IF NOT EXISTS idx_services_base_status_date ON services (base_id, status, scheduled_date);
 CREATE INDEX IF NOT EXISTS idx_appointments_date_status ON appointments (date, status);
+CREATE INDEX IF NOT EXISTS idx_appointments_base_date_status ON appointments (base_id, date, status);
 DROP INDEX IF EXISTS idx_appointments_unique_plate_slot_active;
 
 CREATE UNIQUE INDEX idx_appointments_unique_plate_slot_active
