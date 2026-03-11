@@ -47,6 +47,25 @@ export interface PaymentCompletionPayload {
   appointment: Appointment | null;
 }
 
+export interface VehicleHistorySummary {
+  plate: string;
+  customer: string;
+  model: string;
+  type?: VehicleType;
+  previewImage?: string | null;
+  recordCount: number;
+  completedCount: number;
+  noShowCount: number;
+  activeCount: number;
+  totalRevenue: number;
+  lastRecordedAt?: string | null;
+  lastBaseName?: string | null;
+}
+
+export interface VehicleHistoryDetail extends VehicleHistorySummary {
+  records: Service[];
+}
+
 export class ApiError extends Error {
   status: number;
 
@@ -154,6 +173,10 @@ export const api = {
     request<void>(`/vehicles/${encodeURIComponent(plate)}`, { method: 'DELETE' }),
   getService: (id: string) =>
     request<Service>(`/services/${encodeURIComponent(id)}`),
+  getVehicleHistory: () =>
+    request<VehicleHistorySummary[]>('/vehicle-history'),
+  getVehicleHistoryDetail: (plate: string) =>
+    request<VehicleHistoryDetail>(`/vehicle-history/${encodeURIComponent(plate)}`),
   upsertService: (service: Service) =>
     request<Service>('/services/upsert', { method: 'POST', body: JSON.stringify(service) }),
   completePayment: (serviceId: string) =>

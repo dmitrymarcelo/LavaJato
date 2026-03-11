@@ -5,6 +5,7 @@ import { fileURLToPath } from 'url';
 import express from 'express';
 import cors from 'cors';
 import bcrypt from 'bcryptjs';
+import compression from 'compression';
 import { pool, query, withTransaction } from './db.mjs';
 import { seedDatabase } from './seed.mjs';
 import { getAssistantTips, getAssistantWeather } from './assistant.mjs';
@@ -33,6 +34,7 @@ const TARUMA_ZONE_NAMES = {
   dique_pesada: 'Dique Pesada',
   estacionamento: 'Estacionamentos',
 };
+const OPERATIONAL_SERVICE_STATUSES = ['pending', 'in_progress', 'waiting_payment'];
 
 function inferTarumaZoneId(vehicleType) {
   return vehicleType === 'truck' ? 'dique_pesada' : 'dique_leve';
@@ -41,6 +43,7 @@ function inferTarumaZoneId(vehicleType) {
 fs.mkdirSync(UPLOADS_DIR, { recursive: true });
 
 app.use(cors());
+app.use(compression());
 app.use(express.json({ limit: '50mb' }));
 app.use('/uploads', express.static(UPLOADS_DIR, { maxAge: '30d' }));
 
@@ -277,6 +280,95 @@ function toCamelAppointment(row) {
     thirdPartyName: row.third_party_name,
     thirdPartyCpf: row.third_party_cpf,
   };
+}
+
+function getServiceEventDate(service) {
+  return (
+    service.timeline?.completedAt
+    || service.timeline?.noShowAt
+    || service.timeline?.paymentCompletedAt
+    || service.timeline?.washCompletedAt
+    || service.endTime
+    || service.startTime
+    || `${service.scheduledDate || ''}T${service.scheduledTime || '00:00'}`
+  );
+}
+
+function buildVehicleHistoryGroups(services, vehicles) {
+  const serviceMap = new Map();
+
+  services.forEach((service) => {
+    const key = String(service.plate || '').toUpperCase();
+    const current = serviceMap.get(key) || [];
+    current.push(service);
+    serviceMap.set(key, current);
+  });
+
+  const groups = [];
+  const knownPlates = new Set();
+
+  vehicles.forEach((vehicle) => {
+    const plate = String(vehicle.plate || '').toUpperCase();
+    knownPlates.add(plate);
+    const records = [...(serviceMap.get(plate) || [])].sort((left, right) =>
+      getServiceEventDate(right).localeCompare(getServiceEventDate(left))
+    );
+    const latestRecord = records[0];
+
+    groups.push({
+      plate,
+      customer: latestRecord?.customer || vehicle.customer || 'Nao informado',
+      model: latestRecord?.model || vehicle.model || 'Veiculo nao informado',
+      type: latestRecord?.type || vehicle.type,
+      previewImage: latestRecord?.image || null,
+      records,
+      completedCount: records.filter((item) => item.status === 'completed').length,
+      noShowCount: records.filter((item) => item.status === 'no_show').length,
+      activeCount: records.filter((item) => ['pending', 'in_progress', 'waiting_payment'].includes(item.status)).length,
+      totalRevenue: records
+        .filter((item) => item.status === 'completed')
+        .reduce((total, item) => total + Number(item.price || 0), 0),
+      lastRecordedAt: latestRecord ? getServiceEventDate(latestRecord) : null,
+      lastBaseName: latestRecord?.baseName || null,
+    });
+  });
+
+  serviceMap.forEach((records, plate) => {
+    if (knownPlates.has(plate)) {
+      return;
+    }
+
+    const sortedRecords = [...records].sort((left, right) =>
+      getServiceEventDate(right).localeCompare(getServiceEventDate(left))
+    );
+    const latestRecord = sortedRecords[0];
+
+    groups.push({
+      plate,
+      customer: latestRecord?.customer || 'Nao informado',
+      model: latestRecord?.model || 'Veiculo nao informado',
+      type: latestRecord?.type || null,
+      previewImage: latestRecord?.image || null,
+      records: sortedRecords,
+      completedCount: sortedRecords.filter((item) => item.status === 'completed').length,
+      noShowCount: sortedRecords.filter((item) => item.status === 'no_show').length,
+      activeCount: sortedRecords.filter((item) => ['pending', 'in_progress', 'waiting_payment'].includes(item.status)).length,
+      totalRevenue: sortedRecords
+        .filter((item) => item.status === 'completed')
+        .reduce((total, item) => total + Number(item.price || 0), 0),
+      lastRecordedAt: latestRecord ? getServiceEventDate(latestRecord) : null,
+      lastBaseName: latestRecord?.baseName || null,
+    });
+  });
+
+  return groups.sort((left, right) => {
+    const rightDate = right.lastRecordedAt || '';
+    const leftDate = left.lastRecordedAt || '';
+    if (rightDate !== leftDate) {
+      return rightDate.localeCompare(leftDate);
+    }
+    return left.plate.localeCompare(right.plate);
+  });
 }
 
 async function runSchema() {
@@ -858,7 +950,16 @@ app.get('/api/bootstrap', async (req, res) => {
   const [serviceTypesResult, accessRulesResult, servicesResult, appointmentsResult, productsResult, teamResult] = await Promise.all([
     query("SELECT value FROM app_settings WHERE key = 'service_types'"),
     query("SELECT value FROM app_settings WHERE key = 'access_rules'"),
-    query(`SELECT * FROM services ORDER BY ${servicesOrderSql}`),
+    query(
+      `
+      SELECT *
+      FROM services
+      WHERE status = ANY($1::text[])
+         OR COALESCE(scheduled_date, start_time::date, end_time::date, created_at::date) >= CURRENT_DATE - INTERVAL '62 days'
+      ORDER BY ${servicesOrderSql}
+      `,
+      [OPERATIONAL_SERVICE_STATUSES]
+    ),
     query('SELECT * FROM appointments ORDER BY date DESC, time DESC'),
     query('SELECT * FROM products ORDER BY name'),
     query('SELECT * FROM team_members ORDER BY name'),
@@ -879,6 +980,90 @@ app.get('/api/bootstrap', async (req, res) => {
     appointments,
     products: req.user?.role === 'Clientes' ? [] : productsResult.rows.map(toCamelProduct),
     team: req.user?.role === 'Clientes' ? [] : teamResult.rows.map(toCamelTeam),
+  });
+});
+
+app.get('/api/vehicle-history', async (req, res) => {
+  const baseFilter = getBaseFilterForUser(req.user);
+  const [vehiclesResult, servicesResult] = await Promise.all([
+    query('SELECT * FROM vehicles ORDER BY plate'),
+    query(
+      `
+      SELECT *
+      FROM services
+      WHERE status IN ('completed', 'no_show', 'pending', 'in_progress', 'waiting_payment')
+      ORDER BY scheduled_date DESC NULLS LAST, updated_at DESC
+      `
+    ),
+  ]);
+
+  const services = servicesResult.rows
+    .filter((row) => !baseFilter || baseFilter.includes(row.base_id))
+    .map((row) => toCamelService(row, { includePhotos: false }));
+
+  res.json(
+    buildVehicleHistoryGroups(services, vehiclesResult.rows.map(toCamelVehicle)).map((group) => ({
+      plate: group.plate,
+      customer: group.customer,
+      model: group.model,
+      type: group.type,
+      previewImage: group.previewImage,
+      recordCount: group.records.length,
+      completedCount: group.completedCount,
+      noShowCount: group.noShowCount,
+      activeCount: group.activeCount,
+      totalRevenue: group.totalRevenue,
+      lastRecordedAt: group.lastRecordedAt,
+      lastBaseName: group.lastBaseName,
+    }))
+  );
+});
+
+app.get('/api/vehicle-history/:plate', async (req, res) => {
+  const plate = String(req.params.plate || '').toUpperCase().trim();
+  if (!plate) {
+    return res.status(400).json({ error: 'Informe a placa do veiculo.' });
+  }
+
+  const baseFilter = getBaseFilterForUser(req.user);
+  const [vehicleResult, servicesResult] = await Promise.all([
+    query('SELECT * FROM vehicles WHERE UPPER(plate) = UPPER($1) LIMIT 1', [plate]),
+    query(
+      `
+      SELECT *
+      FROM services
+      WHERE UPPER(plate) = UPPER($1)
+      ORDER BY scheduled_date DESC NULLS LAST, updated_at DESC
+      `,
+      [plate]
+    ),
+  ]);
+
+  const services = servicesResult.rows
+    .filter((row) => !baseFilter || baseFilter.includes(row.base_id))
+    .map((row) => toCamelService(row, { includePhotos: false }));
+  const vehicle = vehicleResult.rows[0] ? toCamelVehicle(vehicleResult.rows[0]) : null;
+  const groups = buildVehicleHistoryGroups(services, vehicle ? [vehicle] : []);
+  const detail = groups.find((group) => group.plate === plate);
+
+  if (!detail) {
+    return res.status(404).json({ error: 'Historico do veiculo nao encontrado.' });
+  }
+
+  res.json({
+    plate: detail.plate,
+    customer: detail.customer,
+    model: detail.model,
+    type: detail.type,
+    previewImage: detail.previewImage,
+    recordCount: detail.records.length,
+    completedCount: detail.completedCount,
+    noShowCount: detail.noShowCount,
+    activeCount: detail.activeCount,
+    totalRevenue: detail.totalRevenue,
+    lastRecordedAt: detail.lastRecordedAt,
+    lastBaseName: detail.lastBaseName,
+    records: detail.records,
   });
 });
 

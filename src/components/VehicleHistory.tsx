@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   AlertTriangle,
   Car,
@@ -11,28 +11,24 @@ import {
   User,
   WashingMachine,
 } from 'lucide-react';
-import { Screen, Service, VehicleRegistration, VehicleType } from '../types';
+import { Screen, Service, VehicleType } from '../types';
+import { api } from '../services/api';
+import type { VehicleHistoryDetail as VehicleHistoryDetailData, VehicleHistorySummary } from '../services/api';
 import { formatElapsedMinutes, getDurationMinutes } from '../utils/app';
 
 type VehicleHistoryScope = 'history' | 'all';
 
-export type VehicleHistoryGroup = {
-  plate: string;
-  customer: string;
-  model: string;
-  type?: VehicleType;
-  previewImage?: string;
-  records: Service[];
-  completedCount: number;
-  noShowCount: number;
-  activeCount: number;
-  totalRevenue: number;
-  lastRecordedAt?: string;
-  lastBaseName?: string;
-};
-
-const formatDateTime = (value?: string) =>
+const formatDateTime = (value?: string | null) =>
   value ? new Date(value).toLocaleString('pt-BR') : 'Nao registrado';
+
+const getRecordEventDate = (record: Service) =>
+  record.timeline?.completedAt
+  || record.timeline?.noShowAt
+  || record.timeline?.paymentCompletedAt
+  || record.timeline?.washCompletedAt
+  || record.endTime
+  || record.startTime
+  || `${record.scheduledDate || ''}T${record.scheduledTime || '00:00'}`;
 
 const getVehicleTypeLabel = (type?: VehicleType) => {
   if (!type) return 'Nao informado';
@@ -42,15 +38,6 @@ const getVehicleTypeLabel = (type?: VehicleType) => {
   if (type === 'pickup_4x4') return 'Caminhonete 4X4';
   return 'Carro';
 };
-
-const getServiceEventDate = (service: Service) =>
-  service.timeline?.completedAt
-  || service.timeline?.noShowAt
-  || service.timeline?.paymentCompletedAt
-  || service.timeline?.washCompletedAt
-  || service.endTime
-  || service.startTime
-  || `${service.scheduledDate || ''}T${service.scheduledTime || '00:00'}`;
 
 const getStatusLabel = (status: Service['status']) => {
   if (status === 'completed') return 'Finalizado';
@@ -68,101 +55,53 @@ const getStatusClassName = (status: Service['status']) => {
   return 'bg-slate-50 text-slate-600 border-slate-100';
 };
 
-export const buildVehicleHistoryGroups = (
-  services: Service[],
-  vehicleDb: VehicleRegistration[]
-) => {
-  const serviceMap = new Map<string, Service[]>();
-
-  services.forEach((service) => {
-    const key = service.plate.toUpperCase();
-    const current = serviceMap.get(key) || [];
-    current.push(service);
-    serviceMap.set(key, current);
-  });
-
-  const knownPlates = new Set<string>();
-  const result: VehicleHistoryGroup[] = [];
-
-  vehicleDb.forEach((vehicle) => {
-    const plate = vehicle.plate.toUpperCase();
-    knownPlates.add(plate);
-    const records = [...(serviceMap.get(plate) || [])].sort((left, right) =>
-      getServiceEventDate(right).localeCompare(getServiceEventDate(left))
-    );
-    const latestRecord = records[0];
-
-    result.push({
-      plate,
-      customer: latestRecord?.customer || vehicle.customer || 'Nao informado',
-      model: latestRecord?.model || vehicle.model || 'Veiculo nao informado',
-      type: vehicle.type,
-      previewImage: latestRecord?.image,
-      records,
-      completedCount: records.filter((item) => item.status === 'completed').length,
-      noShowCount: records.filter((item) => item.status === 'no_show').length,
-      activeCount: records.filter((item) => ['pending', 'in_progress', 'waiting_payment'].includes(item.status)).length,
-      totalRevenue: records.filter((item) => item.status === 'completed').reduce((total, item) => total + item.price, 0),
-      lastRecordedAt: latestRecord ? getServiceEventDate(latestRecord) : undefined,
-      lastBaseName: latestRecord?.baseName,
-    });
-  });
-
-  serviceMap.forEach((records, plate) => {
-    if (knownPlates.has(plate)) {
-      return;
-    }
-
-    const sortedRecords = [...records].sort((left, right) =>
-      getServiceEventDate(right).localeCompare(getServiceEventDate(left))
-    );
-    const latestRecord = sortedRecords[0];
-
-    result.push({
-      plate,
-      customer: latestRecord?.customer || 'Nao informado',
-      model: latestRecord?.model || 'Veiculo nao informado',
-      previewImage: latestRecord?.image,
-      records: sortedRecords,
-      completedCount: sortedRecords.filter((item) => item.status === 'completed').length,
-      noShowCount: sortedRecords.filter((item) => item.status === 'no_show').length,
-      activeCount: sortedRecords.filter((item) => ['pending', 'in_progress', 'waiting_payment'].includes(item.status)).length,
-      totalRevenue: sortedRecords.filter((item) => item.status === 'completed').reduce((total, item) => total + item.price, 0),
-      lastRecordedAt: latestRecord ? getServiceEventDate(latestRecord) : undefined,
-      lastBaseName: latestRecord?.baseName,
-    });
-  });
-
-  return result.sort((left, right) => {
-    const rightDate = right.lastRecordedAt || '';
-    const leftDate = left.lastRecordedAt || '';
-    if (rightDate !== leftDate) {
-      return rightDate.localeCompare(leftDate);
-    }
-    return left.plate.localeCompare(right.plate);
-  });
-};
-
 export default function VehicleHistory({
   onNavigate,
   onOpenVehicle,
-  services,
-  vehicleDb,
 }: {
   onNavigate: (screen: Screen, serviceId?: string) => void;
   onOpenVehicle: (plate: string) => void;
-  services: Service[];
-  vehicleDb: VehicleRegistration[];
 }) {
   const [query, setQuery] = useState('');
   const [scope, setScope] = useState<VehicleHistoryScope>('history');
-  const groups = useMemo(() => buildVehicleHistoryGroups(services, vehicleDb), [services, vehicleDb]);
+  const [groups, setGroups] = useState<VehicleHistorySummary[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const load = async () => {
+      setIsLoading(true);
+      setError(null);
+      try {
+        const response = await api.getVehicleHistory();
+        if (!cancelled) {
+          setGroups(response);
+        }
+      } catch (nextError) {
+        if (!cancelled) {
+          setError(nextError instanceof Error ? nextError.message : 'Nao foi possivel carregar o historico de veiculos.');
+        }
+      } finally {
+        if (!cancelled) {
+          setIsLoading(false);
+        }
+      }
+    };
+
+    void load();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const filteredGroups = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
 
     return groups.filter((group) => {
-      if (scope === 'history' && group.records.length === 0) {
+      if (scope === 'history' && group.recordCount === 0) {
         return false;
       }
 
@@ -175,8 +114,8 @@ export default function VehicleHistory({
     });
   }, [groups, query, scope]);
 
-  const totalVehiclesWithHistory = groups.filter((group) => group.records.length > 0).length;
-  const totalRecords = groups.reduce((total, group) => total + group.records.length, 0);
+  const totalVehiclesWithHistory = groups.filter((group) => group.recordCount > 0).length;
+  const totalRecords = groups.reduce((total, group) => total + group.recordCount, 0);
   const totalCompleted = groups.reduce((total, group) => total + group.completedCount, 0);
   const totalNoShow = groups.reduce((total, group) => total + group.noShowCount, 0);
 
@@ -225,59 +164,69 @@ export default function VehicleHistory({
           </div>
         </div>
 
-        <div className="grid gap-4 md:grid-cols-2 2xl:grid-cols-3">
-          {filteredGroups.length === 0 ? (
-            <div className="md:col-span-2 2xl:col-span-3 rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-8 text-center text-slate-400 font-medium">
-              Nenhum veiculo encontrado para o filtro atual.
-            </div>
-          ) : (
-            filteredGroups.map((group) => (
-              <button
-                key={group.plate}
-                onClick={() => onOpenVehicle(group.plate)}
-                className="rounded-3xl border border-slate-100 bg-white p-4 text-left shadow-sm transition-all hover:border-primary hover:shadow-md active:scale-[0.99]"
-              >
-                <div className="flex items-start gap-4">
-                  <div className="w-16 h-16 rounded-2xl overflow-hidden bg-slate-100 border border-slate-100 shrink-0">
-                    {group.previewImage ? (
-                      <img src={group.previewImage} alt={group.model} className="w-full h-full object-cover" />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center text-primary">
-                        <Car className="w-7 h-7" />
-                      </div>
-                    )}
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <p className="text-lg font-black text-slate-900">{group.plate}</p>
-                        <p className="text-sm font-bold text-slate-700 truncate">{group.model}</p>
-                        <p className="text-xs text-slate-500 truncate">{group.customer}</p>
-                      </div>
-                      <div className="text-right shrink-0">
-                        <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Registros</p>
-                        <p className="text-xl font-black text-primary">{group.records.length}</p>
-                      </div>
-                    </div>
-
-                    <div className="mt-3 flex flex-wrap gap-2">
-                      <Badge label={`${group.completedCount} finalizados`} className="bg-emerald-50 text-emerald-600 border-emerald-100" />
-                      <Badge label={`${group.noShowCount} no-show`} className="bg-rose-50 text-rose-600 border-rose-100" />
-                      {group.activeCount > 0 && (
-                        <Badge label={`${group.activeCount} ativos`} className="bg-amber-50 text-amber-600 border-amber-100" />
+        {isLoading ? (
+          <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-8 text-center text-slate-400 font-medium">
+            Carregando historico de veiculos...
+          </div>
+        ) : error ? (
+          <div className="rounded-2xl border border-dashed border-rose-200 bg-rose-50 p-8 text-center text-rose-500 font-medium">
+            {error}
+          </div>
+        ) : (
+          <div className="grid gap-4 md:grid-cols-2 2xl:grid-cols-3">
+            {filteredGroups.length === 0 ? (
+              <div className="md:col-span-2 2xl:col-span-3 rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-8 text-center text-slate-400 font-medium">
+                Nenhum veiculo encontrado para o filtro atual.
+              </div>
+            ) : (
+              filteredGroups.map((group) => (
+                <button
+                  key={group.plate}
+                  onClick={() => onOpenVehicle(group.plate)}
+                  className="rounded-3xl border border-slate-100 bg-white p-4 text-left shadow-sm transition-all hover:border-primary hover:shadow-md active:scale-[0.99]"
+                >
+                  <div className="flex items-start gap-4">
+                    <div className="w-16 h-16 rounded-2xl overflow-hidden bg-slate-100 border border-slate-100 shrink-0">
+                      {group.previewImage ? (
+                        <img src={group.previewImage} alt={group.model} className="w-full h-full object-cover" />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center text-primary">
+                          <Car className="w-7 h-7" />
+                        </div>
                       )}
                     </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="text-lg font-black text-slate-900">{group.plate}</p>
+                          <p className="text-sm font-bold text-slate-700 truncate">{group.model}</p>
+                          <p className="text-xs text-slate-500 truncate">{group.customer}</p>
+                        </div>
+                        <div className="text-right shrink-0">
+                          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Registros</p>
+                          <p className="text-xl font-black text-primary">{group.recordCount}</p>
+                        </div>
+                      </div>
 
-                    <div className="mt-3 space-y-1 text-[11px] text-slate-500 font-medium">
-                      <p>Ultimo registro: {group.lastRecordedAt ? formatDateTime(group.lastRecordedAt) : 'Sem historico'}</p>
-                      <p>Ultima base: {group.lastBaseName || 'Nao registrada'}</p>
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        <Badge label={`${group.completedCount} finalizados`} className="bg-emerald-50 text-emerald-600 border-emerald-100" />
+                        <Badge label={`${group.noShowCount} no-show`} className="bg-rose-50 text-rose-600 border-rose-100" />
+                        {group.activeCount > 0 && (
+                          <Badge label={`${group.activeCount} ativos`} className="bg-amber-50 text-amber-600 border-amber-100" />
+                        )}
+                      </div>
+
+                      <div className="mt-3 space-y-1 text-[11px] text-slate-500 font-medium">
+                        <p>Ultimo registro: {group.lastRecordedAt ? formatDateTime(group.lastRecordedAt) : 'Sem historico'}</p>
+                        <p>Ultima base: {group.lastBaseName || 'Nao registrada'}</p>
+                      </div>
                     </div>
                   </div>
-                </div>
-              </button>
-            ))
-          )}
-        </div>
+                </button>
+              ))
+            )}
+          </div>
+        )}
       </section>
     </div>
   );
@@ -286,20 +235,50 @@ export default function VehicleHistory({
 export function VehicleHistoryDetail({
   plate,
   onNavigate,
-  services,
-  vehicleDb,
 }: {
   plate?: string | null;
   onNavigate: (screen: Screen, serviceId?: string) => void;
-  services: Service[];
-  vehicleDb: VehicleRegistration[];
 }) {
-  const group = useMemo(
-    () => buildVehicleHistoryGroups(services, vehicleDb).find((item) => item.plate === plate) || null,
-    [services, vehicleDb, plate]
-  );
+  const [group, setGroup] = useState<VehicleHistoryDetailData | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  if (!plate || !group) {
+  useEffect(() => {
+    if (!plate) {
+      setGroup(null);
+      setIsLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+
+    const load = async () => {
+      setIsLoading(true);
+      setError(null);
+      try {
+        const response = await api.getVehicleHistoryDetail(plate);
+        if (!cancelled) {
+          setGroup(response);
+        }
+      } catch (nextError) {
+        if (!cancelled) {
+          setError(nextError instanceof Error ? nextError.message : 'Nao foi possivel carregar o detalhamento do veiculo.');
+        }
+      } finally {
+        if (!cancelled) {
+          setIsLoading(false);
+        }
+      }
+    };
+
+    void load();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [plate]);
+
+  if (!plate) {
     return (
       <div className="min-h-full bg-white p-4">
         <button
@@ -311,6 +290,40 @@ export function VehicleHistoryDetail({
         </button>
         <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-8 text-center text-slate-400 font-medium">
           Nenhum veiculo selecionado para detalhamento.
+        </div>
+      </div>
+    );
+  }
+
+  if (isLoading) {
+    return (
+      <div className="min-h-full bg-white p-4">
+        <button
+          onClick={() => onNavigate('vehicle-history')}
+          className="mb-4 flex items-center gap-2 text-slate-500 hover:text-primary transition-colors font-bold text-sm"
+        >
+          <ChevronLeft className="w-5 h-5" />
+          Voltar
+        </button>
+        <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-8 text-center text-slate-400 font-medium">
+          Carregando detalhes do veiculo...
+        </div>
+      </div>
+    );
+  }
+
+  if (error || !group) {
+    return (
+      <div className="min-h-full bg-white p-4">
+        <button
+          onClick={() => onNavigate('vehicle-history')}
+          className="mb-4 flex items-center gap-2 text-slate-500 hover:text-primary transition-colors font-bold text-sm"
+        >
+          <ChevronLeft className="w-5 h-5" />
+          Voltar
+        </button>
+        <div className="rounded-2xl border border-dashed border-rose-200 bg-rose-50 p-8 text-center text-rose-500 font-medium">
+          {error || 'Historico do veiculo nao encontrado.'}
         </div>
       </div>
     );
@@ -392,7 +405,7 @@ export function VehicleHistoryDetail({
                         <Badge label={getStatusLabel(record.status)} className={getStatusClassName(record.status)} />
                         <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">{record.type}</span>
                       </div>
-                      <p className="text-sm font-bold text-slate-900">{formatDateTime(getServiceEventDate(record))}</p>
+                      <p className="text-sm font-bold text-slate-900">{formatDateTime(getRecordEventDate(record))}</p>
                       <div className="flex flex-wrap gap-3 text-[11px] text-slate-500 font-medium">
                         <span className="inline-flex items-center gap-1"><MapPin className="w-3.5 h-3.5" />{record.baseName || 'Base nao registrada'}</span>
                         <span className="inline-flex items-center gap-1"><CreditCard className="w-3.5 h-3.5" />R$ {record.price.toFixed(2)}</span>

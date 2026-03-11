@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { ChevronLeft, Calendar, Car, Clock } from 'lucide-react';
 import { Screen, Service } from '../types';
+import { api, VehicleHistoryDetail } from '../services/api';
 import { formatElapsedMinutes, getDurationMinutes } from '../utils/app';
 
 const formatDateTime = (value?: string) => (value ? new Date(value).toLocaleString('pt-BR') : 'Nao registrado');
@@ -8,12 +9,48 @@ const formatDateTime = (value?: string) => (value ? new Date(value).toLocaleStri
 export default function CustomerHistory({
   onNavigate,
   selectedService,
-  services,
 }: {
   onNavigate: (screen: Screen, serviceId?: string) => void;
   selectedService?: Service | null;
-  services: Service[];
 }) {
+  const [historyGroup, setHistoryGroup] = useState<VehicleHistoryDetail | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!selectedService?.plate) {
+      setHistoryGroup(null);
+      return;
+    }
+
+    let cancelled = false;
+
+    const load = async () => {
+      setIsLoading(true);
+      setError(null);
+      try {
+        const response = await api.getVehicleHistoryDetail(selectedService.plate);
+        if (!cancelled) {
+          setHistoryGroup(response);
+        }
+      } catch (nextError) {
+        if (!cancelled) {
+          setError(nextError instanceof Error ? nextError.message : 'Nao foi possivel carregar o historico do veiculo.');
+        }
+      } finally {
+        if (!cancelled) {
+          setIsLoading(false);
+        }
+      }
+    };
+
+    void load();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedService?.plate]);
+
   if (!selectedService) {
     return (
       <div className="min-h-full bg-white p-4">
@@ -31,7 +68,7 @@ export default function CustomerHistory({
     );
   }
 
-  const vehicleHistory = [...services]
+  const vehicleHistory = [...(historyGroup?.records || [])]
     .filter((service) => service.plate === selectedService.plate && ['completed', 'no_show'].includes(service.status))
     .sort((left, right) => {
       const leftKey = left.timeline?.completedAt || left.timeline?.noShowAt || left.endTime || left.startTime || `${left.scheduledDate || ''}T${left.scheduledTime || '00:00'}`;
@@ -65,7 +102,15 @@ export default function CustomerHistory({
         <div className="space-y-4">
           <h3 className="text-[10px] font-bold uppercase tracking-widest text-slate-400 ml-1">Historico do veiculo</h3>
 
-          {vehicleHistory.length === 0 ? (
+          {isLoading ? (
+            <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-8 text-center text-slate-400 font-medium">
+              Carregando historico do veiculo...
+            </div>
+          ) : error ? (
+            <div className="rounded-2xl border border-dashed border-rose-200 bg-rose-50 p-8 text-center text-rose-500 font-medium">
+              {error}
+            </div>
+          ) : vehicleHistory.length === 0 ? (
             <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-8 text-center text-slate-400 font-medium">
               Nenhum historico registrado para este veiculo.
             </div>

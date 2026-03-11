@@ -74,6 +74,7 @@ export default function App() {
   const [isVehicleDbLoading, setIsVehicleDbLoading] = useState(false);
   const [hasLoadedVehicleDbFromApi, setHasLoadedVehicleDbFromApi] = useState(false);
   const [backendError, setBackendError] = useState<string | null>(null);
+  const [isActiveServiceLoading, setIsActiveServiceLoading] = useState(false);
   const servicesRef = useRef<Service[]>([]);
   const appointmentsRef = useRef<Appointment[]>([]);
   const vehicleDbRef = useRef<VehicleRegistration[]>([]);
@@ -253,7 +254,7 @@ export default function App() {
       return;
     }
 
-    if (!['settings', 'vehicle-history', 'vehicle-history-detail'].includes(currentScreen)) {
+    if (currentScreen !== 'settings') {
       return;
     }
 
@@ -397,17 +398,25 @@ export default function App() {
     let cancelled = false;
 
     const hydrateActiveService = async () => {
+      setIsActiveServiceLoading(true);
       try {
         const service = await api.getService(activeServiceId);
         if (cancelled) {
           return;
         }
 
-        setServices((current) => normalizeServicesForPersistence(
-          current.map((item) => item.id === service.id ? { ...item, ...service } : item)
-        ));
+        setServices((current) => {
+          const next = current.some((item) => item.id === service.id)
+            ? current.map((item) => item.id === service.id ? { ...item, ...service } : item)
+            : [...current, service];
+          return normalizeServicesForPersistence(next);
+        });
       } catch (error) {
         console.error(error);
+      } finally {
+        if (!cancelled) {
+          setIsActiveServiceLoading(false);
+        }
       }
     };
 
@@ -787,6 +796,9 @@ export default function App() {
     if (!isAuthenticated) return <Login onLogin={handleLogin} />;
     if (isBootstrapping) return <div className="min-h-screen flex items-center justify-center text-slate-500 font-bold">Carregando dados persistentes...</div>;
     if (backendError) return <div className="min-h-screen flex items-center justify-center p-6 text-center text-rose-600 font-bold">{backendError}</div>;
+    if (activeServiceId && !activeService && isActiveServiceLoading && ['inspection-pre', 'inspection-post', 'payment', 'history', 'customer-history'].includes(currentScreen)) {
+      return <div className="min-h-screen flex items-center justify-center text-slate-500 font-bold">Carregando servico...</div>;
+    }
 
     switch (currentScreen) {
       case 'dashboard': return <Dashboard onNavigate={handleNavigateWithService} services={services} appointments={appointments} currentDateKey={currentDateKey} team={team} />;
@@ -842,9 +854,9 @@ export default function App() {
         }
       }} />;
       case 'history': return <ServiceHistory onNavigate={handleNavigateWithService} service={activeService} />;
-      case 'customer-history': return <CustomerHistory onNavigate={handleNavigateWithService} selectedService={activeService} services={services} />;
-      case 'vehicle-history': return <VehicleHistory onNavigate={handleNavigateWithService} onOpenVehicle={(plate) => handleNavigateWithVehicle('vehicle-history-detail', plate)} services={services} vehicleDb={vehicleDb} />;
-      case 'vehicle-history-detail': return <VehicleHistoryDetail plate={selectedVehiclePlate} onNavigate={handleNavigateWithService} services={services} vehicleDb={vehicleDb} />;
+      case 'customer-history': return <CustomerHistory onNavigate={handleNavigateWithService} selectedService={activeService} />;
+      case 'vehicle-history': return <VehicleHistory onNavigate={handleNavigateWithService} onOpenVehicle={(plate) => handleNavigateWithVehicle('vehicle-history-detail', plate)} />;
+      case 'vehicle-history-detail': return <VehicleHistoryDetail plate={selectedVehiclePlate} onNavigate={handleNavigateWithService} />;
       case 'queue':
       case 'scheduling': 
         return <Scheduling currentDateKey={currentDateKey} appointments={appointments} onUpdateAppointments={persistAppointments} onCreateBooking={createScheduledBooking} onNavigate={handleNavigateWithService} services={services} onReorder={reorderServices} serviceTypes={serviceTypes} vehicleDb={vehicleDb} availableBases={availableBases} isClientUser={isClientUser} selectedBaseId={selectedBaseInfo?.id} selectedBaseName={selectedBaseInfo?.name} onSelectBase={(baseId) => {
