@@ -93,6 +93,12 @@ const isTruckType = (type?: VehicleType) => type === 'truck';
 const isTarumaBase = (baseId?: string | null) => baseId === 'taruma';
 const getTarumaZoneLabel = (zoneId?: WashingZoneId | null) => TARUMA_ZONE_RULES.find((rule) => rule.id === zoneId)?.label || 'Nao definido';
 const getDefaultTarumaZone = (vehicleType: VehicleType): WashingZoneId => (vehicleType === 'truck' ? 'dique_pesada' : 'dique_leve');
+const buildSchedulingSlotKey = (plate?: string | null, baseId?: string | null, date?: string | null, time?: string | null) => [
+  normalizePlate(String(plate || '')),
+  String(baseId || ''),
+  normalizeDateKey(String(date || '')),
+  String(time || ''),
+].join('|');
 
 const getServiceStageReference = (service: Service) => {
   if (service.status === 'pending') {
@@ -267,12 +273,33 @@ export default function Scheduling({
     return () => window.clearInterval(interval);
   }, []);
 
+  const pendingServiceById = new Map(
+    services
+      .filter((service) => service.status === 'pending')
+      .map((service) => [service.id, service] as const)
+  );
+
+  const pendingServiceBySlot = new Map(
+    services
+      .filter((service) => service.status === 'pending')
+      .map((service) => [
+        buildSchedulingSlotKey(service.plate, service.baseId, service.scheduledDate, service.scheduledTime),
+        service,
+      ] as const)
+  );
+
+  const resolvePendingServiceForAppointment = (appointment: Appointment) =>
+    pendingServiceById.get(appointment.id)
+    || pendingServiceBySlot.get(
+      buildSchedulingSlotKey(appointment.plate, appointment.baseId, appointment.date, appointment.time)
+    );
+
   const pendingAppointmentsForDate = appointments.filter(appointment => {
-    const relatedService = services.find(service => service.id === appointment.id);
+    const relatedService = resolvePendingServiceForAppointment(appointment);
     return normalizeDateKey(appointment.date) === filterDate
       && (!selectedBaseId || appointment.baseId === selectedBaseId)
       && isActiveAppointment(appointment)
-      && (!relatedService || relatedService.status === 'pending');
+      && Boolean(relatedService);
   });
 
   const waitingServices = services.filter(service => service.status === 'pending' && normalizeDateKey(service.scheduledDate) === currentDateKey && (!selectedBaseId || service.baseId === selectedBaseId));

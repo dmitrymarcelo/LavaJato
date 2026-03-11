@@ -40,6 +40,27 @@ function inferTarumaZoneId(vehicleType) {
   return vehicleType === 'truck' ? 'dique_pesada' : 'dique_leve';
 }
 
+async function cleanupOrphanActiveAppointments(executor = query) {
+  await executor(
+    `
+    DELETE FROM appointments a
+    WHERE a.status IN ('confirmed', 'pending')
+      AND NOT EXISTS (
+        SELECT 1
+        FROM services s
+        WHERE s.id = a.id
+           OR (
+             s.status = 'pending'
+             AND UPPER(s.plate) = UPPER(a.plate)
+             AND s.scheduled_date = a.date
+             AND s.scheduled_time = a.time
+             AND COALESCE(s.base_id, '') = COALESCE(a.base_id, '')
+           )
+      )
+    `
+  );
+}
+
 fs.mkdirSync(UPLOADS_DIR, { recursive: true });
 
 app.use(cors());
@@ -1017,6 +1038,7 @@ app.get('/api/assistant/weather', async (req, res) => {
 });
 
 app.get('/api/bootstrap', async (req, res) => {
+  await cleanupOrphanActiveAppointments();
   const baseFilter = getBaseFilterForUser(req.user);
   const [serviceTypesResult, accessRulesResult, servicesResult, appointmentsResult, productsResult, teamResult] = await Promise.all([
     query("SELECT value FROM app_settings WHERE key = 'service_types'"),
@@ -1409,6 +1431,7 @@ app.delete('/api/services/:id', async (req, res) => {
 });
 
 app.get('/api/appointments', async (req, res) => {
+  await cleanupOrphanActiveAppointments();
   const result = await query('SELECT * FROM appointments ORDER BY date DESC, time DESC');
   const baseFilter = getBaseFilterForUser(req.user);
   res.json(result.rows.filter((row) => !baseFilter || baseFilter.includes(row.base_id)).map(toCamelAppointment));
