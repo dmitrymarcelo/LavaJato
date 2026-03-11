@@ -14,12 +14,9 @@ import {
 import { Screen, Service, VehicleType } from '../types';
 import { api } from '../services/api';
 import type { VehicleHistoryDetail as VehicleHistoryDetailData, VehicleHistorySummary } from '../services/api';
-import { formatElapsedMinutes, getDurationMinutes } from '../utils/app';
+import { formatDateTimeValue, formatElapsedMinutes, getDurationMinutes } from '../utils/app';
 
 type VehicleHistoryScope = 'history' | 'all';
-
-const formatDateTime = (value?: string | null) =>
-  value ? new Date(value).toLocaleString('pt-BR') : 'Nao registrado';
 
 const getRecordEventDate = (record: Service) =>
   record.timeline?.completedAt
@@ -217,7 +214,7 @@ export default function VehicleHistory({
                       </div>
 
                       <div className="mt-3 space-y-1 text-[11px] text-slate-500 font-medium">
-                        <p>Ultimo registro: {group.lastRecordedAt ? formatDateTime(group.lastRecordedAt) : 'Sem historico'}</p>
+                        <p>Ultimo registro: {group.lastRecordedAt ? formatDateTimeValue(group.lastRecordedAt) : 'Sem historico'}</p>
                         <p>Ultima base: {group.lastBaseName || 'Nao registrada'}</p>
                       </div>
                     </div>
@@ -405,7 +402,7 @@ export function VehicleHistoryDetail({
                         <Badge label={getStatusLabel(record.status)} className={getStatusClassName(record.status)} />
                         <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">{record.type}</span>
                       </div>
-                      <p className="text-sm font-bold text-slate-900">{formatDateTime(getRecordEventDate(record))}</p>
+                      <p className="text-sm font-bold text-slate-900">{formatDateTimeValue(getRecordEventDate(record))}</p>
                       <div className="flex flex-wrap gap-3 text-[11px] text-slate-500 font-medium">
                         <span className="inline-flex items-center gap-1"><MapPin className="w-3.5 h-3.5" />{record.baseName || 'Base nao registrada'}</span>
                         <span className="inline-flex items-center gap-1"><CreditCard className="w-3.5 h-3.5" />R$ {record.price.toFixed(2)}</span>
@@ -421,14 +418,14 @@ export function VehicleHistoryDetail({
                   </div>
 
                   <div className="grid grid-cols-2 xl:grid-cols-4 gap-3">
-                    <MiniMetric label="Agendado em" value={formatDateTime(record.timeline?.createdAt)} />
-                    <MiniMetric label="Entrada / fila" value={formatDateTime(record.timeline?.checkInAt || record.timeline?.createdAt)} />
+                    <MiniMetric label="Agendado em" value={formatDateTimeValue(record.timeline?.createdAt)} />
+                    <MiniMetric label="Entrada / fila" value={formatDateTimeValue(record.timeline?.checkInAt || record.timeline?.createdAt)} />
                     <MiniMetric label="Tempo de espera" value={waitingMinutes ? formatElapsedMinutes(waitingMinutes) : 'Nao registrado'} />
                     <MiniMetric label="Tempo de lavagem" value={washMinutes ? formatElapsedMinutes(washMinutes) : 'Nao registrado'} />
                     <MiniMetric label="Tempo de pagamento" value={paymentMinutes ? formatElapsedMinutes(paymentMinutes) : 'Nao registrado'} />
                     <MiniMetric label="Tempo total" value={totalMinutes ? formatElapsedMinutes(totalMinutes) : 'Nao registrado'} emphasis="text-primary" />
-                    <MiniMetric label="Inicio do servico" value={formatDateTime(record.timeline?.washStartedAt || record.startTime)} />
-                    <MiniMetric label="Fim do servico" value={formatDateTime(record.timeline?.completedAt || record.timeline?.noShowAt || record.endTime)} />
+                    <MiniMetric label="Inicio do servico" value={formatDateTimeValue(record.timeline?.washStartedAt || record.startTime)} />
+                    <MiniMetric label="Fim do servico" value={formatDateTimeValue(record.timeline?.completedAt || record.timeline?.noShowAt || record.endTime)} />
                   </div>
 
                   {record.observations && (

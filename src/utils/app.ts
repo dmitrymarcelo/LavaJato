@@ -44,6 +44,42 @@ export function normalizeDateKey(value?: string | Date | null) {
   return parsed.toISOString().slice(0, 10);
 }
 
+export function toSortableDateTime(value?: string | Date | null) {
+  if (!value) {
+    return '';
+  }
+
+  if (value instanceof Date) {
+    return value.toISOString();
+  }
+
+  const normalized = String(value).trim();
+  if (!normalized) {
+    return '';
+  }
+
+  const parsed = new Date(normalized);
+  if (!Number.isNaN(parsed.getTime())) {
+    return parsed.toISOString();
+  }
+
+  return normalized;
+}
+
+export function formatDateTimeValue(value?: string | Date | null, locale = 'pt-BR') {
+  const sortable = toSortableDateTime(value);
+  if (!sortable) {
+    return 'Nao registrado';
+  }
+
+  const parsed = new Date(sortable);
+  if (Number.isNaN(parsed.getTime())) {
+    return sortable;
+  }
+
+  return parsed.toLocaleString(locale);
+}
+
 export function digitsOnly(value: string) {
   return value.replace(/\D/g, '');
 }

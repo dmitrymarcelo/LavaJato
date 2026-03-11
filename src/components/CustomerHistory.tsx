@@ -2,9 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { ChevronLeft, Calendar, Car, Clock } from 'lucide-react';
 import { Screen, Service } from '../types';
 import { api, VehicleHistoryDetail } from '../services/api';
-import { formatElapsedMinutes, getDurationMinutes } from '../utils/app';
-
-const formatDateTime = (value?: string) => (value ? new Date(value).toLocaleString('pt-BR') : 'Nao registrado');
+import { formatDateTimeValue, formatElapsedMinutes, getDurationMinutes, toSortableDateTime } from '../utils/app';
 
 export default function CustomerHistory({
   onNavigate,
@@ -71,8 +69,8 @@ export default function CustomerHistory({
   const vehicleHistory = [...(historyGroup?.records || [])]
     .filter((service) => service.plate === selectedService.plate && ['completed', 'no_show'].includes(service.status))
     .sort((left, right) => {
-      const leftKey = left.timeline?.completedAt || left.timeline?.noShowAt || left.endTime || left.startTime || `${left.scheduledDate || ''}T${left.scheduledTime || '00:00'}`;
-      const rightKey = right.timeline?.completedAt || right.timeline?.noShowAt || right.endTime || right.startTime || `${right.scheduledDate || ''}T${right.scheduledTime || '00:00'}`;
+      const leftKey = toSortableDateTime(left.timeline?.completedAt || left.timeline?.noShowAt || left.endTime || left.startTime || `${left.scheduledDate || ''}T${left.scheduledTime || '00:00'}`);
+      const rightKey = toSortableDateTime(right.timeline?.completedAt || right.timeline?.noShowAt || right.endTime || right.startTime || `${right.scheduledDate || ''}T${right.scheduledTime || '00:00'}`);
       return rightKey.localeCompare(leftKey);
     });
 
@@ -134,7 +132,7 @@ export default function CustomerHistory({
                     <div className="flex items-center gap-2">
                       <Calendar className="w-4 h-4 text-primary" />
                       <span className="text-sm font-bold text-slate-700">
-                        {formatDateTime(item.timeline?.completedAt || item.timeline?.noShowAt || item.endTime || item.startTime)}
+                        {formatDateTimeValue(item.timeline?.completedAt || item.timeline?.noShowAt || item.endTime || item.startTime)}
                       </span>
                     </div>
                     <div className="bg-emerald-500/10 text-emerald-600 px-2 py-1 rounded-lg text-[10px] font-bold uppercase">
@@ -160,8 +158,8 @@ export default function CustomerHistory({
                   </div>
 
                   <div className="grid grid-cols-2 gap-3 pt-2">
-                    <HistoryMetric label="Agendado em" value={formatDateTime(item.timeline?.createdAt)} emphasis="text-slate-700" />
-                    <HistoryMetric label="Entrada / fila" value={formatDateTime(item.timeline?.checkInAt || item.timeline?.createdAt)} emphasis="text-slate-700" />
+                    <HistoryMetric label="Agendado em" value={formatDateTimeValue(item.timeline?.createdAt)} emphasis="text-slate-700" />
+                    <HistoryMetric label="Entrada / fila" value={formatDateTimeValue(item.timeline?.checkInAt || item.timeline?.createdAt)} emphasis="text-slate-700" />
                     <HistoryMetric label="Tempo de espera" value={waitingMinutes ? formatElapsedMinutes(waitingMinutes) : 'Nao registrado'} />
                     <HistoryMetric label="Tempo de lavagem" value={washMinutes ? formatElapsedMinutes(washMinutes) : 'Nao registrado'} />
                     <HistoryMetric label="Tempo de pagamento" value={paymentMinutes ? formatElapsedMinutes(paymentMinutes) : 'Nao registrado'} />

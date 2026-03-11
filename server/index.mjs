@@ -204,6 +204,28 @@ function toDateKey(value) {
   return parsed.toISOString().slice(0, 10);
 }
 
+function toSortableDateTime(value) {
+  if (!value) {
+    return '';
+  }
+
+  if (value instanceof Date) {
+    return value.toISOString();
+  }
+
+  const normalized = String(value).trim();
+  if (!normalized) {
+    return '';
+  }
+
+  const parsed = new Date(normalized);
+  if (!Number.isNaN(parsed.getTime())) {
+    return parsed.toISOString();
+  }
+
+  return normalized;
+}
+
 function toCamelService(row, options = {}) {
   const includePhotos = options.includePhotos !== false;
   return {
@@ -288,7 +310,7 @@ function toCamelAppointment(row) {
 }
 
 function getServiceEventDate(service) {
-  return (
+  return toSortableDateTime(
     service.timeline?.completedAt
     || service.timeline?.noShowAt
     || service.timeline?.paymentCompletedAt

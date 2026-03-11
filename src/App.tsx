@@ -164,9 +164,9 @@ export default function App() {
         return;
       }
 
-      const widthScale = width / 1920;
-      const heightScale = height / 1080;
-      const nextScale = Math.max(0.68, Math.min(1, Math.min(widthScale, heightScale)));
+      const widthScale = width / 1760;
+      const heightScale = height / 980;
+      const nextScale = Math.max(0.78, Math.min(1, Math.min(widthScale, heightScale)));
       setAppScale(Number(nextScale.toFixed(2)));
     };
 
@@ -177,12 +177,12 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    document.documentElement.style.setProperty('--app-scale', String(appScale));
+    document.documentElement.style.setProperty('--app-scale', String(isAuthenticated ? appScale : 1));
 
     return () => {
       document.documentElement.style.removeProperty('--app-scale');
     };
-  }, [appScale]);
+  }, [appScale, isAuthenticated]);
 
   useEffect(() => {
     try {
