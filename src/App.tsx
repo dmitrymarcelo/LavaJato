@@ -16,7 +16,6 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from './lib/motion';
 import { Screen, Service, Notification, INITIAL_SERVICE_TYPES, RoleAccessRule, VehicleCategory, VehicleType, VehicleRegistration, Product, TeamMember } from './types';
-import { getCarCareTips } from './services/geminiService';
 
 import Sidebar from './components/Sidebar';
 import ModalSurface from './components/ModalSurface';
@@ -75,6 +74,7 @@ export default function App() {
   const [hasLoadedVehicleDbFromApi, setHasLoadedVehicleDbFromApi] = useState(false);
   const [backendError, setBackendError] = useState<string | null>(null);
   const [isActiveServiceLoading, setIsActiveServiceLoading] = useState(false);
+  const [appScale, setAppScale] = useState(1);
   const servicesRef = useRef<Service[]>([]);
   const appointmentsRef = useRef<Appointment[]>([]);
   const vehicleDbRef = useRef<VehicleRegistration[]>([]);
@@ -155,6 +155,36 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    const updateAppScale = () => {
+      const width = window.innerWidth;
+      const height = window.innerHeight;
+
+      if (width < 1024) {
+        setAppScale(1);
+        return;
+      }
+
+      const widthScale = width / 1920;
+      const heightScale = height / 1080;
+      const nextScale = Math.max(0.68, Math.min(1, Math.min(widthScale, heightScale)));
+      setAppScale(Number(nextScale.toFixed(2)));
+    };
+
+    updateAppScale();
+    window.addEventListener('resize', updateAppScale);
+
+    return () => window.removeEventListener('resize', updateAppScale);
+  }, []);
+
+  useEffect(() => {
+    document.documentElement.style.setProperty('--app-scale', String(appScale));
+
+    return () => {
+      document.documentElement.style.removeProperty('--app-scale');
+    };
+  }, [appScale]);
+
+  useEffect(() => {
     try {
       LEGACY_STORAGE_KEYS.forEach((key) => window.localStorage.removeItem(key));
     } catch (error) {}
@@ -168,6 +198,7 @@ export default function App() {
     setIsTyping(true);
     
     try {
+      const { getCarCareTips } = await import('./services/geminiService');
       const aiResponse = await getCarCareTips(userMsg);
       setChatHistory(prev => [...prev, { role: 'ai', text: aiResponse }]);
     } catch (error: any) {
@@ -929,7 +960,7 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className={`min-h-screen bg-white ${isAuthenticated ? 'app-shell-scale' : ''}`}>
       <div className="bg-white min-h-screen flex transition-colors">
         {isAuthenticated && (
           <Sidebar 
