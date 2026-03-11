@@ -118,6 +118,7 @@ export default function Scheduling({
   onNavigate,
   services,
   onReorder,
+  onDeleteServiceRecord,
   serviceTypes,
   vehicleDb,
   availableBases = BASES,
@@ -137,6 +138,7 @@ export default function Scheduling({
   onNavigate: (screen: Screen, serviceId?: string) => void;
   services: Service[];
   onReorder: (newServices: Service[]) => Promise<void> | void;
+  onDeleteServiceRecord?: (service: Service) => Promise<void> | void;
   serviceTypes: Record<VehicleType, VehicleCategory>;
   vehicleDb?: VehicleRegistration[];
   availableBases?: BaseInfo[];
@@ -435,10 +437,14 @@ export default function Scheduling({
       return;
     }
 
-    const nextServices = services.filter((item) => item.id !== service.id);
-    const nextAppointments = appointments.filter((item) => item.id !== service.id);
-
     try {
+      if (onDeleteServiceRecord) {
+        await onDeleteServiceRecord(service);
+        return;
+      }
+
+      const nextServices = services.filter((item) => item.id !== service.id);
+      const nextAppointments = appointments.filter((item) => item.id !== service.id);
       await onReorder(nextServices);
       await onUpdateAppointments(nextAppointments);
     } catch (error) {

@@ -26,6 +26,7 @@ import { api, ApiError, Appointment } from './services/api';
 import { BASES, getBaseById } from './data/bases';
 
 const LEGACY_STORAGE_KEYS = ['bootstrapCacheV2', 'bootstrapCacheV3', 'vehicleDbCacheV1', 'authUserV1', 'selectedBase', 'activeServiceId', 'access_rules', 'appCacheVersion', 'authToken'];
+const ACTIVE_SCHEDULING_APPOINTMENT_STATUSES: Appointment['status'][] = ['confirmed', 'pending'];
 
 const Login = lazy(() => import('./components/Login'));
 const Dashboard = lazy(() => import('./components/Dashboard'));
@@ -85,8 +86,11 @@ export default function App() {
   const vehiclesSyncQueueRef = useRef<Promise<void>>(Promise.resolve());
   const productsSyncQueueRef = useRef<Promise<void>>(Promise.resolve());
   const teamSyncQueueRef = useRef<Promise<void>>(Promise.resolve());
+  const isIntentionalLogoutRef = useRef(false);
   const isAuthenticated = Boolean(authToken);
   const isClientUser = currentUser?.role === 'Clientes';
+
+  const normalizePlateKey = (plate?: string | null) => String(plate || '').trim().toUpperCase();
 
   useEffect(() => {
     const interval = window.setInterval(() => {
@@ -408,6 +412,11 @@ export default function App() {
     console.error(error);
 
     if (error instanceof ApiError && error.status === 401) {
+      if (isIntentionalLogoutRef.current || !api.getAuthToken()) {
+        performClientLogout();
+        return;
+      }
+
       alert('Sua sessao expirou. Faca login novamente.');
       performClientLogout();
       return;
@@ -460,9 +469,41 @@ export default function App() {
 
   const persistVehicleDb = async (next: VehicleRegistration[]) => {
     const previous = vehicleDbRef.current;
+    const nextPlateMap = new Map(next.map((vehicle) => [normalizePlateKey(vehicle.plate), vehicle]));
+    const removedPlateKeys = new Set(
+      previous
+        .map((vehicle) => normalizePlateKey(vehicle.plate))
+        .filter((plate) => !nextPlateMap.has(plate))
+    );
+    const orphanedServices = removedPlateKeys.size
+      ? servicesRef.current.filter((service) => removedPlateKeys.has(normalizePlateKey(service.plate)) && service.status === 'pending')
+      : [];
+    const orphanedAppointments = removedPlateKeys.size
+      ? appointmentsRef.current.filter((appointment) =>
+          removedPlateKeys.has(normalizePlateKey(appointment.plate))
+          && ACTIVE_SCHEDULING_APPOINTMENT_STATUSES.includes(appointment.status)
+        )
+      : [];
+
     setVehicleDb(next);
     vehicleDbRef.current = next;
     setHasLoadedVehicleDbFromApi(true);
+
+    if (orphanedServices.length) {
+      const nextServices = normalizeServicesForPersistence(
+        servicesRef.current.filter((service) => !orphanedServices.some((item) => item.id === service.id))
+      );
+      setServices(nextServices);
+      servicesRef.current = nextServices;
+    }
+
+    if (orphanedAppointments.length) {
+      const nextAppointments = appointmentsRef.current.filter(
+        (appointment) => !orphanedAppointments.some((item) => item.id === appointment.id)
+      );
+      setAppointments(nextAppointments);
+      appointmentsRef.current = nextAppointments;
+    }
 
     return queueVehiclesSync(async () => {
       try {
@@ -474,6 +515,14 @@ export default function App() {
           if (!previousVehicle || JSON.stringify(previousVehicle) !== JSON.stringify(vehicle)) {
             await api.upsertVehicle(vehicle);
           }
+        }
+
+        for (const appointment of orphanedAppointments) {
+          await api.deleteAppointment(appointment.id);
+        }
+
+        for (const service of orphanedServices) {
+          await api.deleteService(service.id);
         }
 
         for (const vehicle of previous) {
@@ -675,6 +724,34 @@ export default function App() {
     }
   };
 
+  const getRelatedAppointmentIds = (service: Service, sourceAppointments = appointmentsRef.current) => {
+    const servicePlate = normalizePlateKey(service.plate);
+    const serviceDate = normalizeDateKey(service.scheduledDate);
+    const serviceTime = service.scheduledTime || '';
+
+    return sourceAppointments
+      .filter((appointment) =>
+        appointment.id === service.id
+        || (
+          service.status === 'pending'
+          && normalizePlateKey(appointment.plate) === servicePlate
+          && normalizeDateKey(appointment.date) === serviceDate
+          && (appointment.time || '') === serviceTime
+          && ACTIVE_SCHEDULING_APPOINTMENT_STATUSES.includes(appointment.status)
+        )
+      )
+      .map((appointment) => appointment.id);
+  };
+
+  const deleteServiceRecord = async (service: Service) => {
+    const appointmentIds = new Set(getRelatedAppointmentIds(service));
+    const nextServices = servicesRef.current.filter((item) => item.id !== service.id);
+    const nextAppointments = appointmentsRef.current.filter((item) => !appointmentIds.has(item.id));
+
+    await persistServices(nextServices);
+    await persistAppointments(nextAppointments);
+  };
+
   const completePaymentForService = async (serviceId: string) => {
     try {
       const completed = await api.completePayment(serviceId);
@@ -747,6 +824,7 @@ export default function App() {
   };
 
   const handleLogout = async () => {
+    isIntentionalLogoutRef.current = true;
     try {
       await api.logout();
     } catch (error) {
@@ -758,6 +836,7 @@ export default function App() {
 
   const handleLogin = async (identifier: string, password: string) => {
     const response = await api.login(identifier, password);
+    isIntentionalLogoutRef.current = false;
     setCurrentUser(response.user);
     setAuthToken(response.token);
     setSelectedBase(response.user.role === 'Clientes' ? (response.user.allowedBaseIds?.[0] || null) : null);
@@ -914,7 +993,7 @@ export default function App() {
       case 'vehicle-history-detail': return <VehicleHistoryDetail plate={selectedVehiclePlate} onNavigate={handleNavigateWithService} />;
       case 'queue':
       case 'scheduling': 
-        return <Scheduling currentDateKey={currentDateKey} appointments={appointments} onUpdateAppointments={persistAppointments} onCreateBooking={createScheduledBooking} onNavigate={handleNavigateWithService} services={services} onReorder={reorderServices} serviceTypes={serviceTypes} vehicleDb={vehicleDb} availableBases={availableBases} isClientUser={isClientUser} currentUser={currentUser} onRegisterVehicle={registerVehicleFromScheduling} selectedBaseId={selectedBaseInfo?.id} selectedBaseName={selectedBaseInfo?.name} onSelectBase={(baseId) => {
+        return <Scheduling currentDateKey={currentDateKey} appointments={appointments} onUpdateAppointments={persistAppointments} onCreateBooking={createScheduledBooking} onNavigate={handleNavigateWithService} services={services} onReorder={reorderServices} onDeleteServiceRecord={deleteServiceRecord} serviceTypes={serviceTypes} vehicleDb={vehicleDb} availableBases={availableBases} isClientUser={isClientUser} currentUser={currentUser} onRegisterVehicle={registerVehicleFromScheduling} selectedBaseId={selectedBaseInfo?.id} selectedBaseName={selectedBaseInfo?.name} onSelectBase={(baseId) => {
           setSelectedBase(baseId);
         }} onResetBaseFilter={() => {
           if (!isClientUser) {
@@ -948,8 +1027,7 @@ export default function App() {
               }
             }}
             onDelete={async (service) => {
-              await persistServices(servicesRef.current.filter((item) => item.id !== service.id));
-              await persistAppointments(appointmentsRef.current.filter((item) => item.id !== service.id));
+              await deleteServiceRecord(service);
             }}
           />
         </div>
