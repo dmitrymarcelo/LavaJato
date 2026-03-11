@@ -87,6 +87,7 @@ export default function App() {
   const productsSyncQueueRef = useRef<Promise<void>>(Promise.resolve());
   const teamSyncQueueRef = useRef<Promise<void>>(Promise.resolve());
   const isIntentionalLogoutRef = useRef(false);
+  const isRecoveringSessionRef = useRef(false);
   const isAuthenticated = Boolean(authToken);
   const isClientUser = currentUser?.role === 'Clientes';
 
@@ -236,9 +237,10 @@ export default function App() {
       setAppointments(nextAppointments);
       setProducts(nextProducts);
       setTeam(nextTeam);
+      isRecoveringSessionRef.current = false;
     } catch (error: any) {
       if (error instanceof ApiError && error.status === 401) {
-        performClientLogout();
+        handleUnauthorizedSession();
         setBackendError(null);
         return;
       }
@@ -405,20 +407,28 @@ export default function App() {
     setVehicleDb([]);
     setHasLoadedVehicleDbFromApi(false);
     setNotifications([]);
-    navigateTo('login');
+    setBackendError(null);
+    setIsBootstrapping(false);
+    setIsActiveServiceLoading(false);
+    setIsAssistantOpen(false);
+    setIsNotificationsOpen(false);
+    setCurrentScreen('login');
+  };
+
+  const handleUnauthorizedSession = () => {
+    if (isRecoveringSessionRef.current) {
+      return;
+    }
+
+    isRecoveringSessionRef.current = true;
+    performClientLogout();
   };
 
   const handlePersistenceError = async (error: any, fallbackMessage: string) => {
     console.error(error);
 
     if (error instanceof ApiError && error.status === 401) {
-      if (isIntentionalLogoutRef.current || !api.getAuthToken()) {
-        performClientLogout();
-        return;
-      }
-
-      alert('Sua sessao expirou. Faca login novamente.');
-      performClientLogout();
+      handleUnauthorizedSession();
       return;
     }
 
@@ -825,6 +835,7 @@ export default function App() {
 
   const handleLogout = async () => {
     isIntentionalLogoutRef.current = true;
+    isRecoveringSessionRef.current = true;
     try {
       await api.logout();
     } catch (error) {
@@ -837,6 +848,7 @@ export default function App() {
   const handleLogin = async (identifier: string, password: string) => {
     const response = await api.login(identifier, password);
     isIntentionalLogoutRef.current = false;
+    isRecoveringSessionRef.current = false;
     setCurrentUser(response.user);
     setAuthToken(response.token);
     setSelectedBase(response.user.role === 'Clientes' ? (response.user.allowedBaseIds?.[0] || null) : null);
