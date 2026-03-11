@@ -47,6 +47,11 @@ export interface PaymentCompletionPayload {
   appointment: Appointment | null;
 }
 
+export interface SchedulingDeletionPayload {
+  deletedAppointmentIds: string[];
+  deletedServiceIds: string[];
+}
+
 export interface VehicleHistorySummary {
   plate: string;
   customer: string;
@@ -183,6 +188,8 @@ export const api = {
     request<PaymentCompletionPayload>(`/services/${encodeURIComponent(serviceId)}/complete-payment`, { method: 'POST' }),
   bookScheduling: (payload: SchedulingBookingPayload) =>
     request<SchedulingBookingPayload>('/scheduling/book', { method: 'POST', body: JSON.stringify(payload) }),
+  deleteSchedulingRecord: (id: string) =>
+    request<SchedulingDeletionPayload>(`/scheduling/${encodeURIComponent(id)}`, { method: 'DELETE' }),
   deleteService: (id: string) =>
     request<void>(`/services/${id}`, { method: 'DELETE' }),
   upsertAppointment: (appointment: Appointment) =>

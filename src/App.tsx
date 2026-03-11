@@ -392,6 +392,13 @@ export default function App() {
     return teamSyncQueueRef.current;
   };
 
+  const flushOperationalSyncQueues = async () => {
+    await Promise.allSettled([
+      servicesSyncQueueRef.current,
+      appointmentsSyncQueueRef.current,
+    ]);
+  };
+
   const performClientLogout = () => {
     api.clearAuthToken();
     setAuthToken(null);
@@ -772,6 +779,22 @@ export default function App() {
   };
 
   const deleteServiceRecord = async (service: Service) => {
+    if (service.status === 'pending') {
+      await flushOperationalSyncQueues();
+      const deleted = await api.deleteSchedulingRecord(service.id);
+      const deletedServiceIds = new Set(deleted.deletedServiceIds);
+      const deletedAppointmentIds = new Set(deleted.deletedAppointmentIds);
+
+      const nextServices = servicesRef.current.filter((item) => !deletedServiceIds.has(item.id));
+      const nextAppointments = appointmentsRef.current.filter((item) => !deletedAppointmentIds.has(item.id));
+
+      setServices(nextServices);
+      servicesRef.current = nextServices;
+      setAppointments(nextAppointments);
+      appointmentsRef.current = nextAppointments;
+      return;
+    }
+
     const appointmentIds = new Set(getRelatedAppointmentIds(service));
     const nextServices = servicesRef.current.filter((item) => item.id !== service.id);
     const nextAppointments = appointmentsRef.current.filter((item) => !appointmentIds.has(item.id));
@@ -781,12 +804,18 @@ export default function App() {
   };
 
   const deleteAppointmentRecord = async (appointment: Appointment) => {
-    const serviceIds = new Set(getRelatedPendingServiceIds(appointment));
-    const nextAppointments = appointmentsRef.current.filter((item) => item.id !== appointment.id);
-    const nextServices = servicesRef.current.filter((item) => !serviceIds.has(item.id));
+    await flushOperationalSyncQueues();
+    const deleted = await api.deleteSchedulingRecord(appointment.id);
+    const deletedServiceIds = new Set(deleted.deletedServiceIds);
+    const deletedAppointmentIds = new Set(deleted.deletedAppointmentIds);
 
-    await persistServices(nextServices);
-    await persistAppointments(nextAppointments);
+    const nextAppointments = appointmentsRef.current.filter((item) => !deletedAppointmentIds.has(item.id));
+    const nextServices = servicesRef.current.filter((item) => !deletedServiceIds.has(item.id));
+
+    setAppointments(nextAppointments);
+    appointmentsRef.current = nextAppointments;
+    setServices(nextServices);
+    servicesRef.current = nextServices;
   };
 
   const completePaymentForService = async (serviceId: string) => {

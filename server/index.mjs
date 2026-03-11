@@ -1314,6 +1314,90 @@ app.post('/api/scheduling/book', async (req, res) => {
   res.json(payload);
 });
 
+app.delete('/api/scheduling/:id', async (req, res) => {
+  const payload = await withTransaction(async (client) => {
+    const executor = (text, params = []) => client.query(text, params);
+    const appointmentResult = await executor('SELECT * FROM appointments WHERE id = $1 FOR UPDATE', [req.params.id]);
+    const serviceResult = await executor('SELECT * FROM services WHERE id = $1 FOR UPDATE', [req.params.id]);
+    const appointmentRow = appointmentResult.rows[0] || null;
+    const serviceRow = serviceResult.rows[0] || null;
+
+    const referenceBaseId = appointmentRow?.base_id || serviceRow?.base_id || null;
+    if (referenceBaseId) {
+      assertUserCanAccessBase(req.user, referenceBaseId);
+    }
+
+    const referencePlate = appointmentRow?.plate || serviceRow?.plate || null;
+    const referenceDate = appointmentRow?.date || serviceRow?.scheduled_date || null;
+    const referenceTime = appointmentRow?.time || serviceRow?.scheduled_time || null;
+
+    const deletedAppointmentIds = new Set();
+    const deletedServiceIds = new Set();
+
+    if (appointmentRow) {
+      await executor('DELETE FROM appointments WHERE id = $1', [appointmentRow.id]);
+      deletedAppointmentIds.add(appointmentRow.id);
+    }
+
+    if (serviceRow) {
+      await executor('DELETE FROM services WHERE id = $1', [serviceRow.id]);
+      deletedServiceIds.add(serviceRow.id);
+    }
+
+    if (referencePlate && referenceDate && referenceTime) {
+      const [relatedAppointmentsResult, relatedServicesResult] = await Promise.all([
+        executor(
+          `
+          SELECT id
+          FROM appointments
+          WHERE UPPER(plate) = UPPER($1)
+            AND date = $2
+            AND time = $3
+            AND status IN ('confirmed', 'pending')
+            AND ($4::text IS NULL OR base_id = $4)
+          FOR UPDATE
+          `,
+          [referencePlate, referenceDate, referenceTime, referenceBaseId]
+        ),
+        executor(
+          `
+          SELECT id
+          FROM services
+          WHERE UPPER(plate) = UPPER($1)
+            AND scheduled_date = $2
+            AND scheduled_time = $3
+            AND status = 'pending'
+            AND ($4::text IS NULL OR base_id = $4)
+          FOR UPDATE
+          `,
+          [referencePlate, referenceDate, referenceTime, referenceBaseId]
+        ),
+      ]);
+
+      for (const row of relatedAppointmentsResult.rows) {
+        if (!deletedAppointmentIds.has(row.id)) {
+          await executor('DELETE FROM appointments WHERE id = $1', [row.id]);
+          deletedAppointmentIds.add(row.id);
+        }
+      }
+
+      for (const row of relatedServicesResult.rows) {
+        if (!deletedServiceIds.has(row.id)) {
+          await executor('DELETE FROM services WHERE id = $1', [row.id]);
+          deletedServiceIds.add(row.id);
+        }
+      }
+    }
+
+    return {
+      deletedAppointmentIds: Array.from(deletedAppointmentIds),
+      deletedServiceIds: Array.from(deletedServiceIds),
+    };
+  });
+
+  res.json(payload);
+});
+
 app.delete('/api/services/:id', async (req, res) => {
   const existing = await query('SELECT base_id FROM services WHERE id = $1', [req.params.id]);
   const row = existing.rows[0];
