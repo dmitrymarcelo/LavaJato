@@ -7,7 +7,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Camera, CheckCircle2, Lock, Info, RefreshCw, ChevronLeft, PlayCircle, AlertCircle, Upload, X } from 'lucide-react';
 import { motion } from 'motion/react';
 import { Screen, Service, TeamMember } from '../types';
-import { formatElapsedMinutes, optimizeImageFile } from '../utils/app';
+import { formatElapsedMinutes, normalizeDateKey, optimizeImageFile } from '../utils/app';
 import ModalSurface from './ModalSurface';
 
 const PHOTO_TYPES = [
@@ -18,13 +18,14 @@ const PHOTO_TYPES = [
   { id: 'interior', label: 'Interior' }
 ];
 
-export default function InspectionPre({ onNavigate, onStartWash, elapsedMinutes = 0, teamMembers: teamMembersProp = [], service }: { onNavigate: (screen: Screen) => void, onStartWash: (washers: string[], photos: Record<string, string>) => Promise<void> | void, elapsedMinutes?: number, teamMembers?: TeamMember[], service?: Service | null }) {
+export default function InspectionPre({ onNavigate, onStartWash, elapsedMinutes = 0, teamMembers: teamMembersProp = [], service }: { onNavigate: (screen: Screen) => void, onStartWash: (washers: string[], photos: Record<string, string>, observations: string) => Promise<void> | void, elapsedMinutes?: number, teamMembers?: TeamMember[], service?: Service | null }) {
   const [photos, setPhotos] = useState<Record<string, string>>({});
   const [activePhotoId, setActivePhotoId] = useState<string | null>(null);
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
   const [selectedWashers, setSelectedWashers] = useState<string[]>([]);
   const [isPhotoSourceOpen, setIsPhotoSourceOpen] = useState(false);
   const [isProcessingPhoto, setIsProcessingPhoto] = useState(false);
+  const [observations, setObservations] = useState('');
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const galleryInputRef = useRef<HTMLInputElement>(null);
 
@@ -39,6 +40,10 @@ export default function InspectionPre({ onNavigate, onStartWash, elapsedMinutes 
   useEffect(() => {
     setPhotos(service?.preInspectionPhotos || {});
   }, [service?.id, service?.preInspectionPhotos]);
+
+  useEffect(() => {
+    setObservations(service?.observations || '');
+  }, [service?.id, service?.observations]);
 
   useEffect(() => {
     if (!teamMembers.length) {
@@ -98,7 +103,11 @@ export default function InspectionPre({ onNavigate, onStartWash, elapsedMinutes 
   const progress = (completedCount / PHOTO_TYPES.length) * 100;
   const isPhotosComplete = completedCount >= 1;
   const isWashersSelected = selectedWashers.length > 0;
-  const canStart = isPhotosComplete && isWashersSelected;
+  const createdDateKey = normalizeDateKey(service?.timeline?.createdAt);
+  const scheduledDateKey = normalizeDateKey(service?.scheduledDate);
+  const requiresCarryOverObservation = Boolean(createdDateKey && scheduledDateKey && createdDateKey < scheduledDateKey);
+  const hasValidObservation = !requiresCarryOverObservation || observations.trim().length >= 10;
+  const canStart = isPhotosComplete && isWashersSelected && hasValidObservation;
 
   const handleStartWash = async () => {
     if (canStart) {
@@ -106,7 +115,7 @@ export default function InspectionPre({ onNavigate, onStartWash, elapsedMinutes 
         .filter(m => selectedWashers.includes(m.id))
         .map(m => m.name);
       try {
-        await onStartWash(washerNames, photos);
+        await onStartWash(washerNames, photos, observations.trim());
         onNavigate('queue');
       } catch (error) {
         console.error(error);
@@ -208,6 +217,42 @@ export default function InspectionPre({ onNavigate, onStartWash, elapsedMinutes 
               ))
             )}
           </div>
+        </section>
+
+        <section className="space-y-3">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <h2 className="text-xl font-bold tracking-tight">Observacao operacional</h2>
+              <p className="text-sm text-slate-500 leading-relaxed">
+                {requiresCarryOverObservation
+                  ? 'Este veiculo foi agendado em dia anterior. Antes de iniciar a lavagem, registre uma observacao descritiva.'
+                  : 'Use este campo para registrar contexto adicional do atendimento, quando necessario.'}
+              </p>
+            </div>
+            {requiresCarryOverObservation && (
+              <span className="shrink-0 rounded-full bg-amber-50 border border-amber-100 px-3 py-1 text-[10px] font-black uppercase tracking-widest text-amber-600">
+                Obrigatoria
+              </span>
+            )}
+          </div>
+
+          <textarea
+            value={observations}
+            onChange={(event) => setObservations(event.target.value)}
+            rows={4}
+            placeholder={requiresCarryOverObservation ? 'Descreva o contexto do atendimento deste agendamento anterior.' : 'Observacoes adicionais do veiculo ou do atendimento.'}
+            className={`w-full rounded-2xl border bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none resize-none ${
+              requiresCarryOverObservation && !hasValidObservation
+                ? 'border-amber-300 focus:border-amber-500'
+                : 'border-slate-100 focus:border-primary'
+            }`}
+          />
+
+          {requiresCarryOverObservation && !hasValidObservation && (
+            <p className="text-xs font-bold text-amber-600">
+              Informe pelo menos 10 caracteres para liberar o inicio da lavagem.
+            </p>
+          )}
         </section>
 
         <div className="space-y-1">
@@ -319,7 +364,9 @@ export default function InspectionPre({ onNavigate, onStartWash, elapsedMinutes 
                 ? 'Capture ao menos 1 foto para habilitar'
                 : !isWashersSelected 
                   ? 'Selecione pelo menos um responsável'
-                  : 'Tudo pronto para iniciar'}
+                  : !hasValidObservation
+                    ? 'Registre a observacao obrigatoria para continuar'
+                    : 'Tudo pronto para iniciar'}
             </p>
           </div>
         </div>

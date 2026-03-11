@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React from 'react';
+import React, { useState } from 'react';
 import { CheckCircle2, Clock, ChevronRight, ChevronLeft, Camera } from 'lucide-react';
 import { Screen, Service } from '../types';
 import { formatElapsedMinutes, getElapsedMinutes, getServicePreviewImage } from '../utils/app';
@@ -21,12 +21,26 @@ export default function Payment({
   service?: Service | null;
   services?: Service[];
 }) {
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+
   const handlePayment = async () => {
+    if (isSubmitting) {
+      return;
+    }
+
     try {
+      setIsSubmitting(true);
+      setSubmitError(null);
       await onPaymentComplete();
-      onNavigate('dashboard');
-    } catch (error) {
+      onNavigate('scheduling');
+    } catch (error: any) {
       console.error(error);
+      const message = error instanceof Error ? error.message : 'Nao foi possivel finalizar o pagamento.';
+      setSubmitError(message);
+      alert(message);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -99,17 +113,26 @@ export default function Payment({
           <div className="flex flex-col gap-3">
             <button
               onClick={handlePayment}
-              className="w-full bg-primary hover:bg-blue-600 text-white font-bold py-4 rounded-xl shadow-lg shadow-primary/20 flex items-center justify-center gap-2 active:scale-[0.98] transition-transform"
+              disabled={isSubmitting}
+              className={`w-full font-bold py-4 rounded-xl shadow-lg shadow-primary/20 flex items-center justify-center gap-2 transition-transform ${
+                isSubmitting
+                  ? 'bg-primary/70 text-white cursor-wait'
+                  : 'bg-primary hover:bg-blue-600 text-white active:scale-[0.98]'
+              }`}
             >
               <CheckCircle2 className="w-5 h-5" />
-              Marcar como Pago
+              {isSubmitting ? 'Finalizando pagamento...' : 'Marcar como Pago'}
             </button>
             <button
-              onClick={() => onNavigate('dashboard')}
-              className="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold py-4 rounded-xl transition-colors active:scale-[0.98]"
+              onClick={() => onNavigate('scheduling')}
+              disabled={isSubmitting}
+              className="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold py-4 rounded-xl transition-colors active:scale-[0.98] disabled:opacity-60"
             >
               Deixar Pendente
             </button>
+            {submitError && (
+              <p className="text-xs font-bold text-rose-500 text-center">{submitError}</p>
+            )}
           </div>
         </div>
 

@@ -216,7 +216,34 @@ const servicesOrderSql = `
   created_at DESC
 `;
 
+function requiresCarryOverObservation(service) {
+  const createdDate = toDateKey(service?.timeline?.createdAt);
+  const scheduledDate = toDateKey(service?.scheduledDate);
+
+  return Boolean(createdDate && scheduledDate && createdDate < scheduledDate);
+}
+
+function assertCarryOverObservation(service) {
+  if (service?.status !== 'in_progress') {
+    return;
+  }
+
+  if (!requiresCarryOverObservation(service)) {
+    return;
+  }
+
+  if (String(service?.observations || '').trim().length >= 10) {
+    return;
+  }
+
+  const error = new Error('Informe uma observacao descritiva antes de iniciar a lavagem deste agendamento anterior.');
+  error.statusCode = 400;
+  throw error;
+}
+
 async function upsertServiceRow(service, executor = query) {
+  assertCarryOverObservation(service);
+
   await executor(
     `
     INSERT INTO services (
@@ -754,6 +781,57 @@ app.post('/api/services/upsert', async (req, res) => {
   await upsertServiceRow(service);
   const result = await query('SELECT * FROM services WHERE id = $1', [service.id]);
   res.json(toCamelService(result.rows[0]));
+});
+
+app.post('/api/services/:id/complete-payment', async (req, res) => {
+  const payload = await withTransaction(async (client) => {
+    const executor = (text, params = []) => client.query(text, params);
+    const serviceResult = await executor('SELECT * FROM services WHERE id = $1 FOR UPDATE', [req.params.id]);
+    const serviceRow = serviceResult.rows[0];
+
+    if (!serviceRow) {
+      const error = new Error('Servico nao encontrado.');
+      error.statusCode = 404;
+      throw error;
+    }
+
+    assertUserCanAccessBase(req.user, serviceRow.base_id);
+
+    const currentService = toCamelService(serviceRow);
+    const nowIso = new Date().toISOString();
+    const nextService = {
+      ...currentService,
+      status: 'completed',
+      timeline: {
+        ...(currentService.timeline || {}),
+        paymentStartedAt: currentService.timeline?.paymentStartedAt || nowIso,
+        paymentCompletedAt: nowIso,
+        completedAt: nowIso,
+      },
+    };
+
+    await upsertServiceRow(nextService, executor);
+
+    const appointmentResult = await executor('SELECT * FROM appointments WHERE id = $1 FOR UPDATE', [req.params.id]);
+    let nextAppointment = null;
+
+    if (appointmentResult.rows[0]) {
+      nextAppointment = {
+        ...toCamelAppointment(appointmentResult.rows[0]),
+        status: 'completed',
+      };
+      await upsertAppointmentRow(nextAppointment, executor);
+    }
+
+    const updatedServiceResult = await executor('SELECT * FROM services WHERE id = $1', [req.params.id]);
+
+    return {
+      service: toCamelService(updatedServiceResult.rows[0]),
+      appointment: nextAppointment,
+    };
+  });
+
+  res.json(payload);
 });
 
 app.post('/api/scheduling/book', async (req, res) => {

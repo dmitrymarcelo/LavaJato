@@ -611,6 +611,31 @@ export default function App() {
     }
   };
 
+  const completePaymentForService = async (serviceId: string) => {
+    try {
+      const completed = await api.completePayment(serviceId);
+
+      const nextServices = normalizeServicesForPersistence(
+        servicesRef.current.map((service) => (
+          service.id === completed.service.id ? completed.service : service
+        ))
+      );
+      setServices(nextServices);
+      servicesRef.current = nextServices;
+
+      if (completed.appointment) {
+        const nextAppointments = appointmentsRef.current.map((appointment) => (
+          appointment.id === completed.appointment?.id ? completed.appointment : appointment
+        ));
+        setAppointments(nextAppointments);
+        appointmentsRef.current = nextAppointments;
+      }
+    } catch (error) {
+      await handlePersistenceError(error, 'Nao foi possivel finalizar o pagamento.');
+      throw error;
+    }
+  };
+
   const reorderServices = async (newServices: Service[]) => {
     await persistServices(newServices);
   };
@@ -766,14 +791,16 @@ export default function App() {
     switch (currentScreen) {
       case 'dashboard': return <Dashboard onNavigate={handleNavigateWithService} services={services} appointments={appointments} currentDateKey={currentDateKey} team={team} />;
       case 'checkin': return <CheckIn onNavigate={navigateTo} onAddService={addService} serviceTypes={serviceTypes} vehicleDb={vehicleDb} selectedBaseId={selectedBaseInfo?.id} selectedBaseName={selectedBaseInfo?.name} />;
-      case 'inspection-pre': return <InspectionPre service={activeService} teamMembers={team} elapsedMinutes={activeServiceElapsedMinutes} onNavigate={navigateTo} onStartWash={async (washers, photos) => {
+      case 'inspection-pre': return <InspectionPre service={activeService} teamMembers={team} elapsedMinutes={activeServiceElapsedMinutes} onNavigate={navigateTo} onStartWash={async (washers, photos, observations) => {
         if (activeServiceId) {
           await updateServiceRecord(activeServiceId, (service) => {
             const nowIso = new Date().toISOString();
             const nextPreviewImage = photos.front || getServicePreviewImage(service);
+            const nextObservations = observations.trim() || service.observations || '';
             return {
               ...service,
               washers,
+              observations: nextObservations,
               preInspectionPhotos: photos,
               image: nextPreviewImage || service.image,
               status: 'in_progress',
@@ -811,30 +838,7 @@ export default function App() {
       }} />;
       case 'payment': return <Payment service={activeService} services={services} elapsedMinutes={activeServiceElapsedMinutes} onNavigate={navigateTo} onPaymentComplete={async () => {
         if (activeServiceId) {
-          const nowIso = new Date().toISOString();
-          await updateServiceRecord(activeServiceId, (service) => {
-            return {
-              ...service,
-              status: 'completed',
-              timeline: {
-                ...(service.timeline || {}),
-                paymentStartedAt: service.timeline?.paymentStartedAt || nowIso,
-                paymentCompletedAt: nowIso,
-                completedAt: nowIso,
-              },
-            };
-          });
-
-          await persistAppointments(
-            appointmentsRef.current.map((appointment) =>
-              appointment.id === activeServiceId
-                ? {
-                    ...appointment,
-                    status: 'completed',
-                  }
-                : appointment
-            )
-          );
+          await completePaymentForService(activeServiceId);
         }
       }} />;
       case 'history': return <ServiceHistory onNavigate={handleNavigateWithService} service={activeService} />;

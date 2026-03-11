@@ -40,6 +40,11 @@ export interface SchedulingBookingPayload {
   service: Service;
 }
 
+export interface PaymentCompletionPayload {
+  service: Service;
+  appointment: Appointment | null;
+}
+
 export class ApiError extends Error {
   status: number;
 
@@ -153,6 +158,8 @@ export const api = {
     request<Service>(`/services/${encodeURIComponent(id)}`),
   upsertService: (service: Service) =>
     request<Service>('/services/upsert', { method: 'POST', body: JSON.stringify(service) }),
+  completePayment: (serviceId: string) =>
+    request<PaymentCompletionPayload>(`/services/${encodeURIComponent(serviceId)}/complete-payment`, { method: 'POST' }),
   bookScheduling: (payload: SchedulingBookingPayload) =>
     request<SchedulingBookingPayload>('/scheduling/book', { method: 'POST', body: JSON.stringify(payload) }),
   deleteService: (id: string) =>
