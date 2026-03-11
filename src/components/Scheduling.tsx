@@ -872,15 +872,18 @@ export default function Scheduling({
 
       <AnimatePresence>
         {isAdding && (
-          <ModalSurface onClose={resetAppointmentForm} panelClassName="max-w-[400px] p-6 space-y-6">
-              <div className="flex justify-between items-center">
-                <h3 className="text-xl font-black text-slate-900">Novo Agendamento</h3>
+          <ModalSurface onClose={resetAppointmentForm} position="center" panelClassName="max-w-[440px] p-0 border border-slate-200/80">
+              <div className="sticky top-0 z-10 flex justify-between items-center border-b border-slate-100 bg-white/95 px-5 py-4 backdrop-blur-sm">
+                <div>
+                  <h3 className="text-xl font-black text-slate-900">Novo Agendamento</h3>
+                  <p className="mt-0.5 text-[11px] font-medium text-slate-400">Fluxo direto, sem travar a tela ao fundo.</p>
+                </div>
                 <button onClick={resetAppointmentForm} className="text-slate-400 hover:text-slate-600 font-bold">
                   Fechar
                 </button>
               </div>
 
-              <form onSubmit={handleAddAppointment} className="space-y-4">
+              <form onSubmit={handleAddAppointment} className="space-y-4 px-5 py-5">
                 <div className="space-y-1">
                   <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400 ml-1">Placa</label>
                   <input
@@ -1121,14 +1124,16 @@ export default function Scheduling({
                       </select>
                     </div>
 
-                    <button
-                      type="submit"
-                      disabled={isSavingAppointment}
-                      className="w-full bg-primary text-white font-bold py-4 rounded-2xl shadow-lg shadow-primary/20 active:scale-[0.98] transition-all flex items-center justify-center gap-2"
-                    >
-                      <CheckCircle2 className="w-5 h-5" />
-                      <span>{isSavingAppointment ? 'Salvando...' : 'Confirmar Agendamento'}</span>
-                    </button>
+                    <div className="sticky bottom-0 -mx-5 mt-6 border-t border-slate-100 bg-white/95 px-5 py-4 backdrop-blur-sm">
+                      <button
+                        type="submit"
+                        disabled={isSavingAppointment}
+                        className="w-full bg-primary text-white font-bold py-4 rounded-2xl shadow-lg shadow-primary/20 active:scale-[0.98] transition-all flex items-center justify-center gap-2"
+                      >
+                        <CheckCircle2 className="w-5 h-5" />
+                        <span>{isSavingAppointment ? 'Salvando...' : 'Confirmar Agendamento'}</span>
+                      </button>
+                    </div>
                   </>
                 )}
               </form>

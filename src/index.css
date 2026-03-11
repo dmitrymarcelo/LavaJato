@@ -21,6 +21,29 @@
     --color-card-blue: #f0f9ff;
     --color-card-gray: #ffffff;
   }
+
+  html,
+  body,
+  #root {
+    height: 100%;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+
+  * {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+
+  *::-webkit-scrollbar,
+  html::-webkit-scrollbar,
+  body::-webkit-scrollbar,
+  #root::-webkit-scrollbar {
+    width: 0;
+    height: 0;
+    display: none;
+    background: transparent;
+  }
 }
 
 @layer utilities {
@@ -39,4 +62,5 @@
 body {
   @apply bg-surface text-slate-900 transition-colors duration-300;
   font-family: 'Inter', sans-serif;
+  overflow-x: hidden;
 }
