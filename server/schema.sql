@@ -135,6 +135,52 @@ ALTER TABLE appointments
 ALTER TABLE appointments
     ADD COLUMN IF NOT EXISTS washing_zone_name TEXT;
 
+UPDATE appointments
+SET
+    washing_zone_id = CASE
+        WHEN COALESCE(vehicle_type, '') = 'truck' THEN 'dique_pesada'
+        ELSE 'dique_leve'
+    END,
+    washing_zone_name = CASE
+        WHEN COALESCE(vehicle_type, '') = 'truck' THEN 'Dique Pesada'
+        ELSE 'Dique Leve'
+    END,
+    updated_at = NOW()
+WHERE base_id = 'taruma'
+  AND (washing_zone_id IS NULL OR BTRIM(washing_zone_id) = '');
+
+UPDATE services
+SET
+    washing_zone_id = CASE
+        WHEN appointments.washing_zone_id IS NOT NULL AND BTRIM(appointments.washing_zone_id) <> '' THEN appointments.washing_zone_id
+        WHEN COALESCE(services.type, '') = 'truck' THEN 'dique_pesada'
+        ELSE 'dique_leve'
+    END,
+    washing_zone_name = CASE
+        WHEN appointments.washing_zone_name IS NOT NULL AND BTRIM(appointments.washing_zone_name) <> '' THEN appointments.washing_zone_name
+        WHEN COALESCE(services.type, '') = 'truck' THEN 'Dique Pesada'
+        ELSE 'Dique Leve'
+    END,
+    updated_at = NOW()
+FROM appointments
+WHERE services.id = appointments.id
+  AND services.base_id = 'taruma'
+  AND (services.washing_zone_id IS NULL OR BTRIM(services.washing_zone_id) = '');
+
+UPDATE services
+SET
+    washing_zone_id = CASE
+        WHEN COALESCE(type, '') = 'truck' THEN 'dique_pesada'
+        ELSE 'dique_leve'
+    END,
+    washing_zone_name = CASE
+        WHEN COALESCE(type, '') = 'truck' THEN 'Dique Pesada'
+        ELSE 'Dique Leve'
+    END,
+    updated_at = NOW()
+WHERE base_id = 'taruma'
+  AND (washing_zone_id IS NULL OR BTRIM(washing_zone_id) = '');
+
 CREATE TABLE IF NOT EXISTS auth_sessions (
     token TEXT PRIMARY KEY,
     member_id TEXT NOT NULL REFERENCES team_members(id) ON DELETE CASCADE,

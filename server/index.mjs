@@ -22,6 +22,10 @@ const TARUMA_ZONE_NAMES = {
   estacionamento: 'Estacionamentos',
 };
 
+function inferTarumaZoneId(vehicleType) {
+  return vehicleType === 'truck' ? 'dique_pesada' : 'dique_leve';
+}
+
 app.use(cors());
 app.use(express.json({ limit: '80mb' }));
 
@@ -259,8 +263,16 @@ function normalizeTarumaZone(baseId, vehicleType, washingZoneId) {
   }
 
   const normalizedZoneId = String(washingZoneId || '').trim();
-  if (!normalizedZoneId || !TARUMA_ZONE_NAMES[normalizedZoneId]) {
-    const error = new Error('Selecione a area de lavagem da Base Taruma.');
+  if (!normalizedZoneId) {
+    const inferredZoneId = inferTarumaZoneId(vehicleType);
+    return {
+      washingZoneId: inferredZoneId,
+      washingZoneName: TARUMA_ZONE_NAMES[inferredZoneId],
+    };
+  }
+
+  if (!TARUMA_ZONE_NAMES[normalizedZoneId]) {
+    const error = new Error('Selecione uma area de lavagem valida da Base Taruma.');
     error.statusCode = 400;
     throw error;
   }
