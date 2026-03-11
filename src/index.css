@@ -1,7 +1,7 @@
 @import "tailwindcss";
 
 @theme {
-  --font-sans: "Segoe UI", "SF Pro Display", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "Segoe UI Variable Text", "Segoe UI", "SF Pro Display", ui-sans-serif, system-ui, sans-serif;
   --color-primary: #137fec;
   --color-surface: #ffffff;
   --color-card-blue: #f0f9ff;
@@ -73,11 +73,10 @@
 
 body {
   @apply bg-surface text-slate-900 transition-colors duration-300;
-  font-family: "Segoe UI", "SF Pro Display", ui-sans-serif, system-ui, sans-serif;
+  font-family: "Segoe UI Variable Text", "Segoe UI", "SF Pro Display", ui-sans-serif, system-ui, sans-serif;
   overflow-x: hidden;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-  text-rendering: optimizeLegibility;
+  font-kerning: auto;
+  text-rendering: auto;
   text-size-adjust: 100%;
 }
 

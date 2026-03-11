@@ -166,7 +166,7 @@ export default function App() {
 
       const widthScale = width / 1760;
       const heightScale = height / 980;
-      const nextScale = Math.max(0.78, Math.min(1, Math.min(widthScale, heightScale)));
+      const nextScale = Math.max(0.82, Math.min(1, Math.min(widthScale, heightScale)));
       setAppScale(Number(nextScale.toFixed(2)));
     };
 
