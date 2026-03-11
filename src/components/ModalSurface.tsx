@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { motion } from 'motion/react';
+import { motion } from '../lib/motion';
 
 type ModalSurfaceProps = {
   children: React.ReactNode;

@@ -24,8 +24,8 @@ import {
   WashingMachine,
   Zap,
 } from 'lucide-react';
-import { motion, AnimatePresence } from 'motion/react';
-import { Screen, Service, VehicleCategory, VehicleType, VehicleRegistration } from '../types';
+import { motion, AnimatePresence } from '../lib/motion';
+import { Screen, Service, VehicleCategory, VehicleType, VehicleRegistration, WashingZoneId } from '../types';
 import { api, ApiError, Appointment } from '../services/api';
 import { addDays, digitsOnly, formatCpf, generateId, getElapsedMinutes, getServicePreviewImage, normalizeDateKey } from '../utils/app';
 import { BASES, BaseInfo, getBaseById } from '../data/bases';
@@ -38,6 +38,31 @@ const SLOT_LIMITS = {
   truck: 2,
   other: 3,
 };
+const TARUMA_ZONE_RULES: Array<{
+  id: WashingZoneId;
+  label: string;
+  capacityLabel: string;
+  accepts: (vehicleType: VehicleType) => boolean;
+}> = [
+  {
+    id: 'dique_leve',
+    label: 'Dique Leve',
+    capacityLabel: '3 carros por hora',
+    accepts: (vehicleType) => vehicleType !== 'truck',
+  },
+  {
+    id: 'dique_pesada',
+    label: 'Dique Pesada',
+    capacityLabel: '2 caminhoes por hora',
+    accepts: (vehicleType) => vehicleType === 'truck',
+  },
+  {
+    id: 'estacionamento',
+    label: 'Estacionamentos',
+    capacityLabel: 'Livre',
+    accepts: () => true,
+  },
+];
 const DEFAULT_SERVICE_IMAGE = 'https://images.unsplash.com/photo-1549317661-bd32c8ce0db2?q=80&w=400&auto=format&fit=crop';
 
 const normalizePlate = (value: string) => value.toUpperCase().replace(/[^A-Z0-9]/g, '');
@@ -65,6 +90,9 @@ const getVehicleTypeLabel = (type: VehicleType) => {
 };
 
 const isTruckType = (type?: VehicleType) => type === 'truck';
+const isTarumaBase = (baseId?: string | null) => baseId === 'taruma';
+const getTarumaZoneLabel = (zoneId?: WashingZoneId | null) => TARUMA_ZONE_RULES.find((rule) => rule.id === zoneId)?.label || 'Nao definido';
+const getDefaultTarumaZone = (vehicleType: VehicleType): WashingZoneId => (vehicleType === 'truck' ? 'dique_pesada' : 'dique_leve');
 
 const getServiceStageReference = (service: Service) => {
   if (service.status === 'pending') {
@@ -138,6 +166,7 @@ export default function Scheduling({
   const [thirdPartyCpf, setThirdPartyCpf] = useState('');
   const [isVehicleFound, setIsVehicleFound] = useState(false);
   const [appointmentBaseId, setAppointmentBaseId] = useState(selectedBaseId || availableBases[0]?.id || BASES[0]?.id || '');
+  const [appointmentWashingZoneId, setAppointmentWashingZoneId] = useState<WashingZoneId | ''>('');
 
   const resetAppointmentForm = () => {
     setIsAdding(false);
@@ -153,6 +182,7 @@ export default function Scheduling({
     setIsVehicleFound(false);
     setPlateLookupError(null);
     setAppointmentBaseId(selectedBaseId || availableBases[0]?.id || BASES[0]?.id || '');
+    setAppointmentWashingZoneId('');
   };
 
   useEffect(() => {
@@ -166,6 +196,24 @@ export default function Scheduling({
   useEffect(() => {
     setAppointmentBaseId(selectedBaseId || availableBases[0]?.id || BASES[0]?.id || '');
   }, [selectedBaseId, availableBases]);
+
+  useEffect(() => {
+    setSelectedTime(null);
+  }, [appointmentBaseId, appointmentWashingZoneId]);
+
+  useEffect(() => {
+    if (!isVehicleFound || !isTarumaBase(appointmentBaseId)) {
+      setAppointmentWashingZoneId('');
+      return;
+    }
+
+    const currentZone = TARUMA_ZONE_RULES.find((rule) => rule.id === appointmentWashingZoneId);
+    if (currentZone?.accepts(vehicleType)) {
+      return;
+    }
+
+    setAppointmentWashingZoneId(getDefaultTarumaZone(vehicleType));
+  }, [appointmentBaseId, appointmentWashingZoneId, isVehicleFound, vehicleType]);
 
   useEffect(() => {
     const interval = window.setInterval(() => {
@@ -374,7 +422,15 @@ export default function Scheduling({
     return vehicleDb?.find(vehicle => normalizePlate(vehicle.plate) === normalizePlate(appointment.plate))?.type || 'car';
   };
 
-  const getSlotStatus = (date: string, time: string, nextVehicleType?: VehicleType) => {
+  const resolveTarumaZoneForAppointment = (appointment: Appointment): WashingZoneId => {
+    if (appointment.washingZoneId) {
+      return appointment.washingZoneId;
+    }
+
+    return resolveAppointmentVehicleType(appointment) === 'truck' ? 'dique_pesada' : 'dique_leve';
+  };
+
+  const getSlotStatus = (date: string, time: string, nextVehicleType?: VehicleType, nextWashingZoneId?: WashingZoneId | '') => {
     const sameSlotAppointments = appointments.filter(
       appointment =>
         normalizeDateKey(appointment.date) === date
@@ -382,6 +438,31 @@ export default function Scheduling({
         && appointment.baseId === appointmentBaseId
         && isActiveAppointment(appointment)
     );
+
+    const isTarumaScheduling = isTarumaBase(appointmentBaseId);
+    if (isTarumaScheduling) {
+      const targetZoneId = nextWashingZoneId || appointmentWashingZoneId;
+      const zoneAppointments = sameSlotAppointments.filter(
+        (appointment) => resolveTarumaZoneForAppointment(appointment) === targetZoneId
+      );
+      const zoneCount = zoneAppointments.length;
+      const isBlockedBySchedule = isTimeBlockedByBusinessRules(date, time);
+      const isParking = targetZoneId === 'estacionamento';
+      const isFull = Boolean(targetZoneId)
+        && !isParking
+        && zoneCount >= (targetZoneId === 'dique_pesada' ? 2 : 3);
+
+      return {
+        count: zoneCount,
+        truckCount: zoneAppointments.filter((appointment) => isTruckType(resolveAppointmentVehicleType(appointment))).length,
+        otherCount: zoneAppointments.filter((appointment) => !isTruckType(resolveAppointmentVehicleType(appointment))).length,
+        isFull,
+        isPast: false,
+        isBlockedBySchedule,
+        capacityLabel: targetZoneId ? getTarumaZoneLabel(targetZoneId) : 'Selecione a area',
+      };
+    }
+
     const truckCount = sameSlotAppointments.filter(appointment => isTruckType(resolveAppointmentVehicleType(appointment))).length;
     const otherCount = sameSlotAppointments.length - truckCount;
     const totalCount = sameSlotAppointments.length;
@@ -403,6 +484,7 @@ export default function Scheduling({
       isFull,
       isPast: false,
       isBlockedBySchedule,
+      capacityLabel: 'Capacidade padrao',
     };
   };
 
@@ -426,6 +508,11 @@ export default function Scheduling({
 
     if (!appointmentBaseId) {
       alert('Selecione a base do agendamento.');
+      return;
+    }
+
+    if (isTarumaBase(appointmentBaseId) && !appointmentWashingZoneId) {
+      alert('Selecione a area de lavagem da Base Taruma.');
       return;
     }
 
@@ -453,7 +540,7 @@ export default function Scheduling({
       return;
     }
 
-    const { isFull, isBlockedBySchedule } = getSlotStatus(appointmentDate, selectedTime, vehicleType);
+    const { isFull, isBlockedBySchedule } = getSlotStatus(appointmentDate, selectedTime, vehicleType, appointmentWashingZoneId);
     if (isFull) {
       alert('Este horario esta lotado.');
       return;
@@ -468,6 +555,7 @@ export default function Scheduling({
     const selectedService = formData.get('service') as string;
 
     const appointmentBase = getBaseById(appointmentBaseId);
+    const washingZoneName = isTarumaBase(appointmentBaseId) ? getTarumaZoneLabel(appointmentWashingZoneId || undefined) : undefined;
     const newAppointment: Appointment = {
       id: generateId(),
       customer,
@@ -475,6 +563,8 @@ export default function Scheduling({
       plate,
       baseId: appointmentBaseId,
       baseName: appointmentBase?.name,
+      washingZoneId: isTarumaBase(appointmentBaseId) ? (appointmentWashingZoneId || undefined) : undefined,
+      washingZoneName,
       vehicleType,
       service: selectedService,
       date: appointmentDate,
@@ -491,6 +581,8 @@ export default function Scheduling({
       type: newAppointment.service,
       baseId: appointmentBaseId || undefined,
       baseName: appointmentBase?.name || undefined,
+      washingZoneId: isTarumaBase(appointmentBaseId) ? (appointmentWashingZoneId || undefined) : undefined,
+      washingZoneName,
       scheduledDate: newAppointment.date,
       scheduledTime: newAppointment.time,
       status: 'pending',
@@ -726,6 +818,11 @@ export default function Scheduling({
                           {appointment.baseName}
                         </span>
                       )}
+                      {appointment.washingZoneName && (
+                        <span className="ml-2 text-[10px] font-black uppercase tracking-widest text-sky-700 bg-sky-50 px-2 py-0.5 rounded border border-sky-100">
+                          {appointment.washingZoneName}
+                        </span>
+                      )}
                     </div>
                   </div>
 
@@ -830,6 +927,26 @@ export default function Scheduling({
                       </select>
                     </div>
 
+                    {isTarumaBase(appointmentBaseId) && (
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400 ml-1">Area de lavagem</label>
+                        <select
+                          name="washingZone"
+                          value={appointmentWashingZoneId}
+                          onChange={(event) => setAppointmentWashingZoneId(event.target.value as WashingZoneId)}
+                          className="w-full h-14 px-4 bg-slate-50 border border-slate-100 rounded-2xl focus:border-primary outline-none appearance-none text-slate-900"
+                          required
+                        >
+                          <option value="" disabled>Selecione a area</option>
+                          {TARUMA_ZONE_RULES.map((zone) => (
+                            <option key={zone.id} value={zone.id} disabled={!zone.accepts(vehicleType)}>
+                              {zone.label} - {zone.capacityLabel}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
+
                     <div className="bg-emerald-50 border border-emerald-100 rounded-2xl p-4 space-y-3">
                       <div className="flex items-center gap-2 text-emerald-600 mb-2">
                         <CheckCircle2 className="w-5 h-5" />
@@ -856,6 +973,12 @@ export default function Scheduling({
                           <p className="text-[10px] font-bold uppercase tracking-widest text-emerald-600/60">Filial de Lavagem</p>
                           <p className="font-bold text-emerald-900">{getBaseById(appointmentBaseId)?.name || 'Nao selecionada'}</p>
                         </div>
+                        {isTarumaBase(appointmentBaseId) && (
+                          <div>
+                            <p className="text-[10px] font-bold uppercase tracking-widest text-emerald-600/60">Area</p>
+                            <p className="font-bold text-emerald-900">{appointmentWashingZoneId ? getTarumaZoneLabel(appointmentWashingZoneId) : 'Nao selecionada'}</p>
+                          </div>
+                        )}
                       </div>
 
                       {isThirdParty && (
@@ -892,8 +1015,9 @@ export default function Scheduling({
                         <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400 ml-1">Hora</label>
                         <div className="grid grid-cols-3 gap-2">
                           {TIME_SLOTS.map(time => {
-                            const { isFull, isPast, count, truckCount, otherCount, isBlockedBySchedule } = getSlotStatus(appointmentDate, time, vehicleType);
+                            const { isFull, count, truckCount, otherCount, isBlockedBySchedule } = getSlotStatus(appointmentDate, time, vehicleType, appointmentWashingZoneId);
                             const isSelected = selectedTime === time;
+                            const requiresTarumaZone = isTarumaBase(appointmentBaseId) && !appointmentWashingZoneId;
 
                             return (
                               <button
@@ -910,12 +1034,19 @@ export default function Scheduling({
                                     return;
                                   }
 
+                                  if (requiresTarumaZone) {
+                                    alert('Selecione a area de lavagem da Base Taruma antes de escolher o horario.');
+                                    return;
+                                  }
+
                                   if (isFull) {
-                                    alert(
-                                      vehicleType === 'truck'
-                                        ? 'Horario sem vaga para caminhao. Limite: 2 caminhoes e 5 veiculos no total por horario.'
-                                        : 'Horario sem vaga para este tipo de veiculo. Limite: 3 veiculos leves e 5 veiculos no total por horario.'
-                                    );
+                                    alert(isTarumaBase(appointmentBaseId)
+                                      ? `Horario sem vaga para ${getTarumaZoneLabel(appointmentWashingZoneId || undefined)}.`
+                                      : (
+                                        vehicleType === 'truck'
+                                          ? 'Horario sem vaga para caminhao. Limite: 2 caminhoes e 5 veiculos no total por horario.'
+                                          : 'Horario sem vaga para este tipo de veiculo. Limite: 3 veiculos leves e 5 veiculos no total por horario.'
+                                      ));
                                     return;
                                   }
 
@@ -926,19 +1057,27 @@ export default function Scheduling({
                                     ? 'bg-primary text-white shadow-lg shadow-primary/30 scale-105'
                                     : isBlockedBySchedule
                                       ? 'bg-slate-50 text-slate-300 border border-slate-100 cursor-not-allowed'
+                                      : requiresTarumaZone
+                                        ? 'bg-slate-50 text-slate-300 border border-slate-100 cursor-not-allowed'
                                       : isFull
-                                      ? 'bg-rose-50 text-rose-300 border border-rose-100 cursor-not-allowed'
-                                      : 'bg-white border border-slate-200 text-slate-600 hover:border-primary hover:text-primary'
+                                        ? 'bg-rose-50 text-rose-300 border border-rose-100 cursor-not-allowed'
+                                        : 'bg-white border border-slate-200 text-slate-600 hover:border-primary hover:text-primary'
                                 }`}
                               >
                                 <span className="block">{time}</span>
-                                <span className="block text-[8px] font-medium opacity-70">C{truckCount}/2 O{otherCount}/3</span>
-                                {(isFull || isBlockedBySchedule) && (
+                                <span className="block text-[8px] font-medium opacity-70">
+                                  {isTarumaBase(appointmentBaseId)
+                                    ? (appointmentWashingZoneId === 'estacionamento'
+                                      ? `Livre ${count}`
+                                      : `${count}/${appointmentWashingZoneId === 'dique_pesada' ? 2 : 3}`)
+                                    : `C${truckCount}/2 O${otherCount}/3`}
+                                </span>
+                                {(isFull || isBlockedBySchedule || requiresTarumaZone) && (
                                   <span className="absolute -top-1 -right-1 w-4 h-4 bg-rose-500 text-white text-[10px] flex items-center justify-center rounded-full border border-white shadow-sm">
                                     !
                                   </span>
                                 )}
-                                {!isFull && !isBlockedBySchedule && count > 0 && (
+                                {!isFull && !isBlockedBySchedule && !requiresTarumaZone && count > 0 && (
                                   <span className="absolute -top-1 -right-1 w-4 h-4 bg-amber-500 text-white text-[8px] flex items-center justify-center rounded-full border border-white">
                                     {count}
                                   </span>
@@ -951,7 +1090,9 @@ export default function Scheduling({
                     </div>
 
                     <div className="rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3 text-[10px] font-bold uppercase tracking-wider text-slate-500">
-                      Capacidade por horario: 2 caminhoes, 3 outros veiculos, 5 vagas totais.
+                      {isTarumaBase(appointmentBaseId)
+                        ? 'Base Taruma: Dique Leve 3 carros por hora, Dique Pesada 2 caminhoes por hora e Estacionamentos sem limite.'
+                        : 'Capacidade por horario: 2 caminhoes, 3 outros veiculos, 5 vagas totais.'}
                     </div>
 
                     {isSundayDate(appointmentDate) && (
@@ -1293,6 +1434,9 @@ export function QueueSection({
                           <WashingMachine className="text-primary w-3.5 h-3.5" />
                           <p className="text-[10px] font-bold text-slate-600 truncate">{service.type}</p>
                         </div>
+                        {service.washingZoneName && (
+                          <p className="mt-1 text-[10px] font-bold text-sky-700">{service.washingZoneName}</p>
+                        )}
                       </div>
                     </div>
                   </div>

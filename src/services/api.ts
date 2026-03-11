@@ -1,4 +1,4 @@
-import { Product, RoleAccessRule, Service, TeamMember, VehicleCategory, VehicleRegistration, VehicleType } from '../types';
+import { Product, RoleAccessRule, Service, TeamMember, VehicleCategory, VehicleRegistration, VehicleType, WashingZoneId } from '../types';
 
 const AUTH_TOKEN_KEY = 'authToken';
 
@@ -9,6 +9,8 @@ export interface Appointment {
   plate: string;
   baseId?: string;
   baseName?: string;
+  washingZoneId?: WashingZoneId;
+  washingZoneName?: string;
   vehicleType?: VehicleType;
   service: string;
   date: string;

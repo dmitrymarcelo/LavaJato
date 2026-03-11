@@ -17,7 +17,7 @@ import {
   Target,
   TrendingUp,
 } from 'lucide-react';
-import { motion } from 'motion/react';
+import { motion } from '../lib/motion';
 import { Screen, Service, TeamMember } from '../types';
 import { addDays, getElapsedMinutes, getTodayDate } from '../utils/app';
 import { getWeatherRecommendation } from '../services/geminiService';

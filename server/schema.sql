@@ -52,6 +52,8 @@ CREATE TABLE IF NOT EXISTS services (
     type TEXT NOT NULL,
     base_id TEXT,
     base_name TEXT,
+    washing_zone_id TEXT,
+    washing_zone_name TEXT,
     scheduled_date DATE,
     scheduled_time TIME,
     status TEXT NOT NULL,
@@ -80,6 +82,12 @@ ALTER TABLE services
     ADD COLUMN IF NOT EXISTS base_name TEXT;
 
 ALTER TABLE services
+    ADD COLUMN IF NOT EXISTS washing_zone_id TEXT;
+
+ALTER TABLE services
+    ADD COLUMN IF NOT EXISTS washing_zone_name TEXT;
+
+ALTER TABLE services
     ADD COLUMN IF NOT EXISTS timeline JSONB NOT NULL DEFAULT '{}'::jsonb;
 
 ALTER TABLE services
@@ -98,6 +106,8 @@ CREATE TABLE IF NOT EXISTS appointments (
     plate TEXT NOT NULL,
     base_id TEXT,
     base_name TEXT,
+    washing_zone_id TEXT,
+    washing_zone_name TEXT,
     vehicle_type TEXT,
     service TEXT NOT NULL,
     date DATE NOT NULL,
@@ -118,6 +128,12 @@ ALTER TABLE appointments
 
 ALTER TABLE appointments
     ADD COLUMN IF NOT EXISTS base_name TEXT;
+
+ALTER TABLE appointments
+    ADD COLUMN IF NOT EXISTS washing_zone_id TEXT;
+
+ALTER TABLE appointments
+    ADD COLUMN IF NOT EXISTS washing_zone_name TEXT;
 
 CREATE TABLE IF NOT EXISTS auth_sessions (
     token TEXT PRIMARY KEY,

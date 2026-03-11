@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { motion } from 'motion/react';
+import { motion } from '../lib/motion';
 import { Lock, Mail, ArrowRight, CheckCircle2 } from 'lucide-react';
 import { digitsOnly, validateStrongPassword } from '../utils/app';
 

@@ -5,7 +5,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { Camera, CheckCircle2, Lock, Info, RefreshCw, ChevronLeft, PlayCircle, AlertCircle, Upload, X } from 'lucide-react';
-import { motion } from 'motion/react';
+import { motion } from '../lib/motion';
 import { Screen, Service, TeamMember } from '../types';
 import { formatElapsedMinutes, normalizeDateKey, optimizeImageFile } from '../utils/app';
 import ModalSurface from './ModalSurface';

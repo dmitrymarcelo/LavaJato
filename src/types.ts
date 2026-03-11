@@ -75,6 +75,8 @@ export interface Service {
   type: string;
   baseId?: string;
   baseName?: string;
+  washingZoneId?: WashingZoneId;
+  washingZoneName?: string;
   scheduledDate?: string;
   scheduledTime?: string;
   status: 'pending' | 'in_progress' | 'completed' | 'waiting_payment' | 'no_show';
@@ -180,6 +182,7 @@ export interface VehicleCategory {
 }
 
 export type VehicleType = 'car' | 'motorcycle' | 'truck' | 'boat' | 'pickup_4x4';
+export type WashingZoneId = 'dique_leve' | 'dique_pesada' | 'estacionamento';
 
 export interface VehicleRegistration {
   plate: string;

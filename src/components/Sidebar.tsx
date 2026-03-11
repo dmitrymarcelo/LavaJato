@@ -9,7 +9,7 @@ import {
   Package,
   Droplets
 } from 'lucide-react';
-import { motion } from 'motion/react';
+import { motion } from '../lib/motion';
 import { Screen, TeamMember } from '../types';
 
 interface SidebarProps {

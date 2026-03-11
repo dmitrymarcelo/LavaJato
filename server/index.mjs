@@ -16,6 +16,11 @@ const app = express();
 const port = Number(process.env.API_PORT || 4000);
 const authSessionDays = Number(process.env.AUTH_SESSION_DAYS || 7);
 const ALL_BASE_IDS = ['flores', 'sao-jose', 'cidade-nova', 'ponta-negra', 'taruma'];
+const TARUMA_ZONE_NAMES = {
+  dique_leve: 'Dique Leve',
+  dique_pesada: 'Dique Pesada',
+  estacionamento: 'Estacionamentos',
+};
 
 app.use(cors());
 app.use(express.json({ limit: '80mb' }));
@@ -127,6 +132,8 @@ function toCamelService(row, options = {}) {
     type: row.type,
     baseId: row.base_id,
     baseName: row.base_name,
+    washingZoneId: row.washing_zone_id,
+    washingZoneName: row.washing_zone_name,
     scheduledDate: toDateKey(row.scheduled_date),
     scheduledTime: row.scheduled_time?.slice?.(0, 5) || row.scheduled_time,
     status: row.status,
@@ -184,6 +191,8 @@ function toCamelAppointment(row) {
     plate: row.plate,
     baseId: row.base_id,
     baseName: row.base_name,
+    washingZoneId: row.washing_zone_id,
+    washingZoneName: row.washing_zone_name,
     vehicleType: row.vehicle_type,
     service: row.service,
     date: toDateKey(row.date),
@@ -241,15 +250,48 @@ function assertCarryOverObservation(service) {
   throw error;
 }
 
+function normalizeTarumaZone(baseId, vehicleType, washingZoneId) {
+  if (baseId !== 'taruma') {
+    return {
+      washingZoneId: null,
+      washingZoneName: null,
+    };
+  }
+
+  const normalizedZoneId = String(washingZoneId || '').trim();
+  if (!normalizedZoneId || !TARUMA_ZONE_NAMES[normalizedZoneId]) {
+    const error = new Error('Selecione a area de lavagem da Base Taruma.');
+    error.statusCode = 400;
+    throw error;
+  }
+
+  if (normalizedZoneId === 'dique_pesada' && vehicleType !== 'truck') {
+    const error = new Error('Dique Pesada da Base Taruma atende somente caminhoes.');
+    error.statusCode = 400;
+    throw error;
+  }
+
+  if (normalizedZoneId === 'dique_leve' && vehicleType === 'truck') {
+    const error = new Error('Caminhoes devem ser direcionados para Dique Pesada ou Estacionamentos.');
+    error.statusCode = 400;
+    throw error;
+  }
+
+  return {
+    washingZoneId: normalizedZoneId,
+    washingZoneName: TARUMA_ZONE_NAMES[normalizedZoneId],
+  };
+}
+
 async function upsertServiceRow(service, executor = query) {
   assertCarryOverObservation(service);
 
   await executor(
     `
     INSERT INTO services (
-      id, sort_order, plate, model, type, base_id, base_name, scheduled_date, scheduled_time, status, price, priority, customer,
+      id, sort_order, plate, model, type, base_id, base_name, washing_zone_id, washing_zone_name, scheduled_date, scheduled_time, status, price, priority, customer,
       third_party_name, third_party_cpf, observations, washer, washers, timeline, pre_inspection_photos, post_inspection_photos, start_time, end_time, image, updated_at
-    ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18::jsonb,$19::jsonb,$20::jsonb,$21::jsonb,$22,$23,$24,NOW())
+    ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20::jsonb,$21::jsonb,$22::jsonb,$23::jsonb,$24,$25,$26,NOW())
     ON CONFLICT (id) DO UPDATE SET
       sort_order = EXCLUDED.sort_order,
       plate = EXCLUDED.plate,
@@ -257,6 +299,8 @@ async function upsertServiceRow(service, executor = query) {
       type = EXCLUDED.type,
       base_id = EXCLUDED.base_id,
       base_name = EXCLUDED.base_name,
+      washing_zone_id = EXCLUDED.washing_zone_id,
+      washing_zone_name = EXCLUDED.washing_zone_name,
       scheduled_date = EXCLUDED.scheduled_date,
       scheduled_time = EXCLUDED.scheduled_time,
       status = EXCLUDED.status,
@@ -284,6 +328,8 @@ async function upsertServiceRow(service, executor = query) {
       service.type,
       service.baseId || null,
       service.baseName || null,
+      service.washingZoneId || null,
+      service.washingZoneName || null,
       service.scheduledDate || null,
       service.scheduledTime || null,
       service.status,
@@ -494,6 +540,8 @@ async function getSessionUser(token) {
 }
 
 async function upsertAppointmentRow(appointment, executor = query) {
+  const normalizedTarumaZone = normalizeTarumaZone(appointment.baseId || null, appointment.vehicleType || null, appointment.washingZoneId);
+
   const duplicate = await executor(
     `
     SELECT id
@@ -518,14 +566,16 @@ async function upsertAppointmentRow(appointment, executor = query) {
     await executor(
       `
       INSERT INTO appointments (
-        id, customer, vehicle, plate, base_id, base_name, vehicle_type, service, date, time, status, photo, third_party_name, third_party_cpf, updated_at
-      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,NOW())
+        id, customer, vehicle, plate, base_id, base_name, washing_zone_id, washing_zone_name, vehicle_type, service, date, time, status, photo, third_party_name, third_party_cpf, updated_at
+      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,NOW())
       ON CONFLICT (id) DO UPDATE SET
         customer = EXCLUDED.customer,
         vehicle = EXCLUDED.vehicle,
         plate = EXCLUDED.plate,
         base_id = EXCLUDED.base_id,
         base_name = EXCLUDED.base_name,
+        washing_zone_id = EXCLUDED.washing_zone_id,
+        washing_zone_name = EXCLUDED.washing_zone_name,
         vehicle_type = EXCLUDED.vehicle_type,
         service = EXCLUDED.service,
         date = EXCLUDED.date,
@@ -543,6 +593,8 @@ async function upsertAppointmentRow(appointment, executor = query) {
         appointment.plate,
         appointment.baseId || null,
         appointment.baseName || null,
+        normalizedTarumaZone.washingZoneId,
+        normalizedTarumaZone.washingZoneName,
         appointment.vehicleType || null,
         appointment.service,
         appointment.date,

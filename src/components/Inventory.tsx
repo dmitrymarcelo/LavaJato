@@ -13,7 +13,7 @@ import {
   MinusCircle,
   PlusCircle,
 } from 'lucide-react';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion, AnimatePresence } from '../lib/motion';
 import { Screen, Product, ProductMovement } from '../types';
 import { generateId, getTodayDate } from '../utils/app';
 import ModalSurface from './ModalSurface';

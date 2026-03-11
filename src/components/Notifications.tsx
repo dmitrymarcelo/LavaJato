@@ -1,5 +1,5 @@
 import React from 'react';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion, AnimatePresence } from '../lib/motion';
 import { Bell, Check, Trash2, X, Info, CheckCircle2, AlertTriangle, AlertCircle } from 'lucide-react';
 import { Notification } from '../types';
 
