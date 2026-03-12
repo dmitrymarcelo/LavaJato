@@ -82,6 +82,10 @@ async function syncAppointmentStatuses(executor = query) {
              AND COALESCE(s.base_id, '') = COALESCE(a.base_id, '')
            )
         ORDER BY
+          CASE
+            WHEN s.id = a.id THEN 0
+            ELSE 1
+          END,
           CASE s.status
             WHEN 'pending' THEN 1
             WHEN 'in_progress' THEN 2
