@@ -22,7 +22,7 @@ import ModalSurface from './components/ModalSurface';
 import Notifications from './components/Notifications';
 import Scheduling, { QueueSection } from './components/Scheduling';
 import { getElapsedMinutes, getServicePreviewImage, getTodayDate, normalizeDateKey } from './utils/app';
-import { api, ApiError, Appointment } from './services/api';
+import { api, ApiError, Appointment, UNAUTHORIZED_SESSION_EVENT } from './services/api';
 import { BASES, getBaseById } from './data/bases';
 
 const LEGACY_STORAGE_KEYS = ['bootstrapCacheV2', 'bootstrapCacheV3', 'vehicleDbCacheV1', 'authUserV1', 'selectedBase', 'activeServiceId', 'access_rules', 'appCacheVersion', 'authToken'];
@@ -154,6 +154,18 @@ export default function App() {
   useEffect(() => {
     api.setAuthToken(authToken);
   }, [authToken]);
+
+  useEffect(() => {
+    const handleUnauthorizedEvent = () => {
+      handleUnauthorizedSession();
+    };
+
+    window.addEventListener(UNAUTHORIZED_SESSION_EVENT, handleUnauthorizedEvent as EventListener);
+
+    return () => {
+      window.removeEventListener(UNAUTHORIZED_SESSION_EVENT, handleUnauthorizedEvent as EventListener);
+    };
+  }, []);
 
   useEffect(() => {
     document.documentElement.classList.remove('dark');
@@ -434,7 +446,10 @@ export default function App() {
   const handlePersistenceError = async (error: any, fallbackMessage: string) => {
     console.error(error);
 
-    if (error instanceof ApiError && error.status === 401) {
+    if (
+      (error instanceof ApiError && error.status === 401)
+      || String(error?.message || '').toLowerCase().includes('sessao expirou')
+    ) {
       handleUnauthorizedSession();
       return;
     }
@@ -923,27 +938,8 @@ export default function App() {
       return;
     }
 
-    const nowIso = new Date().toISOString();
-    let hasServiceChanges = false;
     let hasAppointmentChanges = false;
-
-    const nextServices = services.map((service) => {
-      if (normalizeDateKey(service.scheduledDate || currentDateKey) < currentDateKey && service.status === 'pending') {
-        hasServiceChanges = true;
-        return {
-          ...service,
-          status: 'no_show' as const,
-          timeline: {
-            ...(service.timeline || {}),
-            noShowAt: service.timeline?.noShowAt || nowIso,
-          },
-        };
-      }
-
-      return service;
-    });
-
-    const serviceMap = new Map<string, Service>(nextServices.map((service) => [service.id, service]));
+    const serviceMap = new Map<string, Service>(services.map((service) => [service.id, service]));
     const nextAppointments = appointments.map((appointment) => {
       const relatedService = serviceMap.get(appointment.id);
       if (relatedService?.status === 'completed' && appointment.status !== 'completed') {
@@ -962,31 +958,35 @@ export default function App() {
         };
       }
 
-      if (relatedService && ['in_progress', 'waiting_payment'].includes(relatedService.status) && appointment.status !== 'pending') {
+      if (relatedService?.status === 'in_progress' && appointment.status !== 'in_progress') {
         hasAppointmentChanges = true;
         return {
           ...appointment,
-          status: 'pending' as const,
+          status: 'in_progress' as const,
         };
       }
 
-      if (normalizeDateKey(appointment.date) < currentDateKey && !['completed', 'cancelled', 'no_show'].includes(appointment.status)) {
+      if (relatedService?.status === 'waiting_payment' && appointment.status !== 'waiting_payment') {
         hasAppointmentChanges = true;
         return {
           ...appointment,
-          status: 'no_show' as const,
+          status: 'waiting_payment' as const,
+        };
+      }
+
+      if (relatedService?.status === 'pending' && !ACTIVE_SCHEDULING_APPOINTMENT_STATUSES.includes(appointment.status)) {
+        hasAppointmentChanges = true;
+        return {
+          ...appointment,
+          status: 'confirmed' as const,
         };
       }
 
       return appointment;
     });
 
-    if (!hasServiceChanges && !hasAppointmentChanges) {
+    if (!hasAppointmentChanges) {
       return;
-    }
-
-    if (hasServiceChanges) {
-      void persistServices(nextServices);
     }
 
     if (hasAppointmentChanges) {

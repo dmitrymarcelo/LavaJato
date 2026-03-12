@@ -48,15 +48,74 @@ async function cleanupOrphanActiveAppointments(executor = query) {
       AND NOT EXISTS (
         SELECT 1
         FROM services s
+        WHERE s.status = 'pending'
+          AND (
+            s.id = a.id
+            OR (
+              UPPER(s.plate) = UPPER(a.plate)
+              AND s.scheduled_date = a.date
+              AND s.scheduled_time = a.time
+              AND COALESCE(s.base_id, '') = COALESCE(a.base_id, '')
+            )
+          )
+      )
+    `
+  );
+}
+
+async function syncAppointmentStatuses(executor = query) {
+  await executor(
+    `
+    WITH related_services AS (
+      SELECT
+        a.id AS appointment_id,
+        related.status AS service_status
+      FROM appointments a
+      JOIN LATERAL (
+        SELECT s.status
+        FROM services s
         WHERE s.id = a.id
            OR (
-             s.status = 'pending'
-             AND UPPER(s.plate) = UPPER(a.plate)
+             UPPER(s.plate) = UPPER(a.plate)
              AND s.scheduled_date = a.date
              AND s.scheduled_time = a.time
              AND COALESCE(s.base_id, '') = COALESCE(a.base_id, '')
            )
-      )
+        ORDER BY
+          CASE s.status
+            WHEN 'pending' THEN 1
+            WHEN 'in_progress' THEN 2
+            WHEN 'waiting_payment' THEN 3
+            WHEN 'completed' THEN 4
+            WHEN 'no_show' THEN 5
+            ELSE 6
+          END,
+          s.updated_at DESC,
+          s.created_at DESC
+        LIMIT 1
+      ) AS related ON TRUE
+    )
+    UPDATE appointments a
+    SET
+      status = CASE related_services.service_status
+        WHEN 'pending' THEN CASE WHEN a.status IN ('confirmed', 'pending') THEN a.status ELSE 'confirmed' END
+        WHEN 'in_progress' THEN 'in_progress'
+        WHEN 'waiting_payment' THEN 'waiting_payment'
+        WHEN 'completed' THEN 'completed'
+        WHEN 'no_show' THEN 'no_show'
+        ELSE a.status
+      END,
+      updated_at = NOW()
+    FROM related_services
+    WHERE a.id = related_services.appointment_id
+      AND a.status IS DISTINCT FROM CASE related_services.service_status
+        WHEN 'pending' THEN CASE WHEN a.status IN ('confirmed', 'pending') THEN a.status ELSE 'confirmed' END
+        WHEN 'in_progress' THEN 'in_progress'
+        WHEN 'waiting_payment' THEN 'waiting_payment'
+        WHEN 'completed' THEN 'completed'
+        WHEN 'no_show' THEN 'no_show'
+        ELSE a.status
+      END
     `
   );
 }
@@ -1038,6 +1097,7 @@ app.get('/api/assistant/weather', async (req, res) => {
 });
 
 app.get('/api/bootstrap', async (req, res) => {
+  await syncAppointmentStatuses();
   await cleanupOrphanActiveAppointments();
   const baseFilter = getBaseFilterForUser(req.user);
   const [serviceTypesResult, accessRulesResult, servicesResult, appointmentsResult, productsResult, teamResult] = await Promise.all([
@@ -1431,6 +1491,7 @@ app.delete('/api/services/:id', async (req, res) => {
 });
 
 app.get('/api/appointments', async (req, res) => {
+  await syncAppointmentStatuses();
   await cleanupOrphanActiveAppointments();
   const result = await query('SELECT * FROM appointments ORDER BY date DESC, time DESC');
   const baseFilter = getBaseFilterForUser(req.user);

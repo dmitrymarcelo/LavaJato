@@ -302,10 +302,10 @@ export default function Scheduling({
       && Boolean(relatedService);
   });
 
-  const waitingServices = services.filter(service => service.status === 'pending' && normalizeDateKey(service.scheduledDate) === currentDateKey && (!selectedBaseId || service.baseId === selectedBaseId));
-  const washingServices = services.filter(service => service.status === 'in_progress' && normalizeDateKey(service.scheduledDate) === currentDateKey && (!selectedBaseId || service.baseId === selectedBaseId));
+  const waitingServices = services.filter(service => service.status === 'pending' && normalizeDateKey(service.scheduledDate) === filterDate && (!selectedBaseId || service.baseId === selectedBaseId));
+  const washingServices = services.filter(service => service.status === 'in_progress' && normalizeDateKey(service.scheduledDate) === filterDate && (!selectedBaseId || service.baseId === selectedBaseId));
   const completedServices = services.filter(
-    service => (service.status === 'waiting_payment' || service.status === 'completed') && normalizeDateKey(service.scheduledDate) === currentDateKey && (!selectedBaseId || service.baseId === selectedBaseId)
+    service => (service.status === 'waiting_payment' || service.status === 'completed') && normalizeDateKey(service.scheduledDate) === filterDate && (!selectedBaseId || service.baseId === selectedBaseId)
   );
 
   const timers = Object.fromEntries(
@@ -838,42 +838,40 @@ export default function Scheduling({
         </div>
       </nav>
 
-      {activeTab === 'appointments' && (
-        <div className="flex items-center gap-3 px-4 py-4 overflow-x-auto no-scrollbar">
-          <button
-            onClick={() => setIsCalendarOpen(true)}
-            className="relative shrink-0 flex flex-col items-center justify-center min-w-[72px] h-[84px] p-4 rounded-2xl border transition-all active:scale-95 bg-primary border-primary text-white shadow-xl shadow-primary/20"
-          >
-            <>
-              <span className="text-[10px] font-bold uppercase tracking-widest opacity-70 mb-1">
-                {new Date(`${filterDate}T00:00:00`).toLocaleDateString('pt-BR', { weekday: 'short' })}
-              </span>
-              <span className="text-xl font-black">{new Date(`${filterDate}T00:00:00`).getDate()}</span>
-            </>
-          </button>
+      <div className="flex items-center gap-3 px-4 py-4 overflow-x-auto no-scrollbar">
+        <button
+          onClick={() => setIsCalendarOpen(true)}
+          className="relative shrink-0 flex flex-col items-center justify-center min-w-[72px] h-[84px] p-4 rounded-2xl border transition-all active:scale-95 bg-primary border-primary text-white shadow-xl shadow-primary/20"
+        >
+          <>
+            <span className="text-[10px] font-bold uppercase tracking-widest opacity-70 mb-1">
+              {new Date(`${filterDate}T00:00:00`).toLocaleDateString('pt-BR', { weekday: 'short' })}
+            </span>
+            <span className="text-xl font-black">{new Date(`${filterDate}T00:00:00`).getDate()}</span>
+          </>
+        </button>
 
-          {Array.from({ length: 7 }, (_, index) => addDays(currentDateKey, index)).map((date, index) => (
-            <button
-              key={date}
-              onClick={() => setFilterDate(date)}
-              className={`flex flex-col items-center min-w-[72px] p-4 rounded-2xl border transition-all active:scale-95 ${
-                filterDate === date
-                  ? 'bg-primary border-primary text-white shadow-xl shadow-primary/20'
-                  : 'bg-white border-slate-100 text-slate-600 shadow-sm'
-              }`}
-            >
-              <span className="text-[10px] font-bold uppercase tracking-widest opacity-70 mb-1">
-                {index === 0 ? 'Hoje' : new Date(`${date}T00:00:00`).toLocaleDateString('pt-BR', { weekday: 'short' })}
-              </span>
-              <span className="text-xl font-black">
-                {index === 0
-                  ? new Date(`${date}T00:00:00`).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })
-                  : new Date(`${date}T00:00:00`).getDate()}
-              </span>
-            </button>
-          ))}
-        </div>
-      )}
+        {Array.from({ length: 7 }, (_, index) => addDays(currentDateKey, index)).map((date, index) => (
+          <button
+            key={date}
+            onClick={() => setFilterDate(date)}
+            className={`flex flex-col items-center min-w-[72px] p-4 rounded-2xl border transition-all active:scale-95 ${
+              filterDate === date
+                ? 'bg-primary border-primary text-white shadow-xl shadow-primary/20'
+                : 'bg-white border-slate-100 text-slate-600 shadow-sm'
+            }`}
+          >
+            <span className="text-[10px] font-bold uppercase tracking-widest opacity-70 mb-1">
+              {index === 0 ? 'Hoje' : new Date(`${date}T00:00:00`).toLocaleDateString('pt-BR', { weekday: 'short' })}
+            </span>
+            <span className="text-xl font-black">
+              {index === 0
+                ? new Date(`${date}T00:00:00`).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })
+                : new Date(`${date}T00:00:00`).getDate()}
+            </span>
+          </button>
+        ))}
+      </div>
 
       <div className="px-4 space-y-4 mt-2">
         <AnimatePresence mode="wait">
@@ -1760,6 +1758,8 @@ function StatusSelector({
   const configs = {
     confirmed: { color: 'text-emerald-500', bg: 'bg-emerald-50', icon: <CheckCircle2 className="w-3 h-3" />, label: 'Confirmado' },
     pending: { color: 'text-amber-500', bg: 'bg-amber-50', icon: <Clock className="w-3 h-3" />, label: 'Pendente' },
+    in_progress: { color: 'text-blue-500', bg: 'bg-blue-50', icon: <PlayCircle className="w-3 h-3" />, label: 'Em lavagem' },
+    waiting_payment: { color: 'text-violet-500', bg: 'bg-violet-50', icon: <Clock className="w-3 h-3" />, label: 'Pagamento' },
     cancelled: { color: 'text-rose-500', bg: 'bg-rose-50', icon: <AlertCircle className="w-3 h-3" />, label: 'Cancelado' },
     completed: { color: 'text-blue-500', bg: 'bg-blue-50', icon: <CheckCircle2 className="w-3 h-3" />, label: 'Finalizado' },
     no_show: { color: 'text-rose-500', bg: 'bg-rose-50', icon: <AlertCircle className="w-3 h-3" />, label: 'Nao compareceu' },

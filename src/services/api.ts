@@ -1,6 +1,7 @@
 import { Product, RoleAccessRule, Service, TeamMember, VehicleCategory, VehicleRegistration, VehicleType, WashingZoneId } from '../types';
 
 const AUTH_TOKEN_KEY = 'authToken';
+export const UNAUTHORIZED_SESSION_EVENT = 'app:unauthorized-session';
 
 export interface Appointment {
   id: string;
@@ -15,7 +16,7 @@ export interface Appointment {
   service: string;
   date: string;
   time: string;
-  status: 'confirmed' | 'pending' | 'cancelled' | 'completed' | 'no_show';
+  status: 'confirmed' | 'pending' | 'in_progress' | 'waiting_payment' | 'cancelled' | 'completed' | 'no_show';
   photo?: string;
   thirdPartyName?: string;
   thirdPartyCpf?: string;
@@ -111,6 +112,16 @@ function storeAuthToken(token: string | null) {
   } catch (error) {}
 }
 
+function dispatchUnauthorizedSession(message: string) {
+  try {
+    window.dispatchEvent(new CustomEvent(UNAUTHORIZED_SESSION_EVENT, {
+      detail: {
+        message,
+      },
+    }));
+  } catch (error) {}
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const token = readStoredAuthToken();
   const headers = new Headers(init?.headers || {});
@@ -138,6 +149,11 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
       } catch (error) {
         message = raw.trim() || message;
       }
+    }
+
+    if (response.status === 401 && path !== '/auth/login') {
+      storeAuthToken(null);
+      dispatchUnauthorizedSession(message);
     }
 
     throw new ApiError(response.status, message);
