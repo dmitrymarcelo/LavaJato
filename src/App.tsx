@@ -43,10 +43,19 @@ const Inventory = lazy(() => import('./components/Inventory'));
 
 export default function App() {
   const normalizeScreen = (screen: Screen): Screen => screen === 'queue' ? 'scheduling' : screen;
-  const mergeServiceTypes = (next?: Partial<Record<VehicleType, VehicleCategory>> | null): Record<VehicleType, VehicleCategory> => ({
-    ...INITIAL_SERVICE_TYPES,
-    ...(next || {}),
-  });
+  const mergeServiceTypes = (next?: Partial<Record<VehicleType, VehicleCategory>> | null): Record<VehicleType, VehicleCategory> => {
+    const merged = {
+      ...INITIAL_SERVICE_TYPES,
+      ...(next || {}),
+    };
+
+    merged.pickup_4x4 = {
+      ...merged.pickup_4x4,
+      label: 'Picape Media',
+    };
+
+    return merged;
+  };
 
   const [currentScreen, setCurrentScreen] = useState<Screen>('dashboard');
   const [isAssistantOpen, setIsAssistantOpen] = useState(false);

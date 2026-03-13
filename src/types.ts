@@ -167,7 +167,7 @@ export const INITIAL_SERVICE_TYPES: Record<VehicleType, VehicleCategory> = {
     ],
   },
   pickup_4x4: {
-    label: 'Caminhonete 4X4',
+    label: 'Picape Media',
     services: [
       { id: 'simple', label: 'Lavagem Simples', price: 95 },
       { id: 'complete', label: 'Lavagem Completa', price: 130 },

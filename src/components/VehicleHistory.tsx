@@ -32,7 +32,7 @@ const getVehicleTypeLabel = (type?: VehicleType) => {
   if (type === 'motorcycle') return 'Moto';
   if (type === 'truck') return 'Caminhao';
   if (type === 'boat') return 'Lancha';
-  if (type === 'pickup_4x4') return 'Caminhonete 4X4';
+  if (type === 'pickup_4x4') return 'Picape Media';
   return 'Carro';
 };
 

@@ -268,7 +268,7 @@ export default function Settings({
     if (type === 'car') return 'Carro';
     if (type === 'motorcycle') return 'Moto';
     if (type === 'truck') return 'Caminhão';
-    if (type === 'pickup_4x4') return 'Caminhonete 4X4';
+    if (type === 'pickup_4x4') return 'Picape Media';
     return 'Lancha';
   };
 
@@ -427,8 +427,9 @@ export default function Settings({
         let type: VehicleType = 'car';
         if (rawType.includes('MOTO')) type = 'motorcycle';
         else if (rawType.includes('CAMINHAO') || rawType.includes('CAMINHÃO')) type = 'truck';
+        else if (rawType.includes('PICAPE') || rawType.includes('CAMINHONETE') || rawType.includes('4X4')) type = 'pickup_4x4';
         else if (rawType.includes('LANCHA') || rawType.includes('BARCO') || rawType.includes('REBOQUE')) type = 'boat';
-        // Default to car for PASSEIO, PICAPE, VAN, etc.
+        // Default to car for PASSEIO, VAN, etc.
 
         if (plate) {
           newVehicles.push({
@@ -861,11 +862,13 @@ export default function Settings({
                             <span className={`text-[10px] font-bold px-2 py-1 rounded-full uppercase ${
                               vehicle.type === 'car' ? 'bg-blue-50 text-blue-600' :
                               vehicle.type === 'motorcycle' ? 'bg-amber-50 text-amber-600' :
+                              vehicle.type === 'pickup_4x4' ? 'bg-indigo-50 text-indigo-600' :
                               vehicle.type === 'truck' ? 'bg-purple-50 text-purple-600' :
                               'bg-cyan-50 text-cyan-600'
                             }`}>
                               {vehicle.type === 'car' ? 'Carro' : 
                                vehicle.type === 'motorcycle' ? 'Moto' : 
+                               vehicle.type === 'pickup_4x4' ? 'Picape Media' :
                                vehicle.type === 'truck' ? 'Caminhão' : 'Lancha'}
                             </span>
                           </td>
@@ -1113,6 +1116,7 @@ export default function Settings({
                   >
                     <option value="car">Carro</option>
                     <option value="motorcycle">Moto</option>
+                    <option value="pickup_4x4">Picape Media</option>
                     <option value="truck">Caminhão</option>
                     <option value="boat">Lancha</option>
                   </select>
@@ -1151,7 +1155,7 @@ export default function Settings({
                   >
                     <option value="car">Carro</option>
                     <option value="motorcycle">Moto</option>
-                    <option value="pickup_4x4">Caminhonete 4X4</option>
+                    <option value="pickup_4x4">Picape Media</option>
                     <option value="boat">Lancha</option>
                     <option value="truck">Caminhão</option>
                   </select>

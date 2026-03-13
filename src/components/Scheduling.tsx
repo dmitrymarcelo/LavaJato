@@ -84,7 +84,7 @@ const isTimeBlockedByBusinessRules = (date: string, time: string) => {
 const getVehicleTypeLabel = (type: VehicleType) => {
   if (type === 'motorcycle') return 'Moto';
   if (type === 'truck') return 'Caminhao';
-  if (type === 'pickup_4x4') return 'Caminhonete 4X4';
+  if (type === 'pickup_4x4') return 'Picape Media';
   if (type === 'boat') return 'Embarcacao';
   return 'Carro';
 };
@@ -1376,7 +1376,7 @@ export default function Scheduling({
                 >
                   <option value="car">Carro</option>
                   <option value="motorcycle">Moto</option>
-                  <option value="pickup_4x4">Caminhonete 4X4</option>
+                  <option value="pickup_4x4">Picape Media</option>
                   <option value="truck">Caminhao</option>
                   <option value="boat">Lancha</option>
                 </select>

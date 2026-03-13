@@ -311,7 +311,7 @@ export default function CheckIn({
 
       <div className="flex flex-col gap-3">
         <label className="text-sm font-bold text-slate-600 ml-1 uppercase tracking-wider">Tipo de Veiculo</label>
-        <div className="grid grid-cols-4 gap-2">
+        <div className="grid grid-cols-5 gap-2">
           <button onClick={() => { setVehicleType('car'); setWashType('simple'); }} className={`flex flex-col items-center justify-center gap-2 p-3 rounded-2xl border transition-all active:scale-95 ${vehicleType === 'car' ? 'bg-primary text-white border-primary shadow-lg shadow-primary/20' : 'bg-white border-slate-200 text-slate-400'}`}>
             <Car className="w-6 h-6" />
             <span className="text-[10px] font-bold uppercase">Carro</span>
@@ -319,6 +319,10 @@ export default function CheckIn({
           <button onClick={() => { setVehicleType('motorcycle'); setWashType('simple'); }} className={`flex flex-col items-center justify-center gap-2 p-3 rounded-2xl border transition-all active:scale-95 ${vehicleType === 'motorcycle' ? 'bg-primary text-white border-primary shadow-lg shadow-primary/20' : 'bg-white border-slate-200 text-slate-400'}`}>
             <Bike className="w-6 h-6" />
             <span className="text-[10px] font-bold uppercase">Moto</span>
+          </button>
+          <button onClick={() => { setVehicleType('pickup_4x4'); setWashType('simple'); }} className={`flex flex-col items-center justify-center gap-2 p-3 rounded-2xl border transition-all active:scale-95 ${vehicleType === 'pickup_4x4' ? 'bg-primary text-white border-primary shadow-lg shadow-primary/20' : 'bg-white border-slate-200 text-slate-400'}`}>
+            <Car className="w-6 h-6" />
+            <span className="text-[10px] font-bold uppercase">Picape</span>
           </button>
           <button onClick={() => { setVehicleType('truck'); setWashType('simple'); }} className={`flex flex-col items-center justify-center gap-2 p-3 rounded-2xl border transition-all active:scale-95 ${vehicleType === 'truck' ? 'bg-primary text-white border-primary shadow-lg shadow-primary/20' : 'bg-white border-slate-200 text-slate-400'}`}>
             <Truck className="w-6 h-6" />
