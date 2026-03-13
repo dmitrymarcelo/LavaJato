@@ -3,6 +3,7 @@ import path from 'path';
 import bcrypt from 'bcryptjs';
 import { fileURLToPath } from 'url';
 import { withTransaction } from './db.mjs';
+import { mapSourceVehicleTypeToCategory, normalizeSourceVehicleType } from './vehicle-type.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -94,7 +95,15 @@ function loadVehicles() {
   if (!fs.existsSync(filePath)) {
     return [];
   }
-  return JSON.parse(fs.readFileSync(filePath, 'utf8'));
+  return JSON.parse(fs.readFileSync(filePath, 'utf8')).map((vehicle) => {
+    const sourceVehicleType = normalizeSourceVehicleType(vehicle.sourceVehicleType);
+
+    return {
+      ...vehicle,
+      sourceVehicleType: sourceVehicleType || null,
+      type: sourceVehicleType ? mapSourceVehicleTypeToCategory(sourceVehicleType) : vehicle.type,
+    };
+  });
 }
 
 export async function seedDatabase() {
@@ -165,15 +174,23 @@ export async function seedDatabase() {
       await client.query(
         `
         INSERT INTO vehicles (
-          plate, customer, model, type, city, state, last_service, third_party_name, third_party_cpf
-        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
-        ON CONFLICT (plate) DO NOTHING
+          plate, customer, model, type, source_vehicle_type, city, state, last_service, third_party_name, third_party_cpf
+        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+        ON CONFLICT (plate) DO UPDATE SET
+          customer = EXCLUDED.customer,
+          model = EXCLUDED.model,
+          type = EXCLUDED.type,
+          source_vehicle_type = EXCLUDED.source_vehicle_type,
+          city = EXCLUDED.city,
+          state = EXCLUDED.state,
+          updated_at = NOW()
         `,
         [
           vehicle.plate,
           vehicle.customer,
           vehicle.model,
           vehicle.type,
+          vehicle.sourceVehicleType || null,
           vehicle.city || null,
           vehicle.state || null,
           vehicle.lastService || null,

@@ -9,6 +9,7 @@ import compression from 'compression';
 import { pool, query, withTransaction } from './db.mjs';
 import { seedDatabase } from './seed.mjs';
 import { getAssistantTips, getAssistantWeather } from './assistant.mjs';
+import { mapSourceVehicleTypeToCategory, normalizeSourceVehicleType } from './vehicle-type.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -348,6 +349,7 @@ function toCamelVehicle(row) {
     customer: row.customer,
     model: row.model,
     type: row.type,
+    sourceVehicleType: row.source_vehicle_type,
     city: row.city,
     state: row.state,
     lastService: row.last_service,
@@ -721,15 +723,21 @@ async function upsertVehicleRow(vehicle, executor = query) {
     throw error;
   }
 
+  const sourceVehicleType = normalizeSourceVehicleType(vehicle.sourceVehicleType);
+  const normalizedType = sourceVehicleType
+    ? mapSourceVehicleTypeToCategory(sourceVehicleType)
+    : vehicle.type;
+
   await executor(
     `
     INSERT INTO vehicles (
-      plate, customer, model, type, city, state, last_service, third_party_name, third_party_cpf, updated_at
-    ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,NOW())
+      plate, customer, model, type, source_vehicle_type, city, state, last_service, third_party_name, third_party_cpf, updated_at
+    ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,NOW())
     ON CONFLICT (plate) DO UPDATE SET
       customer = EXCLUDED.customer,
       model = EXCLUDED.model,
       type = EXCLUDED.type,
+      source_vehicle_type = EXCLUDED.source_vehicle_type,
       city = EXCLUDED.city,
       state = EXCLUDED.state,
       last_service = EXCLUDED.last_service,
@@ -741,7 +749,8 @@ async function upsertVehicleRow(vehicle, executor = query) {
       plate,
       vehicle.customer,
       vehicle.model,
-      vehicle.type,
+      normalizedType,
+      sourceVehicleType || null,
       vehicle.city || null,
       vehicle.state || null,
       vehicle.lastService || null,

@@ -44,6 +44,7 @@ CREATE TABLE IF NOT EXISTS vehicles (
     customer TEXT NOT NULL,
     model TEXT NOT NULL,
     type TEXT NOT NULL,
+    source_vehicle_type TEXT,
     city TEXT,
     state TEXT,
     last_service TEXT,
@@ -52,6 +53,28 @@ CREATE TABLE IF NOT EXISTS vehicles (
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+ALTER TABLE vehicles
+    ADD COLUMN IF NOT EXISTS source_vehicle_type TEXT;
+
+UPDATE vehicles
+SET
+    type = CASE
+        WHEN UPPER(COALESCE(source_vehicle_type, '')) LIKE '%MOTO%' THEN 'motorcycle'
+        WHEN UPPER(COALESCE(source_vehicle_type, '')) LIKE '%CAMINHAO%' OR UPPER(COALESCE(source_vehicle_type, '')) LIKE '%CAMINHÃO%' THEN 'truck'
+        WHEN UPPER(COALESCE(source_vehicle_type, '')) LIKE '%PICAPE MEDIA%' OR UPPER(COALESCE(source_vehicle_type, '')) LIKE '%CAMINHONETE%' OR UPPER(COALESCE(source_vehicle_type, '')) LIKE '%4X4%' THEN 'pickup_4x4'
+        WHEN UPPER(COALESCE(source_vehicle_type, '')) LIKE '%LANCHA%' OR UPPER(COALESCE(source_vehicle_type, '')) LIKE '%BARCO%' THEN 'boat'
+        ELSE type
+    END,
+    updated_at = NOW()
+WHERE COALESCE(BTRIM(source_vehicle_type), '') <> ''
+  AND type IS DISTINCT FROM CASE
+        WHEN UPPER(COALESCE(source_vehicle_type, '')) LIKE '%MOTO%' THEN 'motorcycle'
+        WHEN UPPER(COALESCE(source_vehicle_type, '')) LIKE '%CAMINHAO%' OR UPPER(COALESCE(source_vehicle_type, '')) LIKE '%CAMINHÃO%' THEN 'truck'
+        WHEN UPPER(COALESCE(source_vehicle_type, '')) LIKE '%PICAPE MEDIA%' OR UPPER(COALESCE(source_vehicle_type, '')) LIKE '%CAMINHONETE%' OR UPPER(COALESCE(source_vehicle_type, '')) LIKE '%4X4%' THEN 'pickup_4x4'
+        WHEN UPPER(COALESCE(source_vehicle_type, '')) LIKE '%LANCHA%' OR UPPER(COALESCE(source_vehicle_type, '')) LIKE '%BARCO%' THEN 'boat'
+        ELSE type
+    END;
 
 CREATE TABLE IF NOT EXISTS services (
     id TEXT PRIMARY KEY,

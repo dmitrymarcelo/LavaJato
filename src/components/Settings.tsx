@@ -3,6 +3,7 @@ import { Shield, UserCog, CheckCircle2, XCircle, Save, Info, Lock, Eye, Edit3, T
 import { RoleAccessRule, Screen, TeamMember, VehicleCategory, VehicleType, ServiceTypeOption, VehicleRegistration } from '../types';
 import { motion, AnimatePresence } from '../lib/motion';
 import { digitsOnly, formatCpf, generateId, isValidCpf, isValidEmail, optimizeImageFile, validateStrongPassword } from '../utils/app';
+import { getSourceVehicleTypeLabel, mapSourceVehicleTypeToCategory, normalizeSourceVehicleType } from '../utils/vehicleType';
 import { BASES } from '../data/bases';
 import ModalSurface from './ModalSurface';
 
@@ -375,6 +376,7 @@ export default function Settings({
       const currentDb = vehicleDb || [];
       await onUpdateVehicleDb([...currentDb, {
         ...newVehicle,
+        sourceVehicleType: newVehicle.sourceVehicleType || getSourceVehicleTypeLabel((newVehicle.type as VehicleType) || 'car'),
         thirdPartyCpf: newVehicle.thirdPartyCpf ? digitsOnly(newVehicle.thirdPartyCpf) : undefined
       } as VehicleRegistration]);
       setIsAddingVehicle(false);
@@ -408,7 +410,8 @@ export default function Settings({
         
         // Mapping based on the provided CSV structure:
         // cod_placa is index 3 (0-based) -> "=""AAA0003"""
-        // proprietario is index 13
+        // centro_custo is index 17
+        // proprietario is index 13 (fallback only)
         // marca_modelo is index 27
         // tipo_veiculo is index 10
         // cidade is index 8
@@ -418,18 +421,13 @@ export default function Settings({
 
         // Clean up plate: remove "="" and """
         let plate = cols[3]?.replace(/[="]/g, '').trim() || '';
-        const customer = cols[13]?.replace(/["]/g, '').trim() || 'Desconhecido';
+        const customer = cols[17]?.replace(/["]/g, '').trim() || cols[13]?.replace(/["]/g, '').trim() || 'Desconhecido';
         const model = cols[27]?.replace(/["]/g, '').trim() || 'Modelo Desconhecido';
-        const rawType = cols[10]?.replace(/["]/g, '').trim().toUpperCase() || '';
+        const rawType = normalizeSourceVehicleType(cols[10]?.replace(/["]/g, '').trim());
         const city = cols[8]?.replace(/["]/g, '').trim();
         const state = cols[11]?.replace(/["]/g, '').trim();
 
-        let type: VehicleType = 'car';
-        if (rawType.includes('MOTO')) type = 'motorcycle';
-        else if (rawType.includes('CAMINHAO') || rawType.includes('CAMINHÃO')) type = 'truck';
-        else if (rawType.includes('PICAPE') || rawType.includes('CAMINHONETE') || rawType.includes('4X4')) type = 'pickup_4x4';
-        else if (rawType.includes('LANCHA') || rawType.includes('BARCO') || rawType.includes('REBOQUE')) type = 'boat';
-        // Default to car for PASSEIO, VAN, etc.
+        const type = mapSourceVehicleTypeToCategory(rawType);
 
         if (plate) {
           newVehicles.push({
@@ -437,6 +435,7 @@ export default function Settings({
             customer,
             model,
             type,
+            sourceVehicleType: rawType || undefined,
             city,
             state
           });

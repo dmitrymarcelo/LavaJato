@@ -137,6 +137,7 @@ export interface VehicleRegistration {
   customer: string;
   model: string;
   type: VehicleType;
+  sourceVehicleType?: string;
   city?: string;
   state?: string;
   lastService?: string;

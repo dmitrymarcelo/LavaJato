@@ -28,6 +28,7 @@ import { motion, AnimatePresence } from '../lib/motion';
 import { Screen, Service, TeamMember, VehicleCategory, VehicleType, VehicleRegistration, WashingZoneId } from '../types';
 import { api, ApiError, Appointment } from '../services/api';
 import { addDays, digitsOnly, formatCpf, generateId, getElapsedMinutes, getServicePreviewImage, normalizeDateKey } from '../utils/app';
+import { getSourceVehicleTypeLabel } from '../utils/vehicleType';
 import { BASES, BaseInfo, getBaseById } from '../data/bases';
 import ModalSurface from './ModalSurface';
 
@@ -413,6 +414,7 @@ export default function Scheduling({
       customer: customerLabel,
       model: clientVehicleModel.trim(),
       type: clientVehicleType,
+      sourceVehicleType: getSourceVehicleTypeLabel(clientVehicleType),
     };
 
     try {
