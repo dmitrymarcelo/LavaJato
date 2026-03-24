@@ -1697,6 +1697,17 @@ export function QueueSection({
                                 onClick={(event) => {
                                   event.stopPropagation();
                                   setOpenMenuId(null);
+                                  void openServicePhotos(service);
+                                }}
+                                className="flex w-full items-center gap-2 px-3 py-3 text-left text-xs font-bold text-slate-700 hover:bg-slate-50"
+                              >
+                                <History className="w-4 h-4 text-primary" />
+                                Fotos
+                              </button>
+                              <button
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  setOpenMenuId(null);
                                   onEdit(service);
                                 }}
                                 className="flex w-full items-center gap-2 px-3 py-3 text-left text-xs font-bold text-slate-700 hover:bg-slate-50"
