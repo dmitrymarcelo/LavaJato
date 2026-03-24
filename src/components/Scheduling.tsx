@@ -1616,16 +1616,23 @@ export function QueueSection({
                 exit={{ opacity: 0, scale: 0.95 }}
                 className="flex flex-col rounded-2xl overflow-hidden shadow-sm bg-white border border-slate-100 transition-transform hover:shadow-md"
               >
-                <div className="relative h-32 w-full bg-slate-100">
-                  <button
-                    type="button"
-                    onClick={(event) => {
+                <div
+                  className="relative h-32 w-full bg-slate-100 cursor-pointer"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    void openServicePhotos(service);
+                  }}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter' || event.key === ' ') {
+                      event.preventDefault();
                       event.stopPropagation();
                       void openServicePhotos(service);
-                    }}
-                    className="absolute inset-0 z-10 cursor-pointer"
-                    aria-label={`Ver fotos do veiculo ${service.plate}`}
-                  />
+                    }
+                  }}
+                  aria-label={`Ver fotos do veiculo ${service.plate}`}
+                >
                   {getServicePreviewImage(service) ? (
                     <img alt={service.model} className="w-full h-full object-cover" src={getServicePreviewImage(service)} />
                   ) : (
