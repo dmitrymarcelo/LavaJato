@@ -1547,6 +1547,29 @@ export function QueueSection({
   onDelete: (service: Service) => Promise<void> | void;
 }) {
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
+  const [photosModalOpen, setPhotosModalOpen] = useState(false);
+  const [photosModalLoading, setPhotosModalLoading] = useState(false);
+  const [photosModalImages, setPhotosModalImages] = useState<string[]>([]);
+  const [photosModalServiceId, setPhotosModalServiceId] = useState<string | null>(null);
+  const [photosModalTitle, setPhotosModalTitle] = useState<string>('Pre-inspecao');
+
+  const openInspectionPhotos = async (serviceId: string, kind: 'pre' | 'post') => {
+    try {
+      setPhotosModalServiceId(serviceId);
+      setPhotosModalImages([]);
+      setPhotosModalLoading(true);
+      setPhotosModalOpen(true);
+      setPhotosModalTitle(kind === 'pre' ? 'Pre-inspecao' : 'Pos-inspecao');
+      const full = await api.getService(serviceId);
+      const source = kind === 'pre' ? (full.preInspectionPhotos || {}) : (full.postInspectionPhotos || {});
+      const images = Object.values(source).filter((url) => Boolean(url));
+      setPhotosModalImages(images as string[]);
+    } catch (error) {
+      setPhotosModalImages([]);
+    } finally {
+      setPhotosModalLoading(false);
+    }
+  };
 
   return (
     <div className="space-y-3">
@@ -1588,6 +1611,40 @@ export function QueueSection({
                   ) : (
                     <div className="w-full h-full flex items-center justify-center text-slate-300">
                       <Car className="w-10 h-10" />
+                    </div>
+                  )}
+
+                  {title === 'Em Lavagem' && (
+                    <button
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        void openInspectionPhotos(service.id, 'pre');
+                      }}
+                      className="absolute bottom-2 left-2 bg-white/90 text-slate-700 px-2 py-1 rounded-lg text-[10px] font-black border border-slate-100 shadow-md active:scale-95 transition-all"
+                    >
+                      Pre-fotos
+                    </button>
+                  )}
+                  {title === 'Concluido' && (
+                    <div className="absolute bottom-2 left-2 flex items-center gap-2">
+                      <button
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          void openInspectionPhotos(service.id, 'pre');
+                        }}
+                        className="bg-white/90 text-slate-700 px-2 py-1 rounded-lg text-[10px] font-black border border-slate-100 shadow-md active:scale-95 transition-all"
+                      >
+                        Pre-fotos
+                      </button>
+                      <button
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          void openInspectionPhotos(service.id, 'post');
+                        }}
+                        className="bg-white/90 text-slate-700 px-2 py-1 rounded-lg text-[10px] font-black border border-slate-100 shadow-md active:scale-95 transition-all"
+                      >
+                        Pos-fotos
+                      </button>
                     </div>
                   )}
 
@@ -1742,6 +1799,61 @@ export function QueueSection({
           )}
         </AnimatePresence>
       </div>
+      <AnimatePresence>
+        {photosModalOpen && (
+          <ModalSurface
+            onClose={() => {
+              setPhotosModalOpen(false);
+              setPhotosModalImages([]);
+              setPhotosModalServiceId(null);
+              setPhotosModalLoading(false);
+            }}
+            position="center"
+            panelClassName="max-w-[760px] p-0 border border-slate-200/80"
+          >
+            <div className="border-b border-slate-100 bg-white px-5 py-4">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <h3 className="text-xl font-black text-slate-900">{photosModalTitle}</h3>
+                  <p className="mt-0.5 text-[11px] font-medium text-slate-400">
+                    {photosModalTitle === 'Pre-inspecao' ? 'Fotos antes da lavagem' : 'Fotos apos a lavagem'}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPhotosModalOpen(false);
+                    setPhotosModalImages([]);
+                    setPhotosModalServiceId(null);
+                    setPhotosModalLoading(false);
+                  }}
+                  className="text-slate-400 hover:text-slate-600 font-bold"
+                >
+                  Fechar
+                </button>
+              </div>
+            </div>
+            {photosModalLoading ? (
+              <div className="p-8 text-center text-sm font-bold text-slate-500">Carregando...</div>
+            ) : photosModalImages.length === 0 ? (
+              <div className="p-8 text-center text-sm text-slate-400 font-medium">Nenhuma foto de pre-inspecao.</div>
+            ) : (
+              <div className="p-5">
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                  {photosModalImages.map((url, index) => (
+                    <img
+                      key={`${photosModalServiceId}-${index}`}
+                      src={url}
+                      alt="Pre-inspecao"
+                      className="w-full h-40 object-cover rounded-xl border border-slate-100"
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
+          </ModalSurface>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
