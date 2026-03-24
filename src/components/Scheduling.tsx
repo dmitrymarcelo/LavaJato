@@ -1549,23 +1549,34 @@ export function QueueSection({
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const [photosModalOpen, setPhotosModalOpen] = useState(false);
   const [photosModalLoading, setPhotosModalLoading] = useState(false);
-  const [photosModalImages, setPhotosModalImages] = useState<string[]>([]);
+  const [photosModalPreImages, setPhotosModalPreImages] = useState<string[]>([]);
+  const [photosModalPostImages, setPhotosModalPostImages] = useState<string[]>([]);
   const [photosModalServiceId, setPhotosModalServiceId] = useState<string | null>(null);
-  const [photosModalTitle, setPhotosModalTitle] = useState<string>('Pre-inspecao');
+  const [photosModalStage, setPhotosModalStage] = useState<'pre' | 'post'>('pre');
 
-  const openInspectionPhotos = async (serviceId: string, kind: 'pre' | 'post') => {
+  const openServicePhotos = async (service: Service) => {
     try {
-      setPhotosModalServiceId(serviceId);
-      setPhotosModalImages([]);
+      setPhotosModalServiceId(service.id);
+      setPhotosModalPreImages([]);
+      setPhotosModalPostImages([]);
       setPhotosModalLoading(true);
       setPhotosModalOpen(true);
-      setPhotosModalTitle(kind === 'pre' ? 'Pre-inspecao' : 'Pos-inspecao');
-      const full = await api.getService(serviceId);
-      const source = kind === 'pre' ? (full.preInspectionPhotos || {}) : (full.postInspectionPhotos || {});
-      const images = Object.values(source).filter((url) => Boolean(url));
-      setPhotosModalImages(images as string[]);
+      const full = await api.getService(service.id);
+      const preImages = Object.values(full.preInspectionPhotos || {}).filter((url) => Boolean(url)) as string[];
+      const postImages = Object.values(full.postInspectionPhotos || {}).filter((url) => Boolean(url)) as string[];
+      setPhotosModalPreImages(preImages);
+      setPhotosModalPostImages(postImages);
+
+      const hasPre = preImages.length > 0;
+      const hasPost = postImages.length > 0;
+      const preferPost = service.status === 'completed' || service.status === 'waiting_payment';
+      const nextStage: 'pre' | 'post' = preferPost
+        ? (hasPost ? 'post' : 'pre')
+        : (hasPre ? 'pre' : 'post');
+      setPhotosModalStage(nextStage);
     } catch (error) {
-      setPhotosModalImages([]);
+      setPhotosModalPreImages([]);
+      setPhotosModalPostImages([]);
     } finally {
       setPhotosModalLoading(false);
     }
@@ -1606,45 +1617,20 @@ export function QueueSection({
                 className="flex flex-col rounded-2xl overflow-hidden shadow-sm bg-white border border-slate-100 transition-transform hover:shadow-md"
               >
                 <div className="relative h-32 w-full bg-slate-100">
+                  <button
+                    type="button"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      void openServicePhotos(service);
+                    }}
+                    className="absolute inset-0 z-10 cursor-pointer"
+                    aria-label={`Ver fotos do veiculo ${service.plate}`}
+                  />
                   {getServicePreviewImage(service) ? (
                     <img alt={service.model} className="w-full h-full object-cover" src={getServicePreviewImage(service)} />
                   ) : (
                     <div className="w-full h-full flex items-center justify-center text-slate-300">
                       <Car className="w-10 h-10" />
-                    </div>
-                  )}
-
-                  {title === 'Em Lavagem' && (
-                    <button
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        void openInspectionPhotos(service.id, 'pre');
-                      }}
-                      className="absolute bottom-2 left-2 bg-white/90 text-slate-700 px-2 py-1 rounded-lg text-[10px] font-black border border-slate-100 shadow-md active:scale-95 transition-all"
-                    >
-                      Pre-fotos
-                    </button>
-                  )}
-                  {title === 'Concluido' && (
-                    <div className="absolute bottom-2 left-2 flex items-center gap-2">
-                      <button
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          void openInspectionPhotos(service.id, 'pre');
-                        }}
-                        className="bg-white/90 text-slate-700 px-2 py-1 rounded-lg text-[10px] font-black border border-slate-100 shadow-md active:scale-95 transition-all"
-                      >
-                        Pre-fotos
-                      </button>
-                      <button
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          void openInspectionPhotos(service.id, 'post');
-                        }}
-                        className="bg-white/90 text-slate-700 px-2 py-1 rounded-lg text-[10px] font-black border border-slate-100 shadow-md active:scale-95 transition-all"
-                      >
-                        Pos-fotos
-                      </button>
                     </div>
                   )}
 
@@ -1804,7 +1790,8 @@ export function QueueSection({
           <ModalSurface
             onClose={() => {
               setPhotosModalOpen(false);
-              setPhotosModalImages([]);
+              setPhotosModalPreImages([]);
+              setPhotosModalPostImages([]);
               setPhotosModalServiceId(null);
               setPhotosModalLoading(false);
             }}
@@ -1814,16 +1801,15 @@ export function QueueSection({
             <div className="border-b border-slate-100 bg-white px-5 py-4">
               <div className="flex items-center justify-between gap-3">
                 <div>
-                  <h3 className="text-xl font-black text-slate-900">{photosModalTitle}</h3>
-                  <p className="mt-0.5 text-[11px] font-medium text-slate-400">
-                    {photosModalTitle === 'Pre-inspecao' ? 'Fotos antes da lavagem' : 'Fotos apos a lavagem'}
-                  </p>
+                  <h3 className="text-xl font-black text-slate-900">Fotos</h3>
+                  <p className="mt-0.5 text-[11px] font-medium text-slate-400">Mostra pre e pos-inspecao conforme disponivel</p>
                 </div>
                 <button
                   type="button"
                   onClick={() => {
                     setPhotosModalOpen(false);
-                    setPhotosModalImages([]);
+                    setPhotosModalPreImages([]);
+                    setPhotosModalPostImages([]);
                     setPhotosModalServiceId(null);
                     setPhotosModalLoading(false);
                   }}
@@ -1833,24 +1819,64 @@ export function QueueSection({
                 </button>
               </div>
             </div>
-            {photosModalLoading ? (
-              <div className="p-8 text-center text-sm font-bold text-slate-500">Carregando...</div>
-            ) : photosModalImages.length === 0 ? (
-              <div className="p-8 text-center text-sm text-slate-400 font-medium">Nenhuma foto de pre-inspecao.</div>
-            ) : (
-              <div className="p-5">
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                  {photosModalImages.map((url, index) => (
-                    <img
-                      key={`${photosModalServiceId}-${index}`}
-                      src={url}
-                      alt="Pre-inspecao"
-                      className="w-full h-40 object-cover rounded-xl border border-slate-100"
-                    />
-                  ))}
+            <div className="p-5 space-y-4">
+              {!photosModalLoading && (photosModalPreImages.length > 0 || photosModalPostImages.length > 0) && (
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setPhotosModalStage('pre')}
+                    disabled={photosModalPreImages.length === 0}
+                    className={`px-3 py-2 rounded-xl text-xs font-black uppercase tracking-wide border transition-all active:scale-95 ${
+                      photosModalStage === 'pre'
+                        ? 'bg-primary text-white border-primary shadow-sm'
+                        : 'bg-white text-slate-600 border-slate-200'
+                    } ${photosModalPreImages.length === 0 ? 'opacity-40 cursor-not-allowed' : ''}`}
+                  >
+                    Pre
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPhotosModalStage('post')}
+                    disabled={photosModalPostImages.length === 0}
+                    className={`px-3 py-2 rounded-xl text-xs font-black uppercase tracking-wide border transition-all active:scale-95 ${
+                      photosModalStage === 'post'
+                        ? 'bg-primary text-white border-primary shadow-sm'
+                        : 'bg-white text-slate-600 border-slate-200'
+                    } ${photosModalPostImages.length === 0 ? 'opacity-40 cursor-not-allowed' : ''}`}
+                  >
+                    Pos
+                  </button>
                 </div>
-              </div>
-            )}
+              )}
+
+              {photosModalLoading ? (
+                <div className="py-8 text-center text-sm font-bold text-slate-500">Carregando...</div>
+              ) : (
+                <>
+                  {photosModalStage === 'pre' && photosModalPreImages.length === 0 && (
+                    <div className="py-8 text-center text-sm text-slate-400 font-medium">Nenhuma foto de pre-inspecao.</div>
+                  )}
+                  {photosModalStage === 'post' && photosModalPostImages.length === 0 && (
+                    <div className="py-8 text-center text-sm text-slate-400 font-medium">Nenhuma foto de pos-inspecao.</div>
+                  )}
+                  {(photosModalStage === 'pre' ? photosModalPreImages : photosModalPostImages).length > 0 && (
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                      {(photosModalStage === 'pre' ? photosModalPreImages : photosModalPostImages).map((url, index) => (
+                        <img
+                          key={`${photosModalServiceId}-${photosModalStage}-${index}`}
+                          src={url}
+                          alt={photosModalStage === 'pre' ? 'Pre-inspecao' : 'Pos-inspecao'}
+                          className="w-full h-40 object-cover rounded-xl border border-slate-100"
+                        />
+                      ))}
+                    </div>
+                  )}
+                  {!photosModalPreImages.length && !photosModalPostImages.length && (
+                    <div className="py-8 text-center text-sm text-slate-400 font-medium">Nenhuma foto registrada ainda.</div>
+                  )}
+                </>
+              )}
+            </div>
           </ModalSurface>
         )}
       </AnimatePresence>
