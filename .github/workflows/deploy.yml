@@ -1,5 +1,6 @@
 name: Deploy to AWS
 on:
+  workflow_dispatch:
   push:
     branches:
       - main
@@ -52,6 +53,10 @@ jobs:
             fi
             sleep 10
           done
+          if [ "${STATUS}" != "Success" ]; then
+            echo "SSM command did not succeed: ${STATUS}"
+            exit 1
+          fi
           aws ssm list-command-invocations \
             --region us-east-2 \
             --command-id "${CMD_ID}" \
