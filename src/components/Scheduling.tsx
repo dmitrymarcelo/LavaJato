@@ -1553,12 +1553,14 @@ export function QueueSection({
   const [photosModalPostImages, setPhotosModalPostImages] = useState<string[]>([]);
   const [photosModalServiceId, setPhotosModalServiceId] = useState<string | null>(null);
   const [photosModalStage, setPhotosModalStage] = useState<'pre' | 'post'>('pre');
+  const [photosModalError, setPhotosModalError] = useState<string | null>(null);
 
   const openServicePhotos = async (service: Service) => {
     try {
       setPhotosModalServiceId(service.id);
       setPhotosModalPreImages([]);
       setPhotosModalPostImages([]);
+      setPhotosModalError(null);
       setPhotosModalLoading(true);
       setPhotosModalOpen(true);
       const full = await api.getService(service.id);
@@ -1577,6 +1579,7 @@ export function QueueSection({
     } catch (error) {
       setPhotosModalPreImages([]);
       setPhotosModalPostImages([]);
+      setPhotosModalError(error instanceof Error ? error.message : 'Nao foi possivel carregar as fotos.');
     } finally {
       setPhotosModalLoading(false);
     }
@@ -1812,6 +1815,7 @@ export function QueueSection({
               setPhotosModalPostImages([]);
               setPhotosModalServiceId(null);
               setPhotosModalLoading(false);
+              setPhotosModalError(null);
             }}
             position="center"
             panelClassName="max-w-[760px] p-0 border border-slate-200/80"
@@ -1838,6 +1842,11 @@ export function QueueSection({
               </div>
             </div>
             <div className="p-5 space-y-4">
+              {photosModalError && !photosModalLoading && (
+                <div className="rounded-2xl border border-rose-100 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-700">
+                  {photosModalError}
+                </div>
+              )}
               {!photosModalLoading && (photosModalPreImages.length > 0 || photosModalPostImages.length > 0) && (
                 <div className="flex items-center gap-2">
                   <button
