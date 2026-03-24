@@ -6,7 +6,7 @@ Atualizado em: 2026-03-24
 
 - Repositorio: `https://github.com/dmitrymarcelo/LavaJato`
 - Branch principal: `main`
-- Commit atual: `119fb1e`
+- Commit atual: `52269a3`
 - Producao AWS atual: `http://3.145.153.19/`
 - Regiao AWS: `us-east-2`
 - Instancia usada no deploy: `i-0ba1477cbbe3d986d`
