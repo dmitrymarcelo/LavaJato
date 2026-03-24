@@ -1,0 +1,47 @@
+name: Deploy to AWS
+on:
+  push:
+    branches:
+      - main
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Install deps
+        run: npm ci
+      - name: Typecheck
+        run: npm run lint
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region: us-east-2
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+      - name: Send SSM deploy command
+        run: |
+          CMD_ID=$(aws ssm send-command \
+            --region us-east-2 \
+            --instance-ids i-0ba1477cbbe3d986d \
+            --document-name AWS-RunShellScript \
+            --comment "Deploy LavaJato ${GITHUB_SHA}" \
+            --parameters '{"commands":["cd /opt/lavajato/app","git fetch origin","git checkout main","git pull --ff-only origin main","docker compose up -d --build","docker compose ps"]}' \
+            --query "Command.CommandId" \
+            --output text)
+          echo "CMD_ID=${CMD_ID}" >> $GITHUB_ENV
+          echo "SSM_COMMAND_ID=${CMD_ID}"
+      - name: Check SSM command result
+        run: |
+          aws ssm list-command-invocations \
+            --region us-east-2 \
+            --command-id "${CMD_ID}" \
+            --details \
+            --query 'CommandInvocations[].{Status:Status,Output:CommandPlugins[0].Output}' \
+            --output json

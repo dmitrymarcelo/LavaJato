@@ -1,12 +1,12 @@
 # Handoff Lava Jato - Norte Tech
 
-Atualizado em: 2026-03-09
+Atualizado em: 2026-03-24
 
 ## Estado atual
 
 - Repositorio: `https://github.com/dmitrymarcelo/LavaJato`
 - Branch principal: `main`
-- Commit atual: `f91c376`
+- Commit atual: `119fb1e`
 - Producao AWS atual: `http://3.145.153.19/`
 - Regiao AWS: `us-east-2`
 - Instancia usada no deploy: `i-0ba1477cbbe3d986d`
@@ -25,6 +25,11 @@ docker compose up -d --build
 
 - Frontend: `http://localhost/` ou `http://localhost:80/`
 - API: `http://localhost:4000/api/health`
+
+5. Verificar status rapido:
+
+- `docker compose ps`
+- `docker compose logs api --tail 50`
 
 ## Arquitetura atual
 
@@ -47,6 +52,12 @@ VITE_API_URL="/api"
 # Backend
 API_PORT=4000
 DATABASE_URL="postgresql://postgres:postgres@localhost:5432/lavajato"
+
+# Backend (AWS Bedrock)
+# Opcional em desenvolvimento; necessario em producao se usar o assistente
+AWS_REGION="us-east-2"
+AWS_BEDROCK_REGION="us-east-2"
+AWS_BEDROCK_MODEL_ID="us.amazon.nova-lite-v1:0"
 ```
 
 Observacao:
@@ -54,6 +65,7 @@ Observacao:
 - O frontend usa `VITE_API_URL=/api` em producao por causa do proxy Nginx.
 - O backend real usa PostgreSQL.
 - O Gemini no frontend nao e mais o caminho principal do assistente; o fluxo atual usa backend/AWS.
+- O seed cria um usuario administrador com credenciais abaixo na primeira inicializacao da API.
 
 ## Credencial padrao de teste
 
@@ -147,11 +159,30 @@ Depois consultar:
 aws ssm list-command-invocations --region us-east-2 --command-id <command-id> --details --query "CommandInvocations[].{Status:Status,Output:CommandPlugins[0].Output}" --output json
 ```
 
+### CI/CD automatico (GitHub Actions)
+
+Agora o deploy e automatico a cada `push` na `main`:
+
+- Workflow: `.github/workflows/deploy.yml`
+- Regiao: `us-east-2`
+- Instancia: `i-0ba1477cbbe3d986d`
+- Requisito: configurar o segredo `AWS_ROLE_ARN` no repositorio, apontando para um IAM Role com permissao `ssm:SendCommand` na instancia alvo.
+
+Permissoes minimas recomendadas do Role:
+
+- `sts:AssumeRole` confiando no provedor OIDC do GitHub (`token.actions.githubusercontent.com`) com `sub: repo:dmitrymarcelo/LavaJato:*`
+- `ssm:SendCommand`, `ssm:ListCommandInvocations`
+- `ec2:DescribeInstances`
+
+Com isso, qualquer alteracao publicada em `main` dispara o deploy via SSM no EC2.
+
 ## Observacoes importantes
 
 - Este arquivo nao guarda o chat literal. Ele guarda o contexto tecnico consolidado para continuar o trabalho.
 - O GitHub e a fonte principal da continuidade.
 - Se mudar de computador, o ideal e continuar a partir do commit `f91c376` ou posterior.
+- Imagens enviadas ficam em `server/storage/uploads` (persistidas via volume Docker).
+- Em producao, altere a senha do administrador imediatamente.
 
 ## Proximo ponto de investigacao sugerido
 
