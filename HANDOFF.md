@@ -178,7 +178,8 @@ Com isso, qualquer alteracao publicada em `main` dispara o deploy via SSM no EC2
 
 ### Handoff automatico na AWS
 
-- Durante cada deploy em `main`, a EC2 executa `node scripts/update-handoff.mjs`.
+- Durante cada deploy em `main`, o GitHub Actions gera um handoff atualizado para o commit publicado.
+- Em seguida, o workflow envia essa copia pronta para a EC2 via SSM.
 - O handoff sincronizado fica no proprio repo da instancia em `/opt/lavajato/app/HANDOFF.md`.
 - Uma copia operacional tambem e salva em `/opt/lavajato/runtime/HANDOFF_AWS.md`.
 - Isso garante que a memoria persistente acompanhe o commit realmente implantado.
