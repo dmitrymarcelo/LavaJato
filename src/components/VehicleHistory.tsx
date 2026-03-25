@@ -5,6 +5,7 @@ import {
   ChevronLeft,
   Clock3,
   CreditCard,
+  Download,
   History,
   MapPin,
   Search,
@@ -116,6 +117,42 @@ export default function VehicleHistory({
   const totalCompleted = groups.reduce((total, group) => total + group.completedCount, 0);
   const totalNoShow = groups.reduce((total, group) => total + group.noShowCount, 0);
 
+  const canExport = !isLoading && !error && filteredGroups.length > 0;
+
+  const handleExportCsv = () => {
+    const header = [
+      'placa',
+      'cliente',
+      'modelo',
+      'tipo',
+      'registros',
+      'finalizados',
+      'no_show',
+      'ativos',
+      'receita_total',
+      'ultimo_registro',
+      'ultima_base',
+    ];
+
+    const rows = filteredGroups.map((group) => [
+      group.plate,
+      group.customer,
+      group.model,
+      getVehicleTypeLabel(group.type),
+      String(group.recordCount),
+      String(group.completedCount),
+      String(group.noShowCount),
+      String(group.activeCount),
+      String(group.totalRevenue ?? 0),
+      group.lastRecordedAt ? String(group.lastRecordedAt) : '',
+      group.lastBaseName ? String(group.lastBaseName) : '',
+    ]);
+
+    const csv = buildCsvContent(header, rows);
+    const today = new Date().toISOString().slice(0, 10);
+    downloadTextFile(csv, `historico-veiculos-${today}.csv`, 'text/csv;charset=utf-8;');
+  };
+
   return (
     <div className="min-h-full bg-white p-4 pb-24 space-y-6">
       <div className="flex items-center justify-between gap-4">
@@ -125,6 +162,15 @@ export default function VehicleHistory({
         >
           <ChevronLeft className="w-5 h-5" />
           Voltar
+        </button>
+        <button
+          type="button"
+          onClick={handleExportCsv}
+          disabled={!canExport}
+          className="bg-white border border-slate-200 text-slate-600 px-4 py-2 rounded-xl font-bold text-xs flex items-center gap-2 active:scale-95 transition-all shadow-sm hover:bg-slate-50 hover:border-primary hover:text-primary disabled:opacity-40 disabled:cursor-not-allowed"
+        >
+          <Download className="w-4 h-4" />
+          <span>Exportar CSV</span>
         </button>
       </div>
 
@@ -333,15 +379,95 @@ export function VehicleHistoryDetail({
     ? Math.round(averageWashMinutes.reduce((total, value) => total + value, 0) / averageWashMinutes.length)
     : null;
 
+  const handleExportDetailCsv = () => {
+    const header = [
+      'id',
+      'placa',
+      'modelo',
+      'status',
+      'servico',
+      'base',
+      'zona',
+      'agendado_data',
+      'agendado_hora',
+      'preco',
+      'createdAt',
+      'checkInAt',
+      'washStartedAt',
+      'washCompletedAt',
+      'paymentStartedAt',
+      'paymentCompletedAt',
+      'completedAt',
+      'noShowAt',
+      'tempo_espera_min',
+      'tempo_lavagem_min',
+      'tempo_pagamento_min',
+      'tempo_total_min',
+    ];
+
+    const rows = group.records.map((record) => {
+      const waitingMinutes = getDurationMinutes(
+        record.timeline?.checkInAt || record.timeline?.createdAt,
+        record.timeline?.washStartedAt || record.startTime || record.timeline?.noShowAt
+      );
+      const washMinutes = getDurationMinutes(record.timeline?.washStartedAt || record.startTime, record.timeline?.washCompletedAt || record.endTime);
+      const paymentMinutes = getDurationMinutes(record.timeline?.paymentStartedAt, record.timeline?.paymentCompletedAt);
+      const totalMinutes = getDurationMinutes(
+        record.timeline?.checkInAt || record.timeline?.createdAt || record.timeline?.washStartedAt || record.startTime,
+        record.timeline?.completedAt || record.timeline?.noShowAt || record.timeline?.paymentCompletedAt || record.timeline?.washCompletedAt || record.endTime
+      );
+
+      return [
+        record.id,
+        record.plate,
+        record.model,
+        record.status,
+        record.type,
+        record.baseName || '',
+        record.washingZoneName || '',
+        record.scheduledDate || '',
+        record.scheduledTime || '',
+        String(record.price ?? 0),
+        record.timeline?.createdAt ? String(record.timeline.createdAt) : '',
+        record.timeline?.checkInAt ? String(record.timeline.checkInAt) : '',
+        record.timeline?.washStartedAt ? String(record.timeline.washStartedAt) : '',
+        record.timeline?.washCompletedAt ? String(record.timeline.washCompletedAt) : '',
+        record.timeline?.paymentStartedAt ? String(record.timeline.paymentStartedAt) : '',
+        record.timeline?.paymentCompletedAt ? String(record.timeline.paymentCompletedAt) : '',
+        record.timeline?.completedAt ? String(record.timeline.completedAt) : '',
+        record.timeline?.noShowAt ? String(record.timeline.noShowAt) : '',
+        typeof waitingMinutes === 'number' ? String(waitingMinutes) : '',
+        typeof washMinutes === 'number' ? String(washMinutes) : '',
+        typeof paymentMinutes === 'number' ? String(paymentMinutes) : '',
+        typeof totalMinutes === 'number' ? String(totalMinutes) : '',
+      ];
+    });
+
+    const csv = buildCsvContent(header, rows);
+    const today = new Date().toISOString().slice(0, 10);
+    downloadTextFile(csv, `historico-veiculo-${plate}-${today}.csv`, 'text/csv;charset=utf-8;');
+  };
+
   return (
     <div className="min-h-full bg-white p-4 pb-24 space-y-6">
-      <button
-        onClick={() => onNavigate('vehicle-history')}
-        className="flex items-center gap-2 text-slate-500 hover:text-primary transition-colors font-bold text-sm"
-      >
-        <ChevronLeft className="w-5 h-5" />
-        Voltar para lista
-      </button>
+      <div className="flex items-center justify-between gap-4">
+        <button
+          onClick={() => onNavigate('vehicle-history')}
+          className="flex items-center gap-2 text-slate-500 hover:text-primary transition-colors font-bold text-sm"
+        >
+          <ChevronLeft className="w-5 h-5" />
+          Voltar para lista
+        </button>
+        <button
+          type="button"
+          onClick={handleExportDetailCsv}
+          disabled={group.records.length === 0}
+          className="bg-white border border-slate-200 text-slate-600 px-4 py-2 rounded-xl font-bold text-xs flex items-center gap-2 active:scale-95 transition-all shadow-sm hover:bg-slate-50 hover:border-primary hover:text-primary disabled:opacity-40 disabled:cursor-not-allowed"
+        >
+          <Download className="w-4 h-4" />
+          <span>Exportar CSV</span>
+        </button>
+      </div>
 
       <div className="space-y-5">
         <div className="rounded-3xl border border-slate-100 bg-white p-5 shadow-sm">
@@ -508,4 +634,26 @@ function MiniMetric({
       <p className={`mt-1 text-xs font-black ${emphasis}`}>{value}</p>
     </div>
   );
+}
+
+function escapeCsvValue(value: string) {
+  const needsQuotes = /[;"\r\n]/.test(value);
+  const escaped = value.replace(/"/g, '""');
+  return needsQuotes ? `"${escaped}"` : escaped;
+}
+
+function buildCsvContent(header: string[], rows: string[][]) {
+  const normalizedHeader = header.map((value) => escapeCsvValue(value)).join(';');
+  const normalizedRows = rows.map((row) => row.map((value) => escapeCsvValue(String(value ?? ''))).join(';'));
+  return `\ufeff${[normalizedHeader, ...normalizedRows].join('\r\n')}\r\n`;
+}
+
+function downloadTextFile(content: string, fileName: string, contentType: string) {
+  const blob = new Blob([content], { type: contentType });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = fileName;
+  anchor.click();
+  URL.revokeObjectURL(url);
 }
