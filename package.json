@@ -10,7 +10,8 @@
     "preview": "vite preview",
     "clean": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\"",
     "lint": "node ./node_modules/typescript/bin/tsc --noEmit",
-    "handoff:update": "node scripts/update-handoff.mjs"
+    "handoff:update": "node scripts/update-handoff.mjs",
+    "handoff:check": "node scripts/check-handoff.mjs"
   },
   "dependencies": {
     "@aws-sdk/client-bedrock-runtime": "^3.883.0",

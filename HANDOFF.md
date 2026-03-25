@@ -6,7 +6,7 @@ Atualizado em: 2026-03-25
 
 - Repositorio: `https://github.com/dmitrymarcelo/LavaJato`
 - Branch principal: `main`
-- Commit atual: `2c66b61ce33d2d07be606962b1041f04cb10384c`
+- Commit atual: `c13e4514a0c288f6a540175ee007ac7937f02de4`
 - Producao AWS atual: `http://3.145.153.19/`
 - Regiao AWS: `us-east-2`
 - Instancia usada no deploy: `i-0ba1477cbbe3d986d`
@@ -106,6 +106,9 @@ Observacao:
   - compressao maior no frontend
   - limite maior na API
   - limite maior no Nginx
+- Fotos de inspecao no mobile agora usam salvamento atomico por foto para evitar sobrescrita entre requisicoes lentas.
+- Se a rede oscilar, as fotos entram em fila local no aparelho e tentam sincronizar ao voltar conexao, foco, visibilidade da aba e em retentativas periodicas.
+- O modal de fotos da fila/agendamento passou a exibir fallback local e avisar quando ainda existe sincronizacao pendente no aparelho.
 - Endpoints `PUT` em lote deixaram de usar `TRUNCATE` direto e passaram a usar substituicao transacional.
 - Isso vale para:
   - `vehicles`
@@ -116,14 +119,14 @@ Observacao:
 
 ## Commits recentes relevantes
 
+- `c13e451` `Improve mobile photo autosave resilience`
+- `d43746d` `Fix mobile inspection photo persistence`
+- `6b80b5c` `ci: copy generated handoff to aws runtime`
+- `e327ef5` `ci: use pnpm in aws deploy workflow`
+- `e83c423` `ci: fix aws workflow secret guards`
+- `7d83baa` `ci: automate handoff sync during aws deploy`
 - `2c66b61` `feat(history): adicionar botao Exportar CSV na barra de filtros`
 - `2c3d163` `docs: ajustar HANDOFF para commit atual dinamico`
-- `2e5a7e4` `docs: atualizar HANDOFF (commit atual)`
-- `d2baf32` `docs: atualizar HANDOFF (commit atual)`
-- `4aac5a8` `ci: permitir deploy com OIDC ou chaves estaticas`
-- `1e6d1f3` `docs: atualizar HANDOFF (commit atual)`
-- `ebf9024` `chore(offline-photos): flush pendentes ao abrir app e ao voltar conexao`
-- `ad8f618` `docs: atualizar HANDOFF (commit atual)`
 
 ## Arquivos centrais
 
@@ -188,7 +191,7 @@ Com isso, qualquer alteracao publicada em `main` dispara o deploy via SSM no EC2
 
 - Este arquivo nao guarda o chat literal. Ele guarda o contexto tecnico consolidado para continuar o trabalho.
 - O GitHub e a fonte principal da continuidade.
-- Se mudar de computador, o ideal e continuar a partir do commit `2c66b61` ou posterior.
+- Se mudar de computador, o ideal e continuar a partir do commit `c13e451` ou posterior.
 - Imagens enviadas ficam em `server/storage/uploads` (persistidas via volume Docker).
 - Em producao, altere a senha do administrador imediatamente.
 
