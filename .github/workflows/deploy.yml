@@ -10,6 +10,10 @@ jobs:
     permissions:
       id-token: write
       contents: read
+    env:
+      AWS_ROLE_ARN_VALUE: ${{ secrets.AWS_ROLE_ARN }}
+      AWS_ACCESS_KEY_ID_VALUE: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY_VALUE: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -22,18 +26,18 @@ jobs:
       - name: Typecheck
         run: npm run lint
       - name: Configure AWS credentials (OIDC)
-        if: ${{ secrets.AWS_ROLE_ARN != '' }}
+        if: ${{ env.AWS_ROLE_ARN_VALUE != '' }}
         uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-region: us-east-2
-          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          role-to-assume: ${{ env.AWS_ROLE_ARN_VALUE }}
       - name: Configure AWS credentials (Static Keys)
-        if: ${{ secrets.AWS_ROLE_ARN == '' && secrets.AWS_ACCESS_KEY_ID != '' && secrets.AWS_SECRET_ACCESS_KEY != '' }}
+        if: ${{ env.AWS_ROLE_ARN_VALUE == '' && env.AWS_ACCESS_KEY_ID_VALUE != '' && env.AWS_SECRET_ACCESS_KEY_VALUE != '' }}
         uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-region: us-east-2
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-access-key-id: ${{ env.AWS_ACCESS_KEY_ID_VALUE }}
+          aws-secret-access-key: ${{ env.AWS_SECRET_ACCESS_KEY_VALUE }}
       - name: Send SSM deploy command
         run: |
           SSM_PARAMETERS=$(node -e "process.stdout.write(JSON.stringify({ commands: ['cd /opt/lavajato/app', 'git fetch origin', 'git checkout main', 'git pull --ff-only origin main', 'mkdir -p /opt/lavajato/runtime', 'node scripts/update-handoff.mjs --deployed-sha ' + process.env.GITHUB_SHA, 'cp HANDOFF.md /opt/lavajato/runtime/HANDOFF_AWS.md', 'docker compose up -d --build', 'docker compose ps'] }))")
