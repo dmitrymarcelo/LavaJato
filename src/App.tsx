@@ -41,6 +41,18 @@ const VehicleHistoryDetail = lazy(() => import('./components/VehicleHistory').th
 const Settings = lazy(() => import('./components/Settings'));
 const Inventory = lazy(() => import('./components/Inventory'));
 
+const normalizeServicesForPersistence = (next: Service[]) => {
+  const counters = new Map<string, number>();
+  return next.map((service) => {
+    const nextOrder = counters.get(service.status) || 0;
+    counters.set(service.status, nextOrder + 1);
+    return {
+      ...service,
+      sortOrder: nextOrder,
+    };
+  });
+};
+
 export default function App() {
   const normalizeScreen = (screen: Screen): Screen => screen === 'queue' ? 'scheduling' : screen;
   const mergeServiceTypes = (next?: Partial<Record<VehicleType, VehicleCategory>> | null): Record<VehicleType, VehicleCategory> => {
@@ -163,29 +175,6 @@ export default function App() {
   useEffect(() => {
     api.setAuthToken(authToken);
   }, [authToken]);
-
-  useEffect(() => {
-    if (!isAuthenticated) {
-      return;
-    }
-
-    const flush = async () => {
-      if (!navigator.onLine) {
-        return;
-      }
-      try {
-        await flushPendingPhotoSaves({
-          saveInspectionPhoto: api.saveInspectionPhoto,
-        });
-      } catch (error) {}
-    };
-
-    const handler = () => void flush();
-    window.addEventListener('online', handler);
-    void flush();
-
-    return () => window.removeEventListener('online', handler);
-  }, [isAuthenticated]);
 
   useEffect(() => {
     const handleUnauthorizedEvent = () => {
@@ -389,17 +378,76 @@ export default function App() {
     await api.saveAccessRules(next);
   };
 
-  const normalizeServicesForPersistence = (next: Service[]) => {
-    const counters = new Map<string, number>();
-    return next.map((service) => {
-      const nextOrder = counters.get(service.status) || 0;
-      counters.set(service.status, nextOrder + 1);
-      return {
-        ...service,
-        sortOrder: nextOrder,
-      };
+  const mergeServiceIntoState = React.useCallback((service: Service) => {
+    setServices((current) => {
+      const next = normalizeServicesForPersistence(
+        current.some((item) => item.id === service.id)
+          ? current.map((item) => (item.id === service.id ? { ...item, ...service } : item))
+          : [service, ...current]
+      );
+      servicesRef.current = next;
+      return next;
     });
-  };
+  }, []);
+
+  useEffect(() => {
+    if (!isAuthenticated) {
+      return;
+    }
+
+    const flush = async () => {
+      if (!navigator.onLine) {
+        return;
+      }
+      try {
+        const result = await flushPendingPhotoSaves({
+          saveInspectionPhoto: api.saveInspectionPhoto,
+        });
+        const syncedServiceIds = Array.from(new Set(result.savedEntries.map((entry) => entry.serviceId)));
+        if (!syncedServiceIds.length) {
+          return;
+        }
+
+        const refreshedServices = await Promise.all(
+          syncedServiceIds.map(async (serviceId) => {
+            try {
+              return await api.getService(serviceId);
+            } catch {
+              return null;
+            }
+          })
+        );
+
+        refreshedServices
+          .filter((service): service is Service => Boolean(service))
+          .forEach((service) => {
+            mergeServiceIntoState(service);
+          });
+      } catch (error) {}
+    };
+
+    const handler = () => void flush();
+    const visibilityHandler = () => {
+      if (document.visibilityState === 'visible') {
+        void flush();
+      }
+    };
+    const intervalId = window.setInterval(() => {
+      void flush();
+    }, 30000);
+
+    window.addEventListener('online', handler);
+    window.addEventListener('focus', handler);
+    document.addEventListener('visibilitychange', visibilityHandler);
+    void flush();
+
+    return () => {
+      window.removeEventListener('online', handler);
+      window.removeEventListener('focus', handler);
+      document.removeEventListener('visibilitychange', visibilityHandler);
+      window.clearInterval(intervalId);
+    };
+  }, [isAuthenticated, mergeServiceIntoState]);
 
   const queueServicesSync = (task: () => Promise<void>) => {
     servicesSyncQueueRef.current = servicesSyncQueueRef.current
@@ -513,7 +561,9 @@ export default function App() {
           const next = current.some((item) => item.id === service.id)
             ? current.map((item) => item.id === service.id ? { ...item, ...service } : item)
             : [...current, service];
-          return normalizeServicesForPersistence(next);
+          const normalized = normalizeServicesForPersistence(next);
+          servicesRef.current = normalized;
+          return normalized;
         });
       } catch (error) {
         console.error(error);
@@ -1037,7 +1087,7 @@ export default function App() {
     switch (currentScreen) {
       case 'dashboard': return <Dashboard onNavigate={handleNavigateWithService} services={services} appointments={appointments} currentDateKey={currentDateKey} team={team} />;
       case 'checkin': return <CheckIn onNavigate={navigateTo} onAddService={addService} serviceTypes={serviceTypes} vehicleDb={vehicleDb} selectedBaseId={selectedBaseInfo?.id} selectedBaseName={selectedBaseInfo?.name} />;
-      case 'inspection-pre': return <InspectionPre service={activeService} teamMembers={team} elapsedMinutes={activeServiceElapsedMinutes} onNavigate={navigateTo} onStartWash={async (washers, photos, observations) => {
+      case 'inspection-pre': return <InspectionPre service={activeService} teamMembers={team} elapsedMinutes={activeServiceElapsedMinutes} onNavigate={navigateTo} onServiceChange={mergeServiceIntoState} onStartWash={async (washers, photos, observations) => {
         if (activeServiceId) {
           await updateServiceRecord(activeServiceId, (service) => {
             const nowIso = new Date().toISOString();
@@ -1061,7 +1111,7 @@ export default function App() {
           });
         }
       }} />;
-      case 'inspection-post': return <InspectionPost service={activeService} elapsedMinutes={activeServiceElapsedMinutes} onNavigate={navigateTo} onCompleteWash={async (photos) => {
+      case 'inspection-post': return <InspectionPost service={activeService} elapsedMinutes={activeServiceElapsedMinutes} onNavigate={navigateTo} onServiceChange={mergeServiceIntoState} onCompleteWash={async (photos) => {
         if (activeServiceId) {
           await updateServiceRecord(activeServiceId, (service) => {
             const nowIso = new Date().toISOString();

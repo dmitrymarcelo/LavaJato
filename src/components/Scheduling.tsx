@@ -27,7 +27,7 @@ import {
 import { motion, AnimatePresence } from '../lib/motion';
 import { Screen, Service, TeamMember, VehicleCategory, VehicleType, VehicleRegistration, WashingZoneId } from '../types';
 import { api, ApiError, Appointment } from '../services/api';
-import { addDays, digitsOnly, formatCpf, generateId, getElapsedMinutes, getServicePreviewImage, normalizeDateKey } from '../utils/app';
+import { addDays, digitsOnly, formatCpf, generateId, getElapsedMinutes, getServicePreviewImage, listPendingPhotoIds, normalizeDateKey } from '../utils/app';
 import { getSourceVehicleTypeLabel } from '../utils/vehicleType';
 import { BASES, BaseInfo, getBaseById } from '../data/bases';
 import ModalSurface from './ModalSurface';
@@ -89,6 +89,12 @@ const getVehicleTypeLabel = (type: VehicleType) => {
   if (type === 'boat') return 'Embarcacao';
   return 'Carro';
 };
+
+const extractPhotoImages = (photos?: Record<string, string>) =>
+  Object.values(photos || {}).filter((url) => Boolean(url)) as string[];
+
+const mergePhotoImages = (primary: string[], secondary: string[]) =>
+  Array.from(new Set([...primary, ...secondary].filter((url) => Boolean(url))));
 
 const isTruckType = (type?: VehicleType) => type === 'truck';
 const isTarumaBase = (baseId?: string | null) => baseId === 'taruma';
@@ -1554,32 +1560,56 @@ export function QueueSection({
   const [photosModalServiceId, setPhotosModalServiceId] = useState<string | null>(null);
   const [photosModalStage, setPhotosModalStage] = useState<'pre' | 'post'>('pre');
   const [photosModalError, setPhotosModalError] = useState<string | null>(null);
+  const [photosModalNotice, setPhotosModalNotice] = useState<string | null>(null);
+  const [photosModalPendingCount, setPhotosModalPendingCount] = useState(0);
 
   const openServicePhotos = async (service: Service) => {
+    const localPreImages = extractPhotoImages(service.preInspectionPhotos);
+    const localPostImages = extractPhotoImages(service.postInspectionPhotos);
+    const pendingCount = listPendingPhotoIds(service.id, 'pre').length + listPendingPhotoIds(service.id, 'post').length;
+    const preferPost = service.status === 'completed' || service.status === 'waiting_payment';
+    const resolveStage = (preImages: string[], postImages: string[]): 'pre' | 'post' =>
+      preferPost
+        ? (postImages.length > 0 ? 'post' : 'pre')
+        : (preImages.length > 0 ? 'pre' : 'post');
+
     try {
       setPhotosModalServiceId(service.id);
-      setPhotosModalPreImages([]);
-      setPhotosModalPostImages([]);
+      setPhotosModalPreImages(localPreImages);
+      setPhotosModalPostImages(localPostImages);
       setPhotosModalError(null);
+      setPhotosModalNotice(
+        pendingCount > 0
+          ? `${pendingCount} foto(s) ainda aguardando sincronizacao neste aparelho.`
+          : null
+      );
+      setPhotosModalPendingCount(pendingCount);
       setPhotosModalLoading(true);
       setPhotosModalOpen(true);
+      setPhotosModalStage(resolveStage(localPreImages, localPostImages));
       const full = await api.getService(service.id);
-      const preImages = Object.values(full.preInspectionPhotos || {}).filter((url) => Boolean(url)) as string[];
-      const postImages = Object.values(full.postInspectionPhotos || {}).filter((url) => Boolean(url)) as string[];
+      const preImages = mergePhotoImages(extractPhotoImages(full.preInspectionPhotos), localPreImages);
+      const postImages = mergePhotoImages(extractPhotoImages(full.postInspectionPhotos), localPostImages);
       setPhotosModalPreImages(preImages);
       setPhotosModalPostImages(postImages);
-
-      const hasPre = preImages.length > 0;
-      const hasPost = postImages.length > 0;
-      const preferPost = service.status === 'completed' || service.status === 'waiting_payment';
-      const nextStage: 'pre' | 'post' = preferPost
-        ? (hasPost ? 'post' : 'pre')
-        : (hasPre ? 'pre' : 'post');
-      setPhotosModalStage(nextStage);
+      setPhotosModalStage(resolveStage(preImages, postImages));
+      if (!pendingCount) {
+        setPhotosModalNotice(null);
+      }
     } catch (error) {
-      setPhotosModalPreImages([]);
-      setPhotosModalPostImages([]);
-      setPhotosModalError(error instanceof Error ? error.message : 'Nao foi possivel carregar as fotos.');
+      if (!localPreImages.length && !localPostImages.length) {
+        setPhotosModalPreImages([]);
+        setPhotosModalPostImages([]);
+        setPhotosModalError(error instanceof Error ? error.message : 'Nao foi possivel carregar as fotos.');
+        return;
+      }
+
+      setPhotosModalError(null);
+      setPhotosModalNotice(
+        pendingCount > 0
+          ? `${pendingCount} foto(s) estao visiveis localmente e ainda podem sincronizar depois.`
+          : 'Mostrando as fotos salvas localmente neste aparelho.'
+      );
     } finally {
       setPhotosModalLoading(false);
     }
@@ -1816,6 +1846,8 @@ export function QueueSection({
               setPhotosModalServiceId(null);
               setPhotosModalLoading(false);
               setPhotosModalError(null);
+              setPhotosModalNotice(null);
+              setPhotosModalPendingCount(0);
             }}
             position="center"
             panelClassName="max-w-[760px] p-0 border border-slate-200/80"
@@ -1834,6 +1866,9 @@ export function QueueSection({
                     setPhotosModalPostImages([]);
                     setPhotosModalServiceId(null);
                     setPhotosModalLoading(false);
+                    setPhotosModalError(null);
+                    setPhotosModalNotice(null);
+                    setPhotosModalPendingCount(0);
                   }}
                   className="text-slate-400 hover:text-slate-600 font-bold"
                 >
@@ -1842,10 +1877,20 @@ export function QueueSection({
               </div>
             </div>
             <div className="p-5 space-y-4">
+              {photosModalNotice && !photosModalLoading && (
+                <div className="rounded-2xl border border-amber-100 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-800">
+                  {photosModalNotice}
+                </div>
+              )}
               {photosModalError && !photosModalLoading && (
                 <div className="rounded-2xl border border-rose-100 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-700">
                   {photosModalError}
                 </div>
+              )}
+              {photosModalPendingCount > 0 && !photosModalLoading && (
+                <p className="text-xs font-bold uppercase tracking-widest text-amber-700">
+                  Sincronizacao pendente neste aparelho
+                </p>
               )}
               {!photosModalLoading && (photosModalPreImages.length > 0 || photosModalPostImages.length > 0) && (
                 <div className="flex items-center gap-2">

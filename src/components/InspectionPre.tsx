@@ -7,9 +7,27 @@ import React, { useMemo, useState, useRef, useEffect } from 'react';
 import { Camera, CheckCircle2, Lock, Info, RefreshCw, ChevronLeft, PlayCircle, AlertCircle, Upload, X, Clock3 } from 'lucide-react';
 import { motion } from '../lib/motion';
 import { Screen, Service, TeamMember } from '../types';
-import { enqueuePendingPhotoSave, flushPendingPhotoSaves, formatElapsedMinutes, listPendingPhotoIds, normalizeDateKey, optimizeImageFile } from '../utils/app';
+import {
+  enqueuePendingPhotoSave,
+  flushPendingPhotoSaves,
+  formatElapsedMinutes,
+  listPendingPhotoIds,
+  normalizeDateKey,
+  optimizeImageFile,
+  PENDING_PHOTO_SAVES_UPDATED_EVENT,
+  shouldQueuePendingPhotoSave,
+} from '../utils/app';
 import ModalSurface from './ModalSurface';
 import { api } from '../services/api';
+
+type InspectionPreProps = {
+  onNavigate: (screen: Screen) => void;
+  onStartWash: (washers: string[], photos: Record<string, string>, observations: string) => Promise<void> | void;
+  elapsedMinutes?: number;
+  teamMembers?: TeamMember[];
+  service?: Service | null;
+  onServiceChange?: (service: Service) => void;
+};
 
 const PHOTO_TYPES = [
   { id: 'front', label: 'Frente' },
@@ -19,7 +37,14 @@ const PHOTO_TYPES = [
   { id: 'interior', label: 'Interior' }
 ];
 
-export default function InspectionPre({ onNavigate, onStartWash, elapsedMinutes = 0, teamMembers: teamMembersProp = [], service }: { onNavigate: (screen: Screen) => void, onStartWash: (washers: string[], photos: Record<string, string>, observations: string) => Promise<void> | void, elapsedMinutes?: number, teamMembers?: TeamMember[], service?: Service | null }) {
+export default function InspectionPre({
+  onNavigate,
+  onStartWash,
+  elapsedMinutes = 0,
+  teamMembers: teamMembersProp = [],
+  service,
+  onServiceChange,
+}: InspectionPreProps) {
   const [photos, setPhotos] = useState<Record<string, string>>({});
   const [activePhotoId, setActivePhotoId] = useState<string | null>(null);
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
@@ -103,6 +128,11 @@ export default function InspectionPre({ onNavigate, onStartWash, elapsedMinutes 
 
       setPendingVersion((value) => value + 1);
       if (result.savedCount) {
+        if (service?.id) {
+          const refreshedService = await api.getService(service.id);
+          setPhotos(refreshedService.preInspectionPhotos || {});
+          onServiceChange?.(refreshedService);
+        }
         setLastSavedInfo(`${result.savedCount} foto(s) reenviada(s)`);
         setTimeout(() => setLastSavedInfo(null), 3000);
       }
@@ -114,6 +144,7 @@ export default function InspectionPre({ onNavigate, onStartWash, elapsedMinutes 
   async function upsertWithRetry(
     payload: Service,
     saveInfo: { photoId: string; imageData: string },
+    fallbackService?: Service | null,
     attempts = 3
   ) {
     if (!navigator.onLine) {
@@ -126,7 +157,7 @@ export default function InspectionPre({ onNavigate, onStartWash, elapsedMinutes 
       setPendingVersion((value) => value + 1);
       setLastSavedInfo('Sem internet. Foto sera reenviada automaticamente.');
       setTimeout(() => setLastSavedInfo(null), 3000);
-      return;
+      return { service: fallbackService || null, persisted: false };
     }
     let lastError: unknown = null;
     for (let i = 0; i < attempts; i++) {
@@ -138,7 +169,7 @@ export default function InspectionPre({ onNavigate, onStartWash, elapsedMinutes 
           saveInfo.imageData
         );
         setPhotos(savedService.preInspectionPhotos || {});
-        return;
+        return { service: savedService, persisted: true };
       } catch (error) {
         lastError = error;
         if (!navigator.onLine) {
@@ -151,10 +182,22 @@ export default function InspectionPre({ onNavigate, onStartWash, elapsedMinutes 
           setPendingVersion((value) => value + 1);
           setLastSavedInfo('A internet caiu. Foto sera reenviada automaticamente.');
           setTimeout(() => setLastSavedInfo(null), 3000);
-          return;
+          return { service: fallbackService || null, persisted: false };
         }
         await new Promise((r) => setTimeout(r, 1000 * Math.pow(2, i)));
       }
+    }
+    if (shouldQueuePendingPhotoSave(lastError)) {
+      enqueuePendingPhotoSave({
+        serviceId: payload.id,
+        stage: 'pre',
+        photoId: saveInfo.photoId,
+        imageData: saveInfo.imageData,
+      });
+      setPendingVersion((value) => value + 1);
+      setLastSavedInfo('Houve instabilidade. Foto sera reenviada automaticamente.');
+      setTimeout(() => setLastSavedInfo(null), 3000);
+      return { service: fallbackService || null, persisted: false };
     }
     throw lastError instanceof Error ? lastError : new Error('Falha ao salvar a foto no servidor.');
   }
@@ -164,6 +207,12 @@ export default function InspectionPre({ onNavigate, onStartWash, elapsedMinutes 
     window.addEventListener('online', handler);
     void flushNow();
     return () => window.removeEventListener('online', handler);
+  }, []);
+
+  useEffect(() => {
+    const handler = () => setPendingVersion((value) => value + 1);
+    window.addEventListener(PENDING_PHOTO_SAVES_UPDATED_EVENT, handler as EventListener);
+    return () => window.removeEventListener(PENDING_PHOTO_SAVES_UPDATED_EVENT, handler as EventListener);
   }, []);
 
   const onFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -180,8 +229,17 @@ export default function InspectionPre({ onNavigate, onStartWash, elapsedMinutes 
         const nowIso = new Date().toISOString();
         const nextPhotos: Record<string, string> = { ...(service?.preInspectionPhotos || {}), [activePhotoId]: imageData };
         const nextImage = nextPhotos.front || service?.image || '';
+        const optimisticService = service ? {
+          ...service,
+          preInspectionPhotos: nextPhotos,
+          image: nextImage,
+          timeline: {
+            ...(service.timeline || {}),
+            preInspectionStartedAt: service.timeline?.preInspectionStartedAt || nowIso,
+          },
+        } : null;
         if (service?.id) {
-          await upsertWithRetry({
+          const saveResult = await upsertWithRetry({
             ...(service as Service),
             preInspectionPhotos: nextPhotos,
             image: nextImage,
@@ -189,8 +247,11 @@ export default function InspectionPre({ onNavigate, onStartWash, elapsedMinutes 
               ...(service.timeline || {}),
               preInspectionStartedAt: service.timeline?.preInspectionStartedAt || nowIso,
             },
-          }, { photoId: activePhotoId, imageData });
-          if (navigator.onLine) {
+          }, { photoId: activePhotoId, imageData }, optimisticService);
+          if (saveResult.service) {
+            onServiceChange?.(saveResult.service);
+          }
+          if (saveResult.persisted) {
             setLastSavedInfo(`Foto ${activePhotoId} salva`);
             setTimeout(() => setLastSavedInfo(null), 3000);
           }

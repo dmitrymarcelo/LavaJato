@@ -265,6 +265,7 @@ export type PendingPhotoSaveEntry = {
 
 const PENDING_PHOTO_SAVES_KEY = 'pendingPhotoSavesV2';
 const LEGACY_PENDING_PHOTO_SAVES_KEY = 'pendingPhotoSaves';
+export const PENDING_PHOTO_SAVES_UPDATED_EVENT = 'app:pending-photo-saves-updated';
 
 function safeReadJson(value: string): unknown {
   try {
@@ -317,6 +318,20 @@ function dedupePendingPhotoList(items: PendingPhotoSaveEntry[]) {
   return Array.from(seen.values()).sort((a, b) => b.createdAt - a.createdAt);
 }
 
+function dispatchPendingPhotoQueueUpdated(count: number) {
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  try {
+    window.dispatchEvent(new CustomEvent(PENDING_PHOTO_SAVES_UPDATED_EVENT, {
+      detail: {
+        count,
+      },
+    }));
+  } catch {}
+}
+
 export function readPendingPhotoSaves() {
   const raw = typeof window !== 'undefined' ? window.localStorage.getItem(PENDING_PHOTO_SAVES_KEY) : null;
   const parsed = raw ? safeReadJson(raw) : null;
@@ -342,6 +357,7 @@ export function writePendingPhotoSaves(items: PendingPhotoSaveEntry[]) {
   try {
     window.localStorage.setItem(PENDING_PHOTO_SAVES_KEY, JSON.stringify(normalized));
   } catch {}
+  dispatchPendingPhotoQueueUpdated(normalized.length);
 }
 
 export function enqueuePendingPhotoSave(
@@ -385,6 +401,7 @@ export async function flushPendingPhotoSaves(options: {
 }) {
   const list = readPendingPhotoSaves();
   const remaining: PendingPhotoSaveEntry[] = [];
+  const savedEntries: PendingPhotoSaveEntry[] = [];
   let savedCount = 0;
 
   for (const entry of list) {
@@ -399,6 +416,7 @@ export async function flushPendingPhotoSaves(options: {
     try {
       await options.saveInspectionPhoto(entry.serviceId, entry.stage, entry.photoId, entry.imageData);
       savedCount += 1;
+      savedEntries.push(entry);
       options.onSaved?.(entry);
     } catch {
       remaining.push(entry);
@@ -408,6 +426,32 @@ export async function flushPendingPhotoSaves(options: {
   writePendingPhotoSaves(remaining);
   return {
     savedCount,
+    savedEntries,
     remainingCount: remaining.length,
   };
+}
+
+export function shouldQueuePendingPhotoSave(error: unknown) {
+  if (typeof navigator !== 'undefined' && !navigator.onLine) {
+    return true;
+  }
+
+  const status = typeof error === 'object' && error && 'status' in error
+    ? Number((error as { status?: unknown }).status)
+    : NaN;
+
+  if ([408, 425, 429].includes(status) || status >= 500) {
+    return true;
+  }
+
+  const message = String(error instanceof Error ? error.message : error || '').toLowerCase();
+  return [
+    'failed to fetch',
+    'network request failed',
+    'networkerror',
+    'load failed',
+    'timed out',
+    'timeout',
+    'network',
+  ].some((fragment) => message.includes(fragment));
 }

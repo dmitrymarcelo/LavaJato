@@ -6,7 +6,15 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { AlertCircle, Camera, CheckCircle2, ChevronLeft, Clock3, CreditCard, RefreshCw, Upload, X } from 'lucide-react';
 import { Screen, Service } from '../types';
-import { enqueuePendingPhotoSave, flushPendingPhotoSaves, formatElapsedMinutes, listPendingPhotoIds, optimizeImageFile } from '../utils/app';
+import {
+  enqueuePendingPhotoSave,
+  flushPendingPhotoSaves,
+  formatElapsedMinutes,
+  listPendingPhotoIds,
+  optimizeImageFile,
+  PENDING_PHOTO_SAVES_UPDATED_EVENT,
+  shouldQueuePendingPhotoSave,
+} from '../utils/app';
 import ModalSurface from './ModalSurface';
 import { api } from '../services/api';
 
@@ -23,11 +31,13 @@ export default function InspectionPost({
   onCompleteWash,
   elapsedMinutes = 0,
   service,
+  onServiceChange,
 }: {
   onNavigate: (screen: Screen) => void;
   onCompleteWash: (photos: Record<string, string>) => Promise<void> | void;
   elapsedMinutes?: number;
   service?: Service | null;
+  onServiceChange?: (service: Service) => void;
 }) {
   const [photos, setPhotos] = useState<Record<string, string>>({});
   const [activePhotoId, setActivePhotoId] = useState<string | null>(null);
@@ -70,6 +80,11 @@ export default function InspectionPost({
 
       setPendingVersion((value) => value + 1);
       if (result.savedCount) {
+        if (service?.id) {
+          const refreshedService = await api.getService(service.id);
+          setPhotos(refreshedService.postInspectionPhotos || {});
+          onServiceChange?.(refreshedService);
+        }
         setLastSavedInfo(`${result.savedCount} foto(s) reenviada(s)`);
         setTimeout(() => setLastSavedInfo(null), 3000);
       }
@@ -99,6 +114,11 @@ export default function InspectionPost({
         }));
         setIsPhotoSourceOpen(false);
         const nextPhotos: Record<string, string> = { ...(service?.postInspectionPhotos || {}), [activePhotoId]: imageData };
+        const optimisticService = service ? {
+          ...service,
+          postInspectionPhotos: nextPhotos,
+          image: nextPhotos.front || service.image || '',
+        } : null;
         if (service?.id) {
           if (!navigator.onLine) {
             enqueuePendingPhotoSave({
@@ -110,8 +130,13 @@ export default function InspectionPost({
             setPendingVersion((value) => value + 1);
             setLastSavedInfo('Sem internet. Foto sera reenviada automaticamente.');
             setTimeout(() => setLastSavedInfo(null), 3000);
+            if (optimisticService) {
+              onServiceChange?.(optimisticService);
+            }
           } else {
+            let lastError: unknown = null;
             let saved = false;
+            let syncedService: Service | null = null;
             for (let i = 0; i < 2; i += 1) {
               try {
                 const savedService = await api.saveInspectionPhoto(
@@ -121,9 +146,11 @@ export default function InspectionPost({
                   imageData
                 );
                 setPhotos(savedService.postInspectionPhotos || {});
+                syncedService = savedService;
                 saved = true;
                 break;
               } catch (error) {
+                lastError = error;
                 if (!navigator.onLine) {
                   enqueuePendingPhotoSave({
                     serviceId: service.id,
@@ -134,6 +161,9 @@ export default function InspectionPost({
                   setPendingVersion((value) => value + 1);
                   setLastSavedInfo('A internet caiu. Foto sera reenviada automaticamente.');
                   setTimeout(() => setLastSavedInfo(null), 3000);
+                  if (optimisticService) {
+                    onServiceChange?.(optimisticService);
+                  }
                   saved = true;
                   break;
                 }
@@ -141,10 +171,29 @@ export default function InspectionPost({
               }
             }
             if (!saved) {
-              throw new Error('Nao foi possivel salvar a foto agora.');
+              if (shouldQueuePendingPhotoSave(lastError)) {
+                enqueuePendingPhotoSave({
+                  serviceId: service.id,
+                  stage: 'post',
+                  photoId: activePhotoId,
+                  imageData,
+                });
+                setPendingVersion((value) => value + 1);
+                setLastSavedInfo('Houve instabilidade. Foto sera reenviada automaticamente.');
+                setTimeout(() => setLastSavedInfo(null), 3000);
+                if (optimisticService) {
+                  onServiceChange?.(optimisticService);
+                }
+                saved = true;
+              } else {
+                throw new Error('Nao foi possivel salvar a foto agora.');
+              }
             }
-            setLastSavedInfo(`Foto ${activePhotoId} salva`);
-            setTimeout(() => setLastSavedInfo(null), 3000);
+            if (syncedService) {
+              onServiceChange?.(syncedService);
+              setLastSavedInfo(`Foto ${activePhotoId} salva`);
+              setTimeout(() => setLastSavedInfo(null), 3000);
+            }
           }
         }
       } catch (error) {
@@ -174,6 +223,12 @@ export default function InspectionPost({
     window.addEventListener('online', handler);
     void flushNow();
     return () => window.removeEventListener('online', handler);
+  }, []);
+
+  useEffect(() => {
+    const handler = () => setPendingVersion((value) => value + 1);
+    window.addEventListener(PENDING_PHOTO_SAVES_UPDATED_EVENT, handler as EventListener);
+    return () => window.removeEventListener(PENDING_PHOTO_SAVES_UPDATED_EVENT, handler as EventListener);
   }, []);
 
   const completedCount = Object.keys(photos).length;
