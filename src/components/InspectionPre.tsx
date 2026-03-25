@@ -93,8 +93,7 @@ export default function InspectionPre({ onNavigate, onStartWash, elapsedMinutes 
     try {
       const result = await flushPendingPhotoSaves({
         stage: 'pre',
-        fetchService: api.getService,
-        upsertService: api.upsertService,
+        saveInspectionPhoto: api.saveInspectionPhoto,
         onSaved: (entry) => {
           if (entry.serviceId === service?.id) {
             setPendingVersion((value) => value + 1);
@@ -132,7 +131,13 @@ export default function InspectionPre({ onNavigate, onStartWash, elapsedMinutes 
     let lastError: unknown = null;
     for (let i = 0; i < attempts; i++) {
       try {
-        await api.upsertService(payload);
+        const savedService = await api.saveInspectionPhoto(
+          payload.id,
+          'pre',
+          saveInfo.photoId,
+          saveInfo.imageData
+        );
+        setPhotos(savedService.preInspectionPhotos || {});
         return;
       } catch (error) {
         lastError = error;

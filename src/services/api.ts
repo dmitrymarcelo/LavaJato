@@ -48,6 +48,8 @@ export interface PaymentCompletionPayload {
   appointment: Appointment | null;
 }
 
+export type InspectionPhotoStage = 'pre' | 'post';
+
 export interface SchedulingDeletionPayload {
   deletedAppointmentIds: string[];
   deletedServiceIds: string[];
@@ -200,6 +202,11 @@ export const api = {
     request<VehicleHistoryDetail>(`/vehicle-history/${encodeURIComponent(plate)}`),
   upsertService: (service: Service) =>
     request<Service>('/services/upsert', { method: 'POST', body: JSON.stringify(service) }),
+  saveInspectionPhoto: (serviceId: string, stage: InspectionPhotoStage, photoId: string, imageData: string) =>
+    request<Service>(`/services/${encodeURIComponent(serviceId)}/inspection-photo`, {
+      method: 'POST',
+      body: JSON.stringify({ stage, photoId, imageData }),
+    }),
   completePayment: (serviceId: string) =>
     request<PaymentCompletionPayload>(`/services/${encodeURIComponent(serviceId)}/complete-payment`, { method: 'POST' }),
   bookScheduling: (payload: SchedulingBookingPayload) =>

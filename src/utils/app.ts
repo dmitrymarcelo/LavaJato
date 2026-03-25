@@ -380,14 +380,12 @@ export function listPendingPhotoIds(serviceId: string, stage: PendingPhotoStage)
 export async function flushPendingPhotoSaves(options: {
   stage?: PendingPhotoStage;
   serviceId?: string;
-  fetchService: (serviceId: string) => Promise<Service>;
-  upsertService: (service: Service) => Promise<unknown>;
+  saveInspectionPhoto: (serviceId: string, stage: PendingPhotoStage, photoId: string, imageData: string) => Promise<unknown>;
   onSaved?: (entry: PendingPhotoSaveEntry) => void;
 }) {
   const list = readPendingPhotoSaves();
   const remaining: PendingPhotoSaveEntry[] = [];
   let savedCount = 0;
-  const nowIso = new Date().toISOString();
 
   for (const entry of list) {
     if (options.stage && entry.stage !== options.stage) {
@@ -399,35 +397,7 @@ export async function flushPendingPhotoSaves(options: {
       continue;
     }
     try {
-      const current = await options.fetchService(entry.serviceId);
-      if (!current?.id) {
-        remaining.push(entry);
-        continue;
-      }
-
-      if (entry.stage === 'pre') {
-        const nextPhotos = { ...(current.preInspectionPhotos || {}), [entry.photoId]: entry.imageData };
-        await options.upsertService({
-          ...current,
-          preInspectionPhotos: nextPhotos,
-          image: nextPhotos.front || current.image || '',
-          timeline: {
-            ...(current.timeline || {}),
-            preInspectionStartedAt: current.timeline?.preInspectionStartedAt || nowIso,
-          },
-        });
-      } else {
-        const nextPhotos = { ...(current.postInspectionPhotos || {}), [entry.photoId]: entry.imageData };
-        await options.upsertService({
-          ...current,
-          postInspectionPhotos: nextPhotos,
-          image: nextPhotos.front || current.image || '',
-          timeline: {
-            ...(current.timeline || {}),
-          },
-        });
-      }
-
+      await options.saveInspectionPhoto(entry.serviceId, entry.stage, entry.photoId, entry.imageData);
       savedCount += 1;
       options.onSaved?.(entry);
     } catch {

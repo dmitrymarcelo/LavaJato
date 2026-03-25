@@ -715,6 +715,47 @@ async function upsertServiceRow(service, executor = query) {
   );
 }
 
+async function saveInspectionPhoto(serviceId, stage, photoId, imageData) {
+  return withTransaction(async (client) => {
+    const executor = (text, params = []) => client.query(text, params);
+    const result = await executor('SELECT * FROM services WHERE id = $1 FOR UPDATE', [serviceId]);
+    const row = result.rows[0];
+
+    if (!row) {
+      const error = new Error('Servico nao encontrado.');
+      error.statusCode = 404;
+      throw error;
+    }
+
+    const currentService = toCamelService(row);
+    const currentPhotos = stage === 'pre'
+      ? (currentService.preInspectionPhotos || {})
+      : (currentService.postInspectionPhotos || {});
+    const nextPhotos = {
+      ...currentPhotos,
+      [photoId]: imageData,
+    };
+    const nowIso = new Date().toISOString();
+    const nextService = {
+      ...currentService,
+      preInspectionPhotos: stage === 'pre' ? nextPhotos : currentService.preInspectionPhotos,
+      postInspectionPhotos: stage === 'post' ? nextPhotos : currentService.postInspectionPhotos,
+      image: nextPhotos.front || currentService.image || '',
+      timeline: {
+        ...(currentService.timeline || {}),
+        ...(stage === 'pre'
+          ? { preInspectionStartedAt: currentService.timeline?.preInspectionStartedAt || nowIso }
+          : {}),
+      },
+    };
+
+    await upsertServiceRow(nextService, executor);
+
+    const updatedResult = await executor('SELECT * FROM services WHERE id = $1', [serviceId]);
+    return toCamelService(updatedResult.rows[0]);
+  });
+}
+
 async function upsertVehicleRow(vehicle, executor = query) {
   const plate = String(vehicle.plate || '').toUpperCase().trim();
   if (!plate) {
@@ -1313,6 +1354,32 @@ app.get('/api/services/:id', async (req, res) => {
   assertUserCanAccessBase(req.user, row.base_id);
 
   res.json(toCamelService(row));
+});
+
+app.post('/api/services/:id/inspection-photo', async (req, res) => {
+  const stage = req.body?.stage;
+  const photoId = String(req.body?.photoId || '').trim();
+  const imageData = String(req.body?.imageData || '').trim();
+
+  if (stage !== 'pre' && stage !== 'post') {
+    return res.status(400).json({ error: 'Etapa da foto invalida.' });
+  }
+
+  if (!photoId || !imageData) {
+    return res.status(400).json({ error: 'Foto e identificador sao obrigatorios.' });
+  }
+
+  const existing = await query('SELECT base_id FROM services WHERE id = $1', [req.params.id]);
+  const row = existing.rows[0];
+
+  if (!row) {
+    return res.status(404).json({ error: 'Servico nao encontrado.' });
+  }
+
+  assertUserCanAccessBase(req.user, row.base_id);
+
+  const updatedService = await saveInspectionPhoto(req.params.id, stage, photoId, imageData);
+  res.json(updatedService);
 });
 
 app.post('/api/services/upsert', async (req, res) => {

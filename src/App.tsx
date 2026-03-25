@@ -175,8 +175,7 @@ export default function App() {
       }
       try {
         await flushPendingPhotoSaves({
-          fetchService: api.getService,
-          upsertService: api.upsertService,
+          saveInspectionPhoto: api.saveInspectionPhoto,
         });
       } catch (error) {}
     };

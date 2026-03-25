@@ -60,8 +60,7 @@ export default function InspectionPost({
     try {
       const result = await flushPendingPhotoSaves({
         stage: 'post',
-        fetchService: api.getService,
-        upsertService: api.upsertService,
+        saveInspectionPhoto: api.saveInspectionPhoto,
         onSaved: (entry) => {
           if (entry.serviceId === service?.id) {
             setPendingVersion((value) => value + 1);
@@ -100,19 +99,10 @@ export default function InspectionPost({
         }));
         setIsPhotoSourceOpen(false);
         const nextPhotos: Record<string, string> = { ...(service?.postInspectionPhotos || {}), [activePhotoId]: imageData };
-        const nextImage = nextPhotos.front || service?.image || '';
         if (service?.id) {
-          const payload: Service = {
-            ...(service as Service),
-            postInspectionPhotos: nextPhotos,
-            image: nextImage,
-            timeline: {
-              ...(service.timeline || {}),
-            },
-          };
           if (!navigator.onLine) {
             enqueuePendingPhotoSave({
-              serviceId: payload.id,
+              serviceId: service.id,
               stage: 'post',
               photoId: activePhotoId,
               imageData,
@@ -124,13 +114,19 @@ export default function InspectionPost({
             let saved = false;
             for (let i = 0; i < 2; i += 1) {
               try {
-                await api.upsertService(payload);
+                const savedService = await api.saveInspectionPhoto(
+                  service.id,
+                  'post',
+                  activePhotoId,
+                  imageData
+                );
+                setPhotos(savedService.postInspectionPhotos || {});
                 saved = true;
                 break;
               } catch (error) {
                 if (!navigator.onLine) {
                   enqueuePendingPhotoSave({
-                    serviceId: payload.id,
+                    serviceId: service.id,
                     stage: 'post',
                     photoId: activePhotoId,
                     imageData,
