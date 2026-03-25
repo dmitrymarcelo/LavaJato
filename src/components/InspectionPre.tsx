@@ -72,39 +72,55 @@ export default function InspectionPre({ onNavigate, onStartWash, elapsedMinutes 
     );
   };
 
-  const onFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const [lastSavedInfo, setLastSavedInfo] = useState<string | null>(null);
+
+  async function upsertWithRetry(payload: Service, attempts = 3) {
+    let lastError: unknown = null;
+    for (let i = 0; i < attempts; i++) {
+      try {
+        await api.upsertService(payload);
+        return;
+      } catch (error) {
+        lastError = error;
+        await new Promise((r) => setTimeout(r, 1000 * Math.pow(2, i)));
+      }
+    }
+    throw lastError instanceof Error ? lastError : new Error('Falha ao salvar a foto no servidor.');
+  }
+
+  const onFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file && activePhotoId) {
       setIsProcessingPhoto(true);
-      optimizeImageFile(file)
-        .then((imageData) => {
-          setPhotos(prev => ({
-            ...prev,
-            [activePhotoId]: imageData
-          }));
-          setIsPhotoSourceOpen(false);
-          const nowIso = new Date().toISOString();
-          const nextPhotos: Record<string, string> = { ...(service?.preInspectionPhotos || {}), [activePhotoId]: imageData };
-          const nextImage = nextPhotos.front || service?.image || '';
-          if (service?.id) {
-            void api.upsertService({
-              ...(service as Service),
-              preInspectionPhotos: nextPhotos,
-              image: nextImage,
-              timeline: {
-                ...(service.timeline || {}),
-                preInspectionStartedAt: service.timeline?.preInspectionStartedAt || nowIso,
-              },
-            });
-          }
-        })
-        .catch((error) => {
-          console.error(error);
-          alert(error instanceof Error ? error.message : 'Nao foi possivel processar a foto.');
-        })
-        .finally(() => {
-          setIsProcessingPhoto(false);
-        });
+      try {
+        const imageData = await optimizeImageFile(file);
+        setPhotos(prev => ({
+          ...prev,
+          [activePhotoId]: imageData
+        }));
+        setIsPhotoSourceOpen(false);
+        const nowIso = new Date().toISOString();
+        const nextPhotos: Record<string, string> = { ...(service?.preInspectionPhotos || {}), [activePhotoId]: imageData };
+        const nextImage = nextPhotos.front || service?.image || '';
+        if (service?.id) {
+          await upsertWithRetry({
+            ...(service as Service),
+            preInspectionPhotos: nextPhotos,
+            image: nextImage,
+            timeline: {
+              ...(service.timeline || {}),
+              preInspectionStartedAt: service.timeline?.preInspectionStartedAt || nowIso,
+            },
+          });
+          setLastSavedInfo(`Foto ${activePhotoId} salva`);
+          setTimeout(() => setLastSavedInfo(null), 3000);
+        }
+      } catch (error) {
+        console.error(error);
+        alert(error instanceof Error ? error.message : 'Nao foi possivel processar a foto.');
+      } finally {
+        setIsProcessingPhoto(false);
+      }
     }
     if (cameraInputRef.current) {
       cameraInputRef.current.value = '';
@@ -301,6 +317,11 @@ export default function InspectionPre({ onNavigate, onStartWash, elapsedMinutes 
               {isPhotosComplete ? 'Tudo pronto!' : 'Capture ao menos 1 foto'}
             </span>
           </div>
+          {lastSavedInfo && (
+            <div className="mb-2 rounded-2xl border border-emerald-100 bg-emerald-50 px-3 py-2 text-[12px] font-bold text-emerald-700">
+              {lastSavedInfo}
+            </div>
+          )}
           <div className="w-full bg-slate-100 h-3 rounded-full overflow-hidden p-0.5 border border-slate-200">
             <motion.div 
               initial={{ width: 0 }}

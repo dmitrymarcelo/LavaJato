@@ -52,8 +52,9 @@ export default function InspectionPost({
     }
 
     setIsProcessingPhoto(true);
-    optimizeImageFile(file)
-      .then((imageData) => {
+    (async () => {
+      try {
+        const imageData = await optimizeImageFile(file);
         setPhotos((current) => ({
           ...current,
           [activePhotoId]: imageData,
@@ -62,7 +63,7 @@ export default function InspectionPost({
         const nextPhotos: Record<string, string> = { ...(service?.postInspectionPhotos || {}), [activePhotoId]: imageData };
         const nextImage = nextPhotos.front || service?.image || '';
         if (service?.id) {
-          void api.upsertService({
+          await api.upsertService({
             ...(service as Service),
             postInspectionPhotos: nextPhotos,
             image: nextImage,
@@ -71,14 +72,13 @@ export default function InspectionPost({
             },
           });
         }
-      })
-      .catch((error) => {
+      } catch (error) {
         console.error(error);
         alert(error instanceof Error ? error.message : 'Nao foi possivel processar a foto.');
-      })
-      .finally(() => {
+      } finally {
         setIsProcessingPhoto(false);
-      });
+      }
+    })();
 
     if (cameraInputRef.current) {
       cameraInputRef.current.value = '';
