@@ -21,7 +21,7 @@ import Sidebar from './components/Sidebar';
 import ModalSurface from './components/ModalSurface';
 import Notifications from './components/Notifications';
 import Scheduling, { QueueSection } from './components/Scheduling';
-import { getElapsedMinutes, getServicePreviewImage, getTodayDate, normalizeDateKey } from './utils/app';
+import { flushPendingPhotoSaves, getElapsedMinutes, getServicePreviewImage, getTodayDate, normalizeDateKey } from './utils/app';
 import { api, ApiError, Appointment, UNAUTHORIZED_SESSION_EVENT } from './services/api';
 import { BASES, getBaseById } from './data/bases';
 
@@ -163,6 +163,30 @@ export default function App() {
   useEffect(() => {
     api.setAuthToken(authToken);
   }, [authToken]);
+
+  useEffect(() => {
+    if (!isAuthenticated) {
+      return;
+    }
+
+    const flush = async () => {
+      if (!navigator.onLine) {
+        return;
+      }
+      try {
+        await flushPendingPhotoSaves({
+          fetchService: api.getService,
+          upsertService: api.upsertService,
+        });
+      } catch (error) {}
+    };
+
+    const handler = () => void flush();
+    window.addEventListener('online', handler);
+    void flush();
+
+    return () => window.removeEventListener('online', handler);
+  }, [isAuthenticated]);
 
   useEffect(() => {
     const handleUnauthorizedEvent = () => {
