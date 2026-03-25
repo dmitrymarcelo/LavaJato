@@ -75,6 +75,18 @@ export default function InspectionPre({ onNavigate, onStartWash, elapsedMinutes 
   const [lastSavedInfo, setLastSavedInfo] = useState<string | null>(null);
 
   async function upsertWithRetry(payload: Service, attempts = 3) {
+    if (!navigator.onLine) {
+      enqueuePendingSave({
+        serviceId: payload.id,
+        stage: 'pre',
+        photoId: activePhotoId || '',
+        imageData: (payload.preInspectionPhotos || {})[activePhotoId || ''] || '',
+        payload,
+      });
+      setLastSavedInfo('Sem internet. Foto sera reenviada automaticamente.');
+      setTimeout(() => setLastSavedInfo(null), 3000);
+      return;
+    }
     let lastError: unknown = null;
     for (let i = 0; i < attempts; i++) {
       try {
@@ -87,6 +99,62 @@ export default function InspectionPre({ onNavigate, onStartWash, elapsedMinutes 
     }
     throw lastError instanceof Error ? lastError : new Error('Falha ao salvar a foto no servidor.');
   }
+
+  type PendingSave = {
+    serviceId: string;
+    stage: 'pre' | 'post';
+    photoId: string;
+    imageData: string;
+    payload: Service;
+  };
+
+  function readPendingSaves(): PendingSave[] {
+    try {
+      const raw = window.localStorage.getItem('pendingPhotoSaves') || '[]';
+      const list = JSON.parse(raw);
+      return Array.isArray(list) ? list : [];
+    } catch {
+      return [];
+    }
+  }
+
+  function writePendingSaves(list: PendingSave[]) {
+    try {
+      window.localStorage.setItem('pendingPhotoSaves', JSON.stringify(list));
+    } catch {}
+  }
+
+  function enqueuePendingSave(entry: PendingSave) {
+    const list = readPendingSaves();
+    writePendingSaves([...list, entry]);
+  }
+
+  async function flushPendingSaves() {
+    if (!navigator.onLine) return;
+    const list = readPendingSaves();
+    const next: PendingSave[] = [];
+    for (const item of list) {
+      if (item.stage !== 'pre') {
+        next.push(item);
+        continue;
+      }
+      try {
+        await api.upsertService(item.payload);
+        setLastSavedInfo(`Foto ${item.photoId} salva`);
+        setTimeout(() => setLastSavedInfo(null), 3000);
+      } catch {
+        next.push(item);
+      }
+    }
+    writePendingSaves(next);
+  }
+
+  useEffect(() => {
+    const handler = () => void flushPendingSaves();
+    window.addEventListener('online', handler);
+    void flushPendingSaves();
+    return () => window.removeEventListener('online', handler);
+  }, []);
 
   const onFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];

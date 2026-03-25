@@ -33,6 +33,7 @@ export default function InspectionPost({
   const [activePhotoId, setActivePhotoId] = useState<string | null>(null);
   const [isPhotoSourceOpen, setIsPhotoSourceOpen] = useState(false);
   const [isProcessingPhoto, setIsProcessingPhoto] = useState(false);
+  const [lastSavedInfo, setLastSavedInfo] = useState<string | null>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const galleryInputRef = useRef<HTMLInputElement>(null);
 
@@ -63,14 +64,29 @@ export default function InspectionPost({
         const nextPhotos: Record<string, string> = { ...(service?.postInspectionPhotos || {}), [activePhotoId]: imageData };
         const nextImage = nextPhotos.front || service?.image || '';
         if (service?.id) {
-          await api.upsertService({
+          const payload: Service = {
             ...(service as Service),
             postInspectionPhotos: nextPhotos,
             image: nextImage,
             timeline: {
               ...(service.timeline || {}),
             },
-          });
+          };
+          if (!navigator.onLine) {
+            enqueuePendingSave({
+              serviceId: payload.id,
+              stage: 'post',
+              photoId: activePhotoId,
+              imageData: imageData,
+              payload,
+            });
+            setLastSavedInfo('Sem internet. Foto sera reenviada automaticamente.');
+            setTimeout(() => setLastSavedInfo(null), 3000);
+          } else {
+            await api.upsertService(payload);
+            setLastSavedInfo(`Foto ${activePhotoId} salva`);
+            setTimeout(() => setLastSavedInfo(null), 3000);
+          }
         }
       } catch (error) {
         console.error(error);
@@ -88,6 +104,62 @@ export default function InspectionPost({
       galleryInputRef.current.value = '';
     }
   };
+
+  type PendingSave = {
+    serviceId: string;
+    stage: 'pre' | 'post';
+    photoId: string;
+    imageData: string;
+    payload: Service;
+  };
+
+  function readPendingSaves(): PendingSave[] {
+    try {
+      const raw = window.localStorage.getItem('pendingPhotoSaves') || '[]';
+      const list = JSON.parse(raw);
+      return Array.isArray(list) ? list : [];
+    } catch {
+      return [];
+    }
+  }
+
+  function writePendingSaves(list: PendingSave[]) {
+    try {
+      window.localStorage.setItem('pendingPhotoSaves', JSON.stringify(list));
+    } catch {}
+  }
+
+  function enqueuePendingSave(entry: PendingSave) {
+    const list = readPendingSaves();
+    writePendingSaves([...list, entry]);
+  }
+
+  async function flushPendingSaves() {
+    if (!navigator.onLine) return;
+    const list = readPendingSaves();
+    const next: PendingSave[] = [];
+    for (const item of list) {
+      if (item.stage !== 'post') {
+        next.push(item);
+        continue;
+      }
+      try {
+        await api.upsertService(item.payload);
+        setLastSavedInfo(`Foto ${item.photoId} salva`);
+        setTimeout(() => setLastSavedInfo(null), 3000);
+      } catch {
+        next.push(item);
+      }
+    }
+    writePendingSaves(next);
+  }
+
+  useEffect(() => {
+    const handler = () => void flushPendingSaves();
+    window.addEventListener('online', handler);
+    void flushPendingSaves();
+    return () => window.removeEventListener('online', handler);
+  }, []);
 
   const completedCount = Object.keys(photos).length;
   const progress = (completedCount / PHOTO_TYPES.length) * 100;
@@ -237,6 +309,11 @@ export default function InspectionPost({
 
       <footer className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[430px] p-4 bg-white/95 backdrop-blur-lg border-t border-slate-100 pb-6 z-[70]">
         <div className="space-y-3">
+          {lastSavedInfo && (
+            <div className="rounded-2xl border border-emerald-100 bg-emerald-50 px-3 py-2 text-[12px] font-bold text-emerald-700">
+              {lastSavedInfo}
+            </div>
+          )}
           <button
             disabled={!canComplete}
             onClick={handleComplete}
