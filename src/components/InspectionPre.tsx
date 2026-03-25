@@ -3,11 +3,11 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useRef, useEffect } from 'react';
-import { Camera, CheckCircle2, Lock, Info, RefreshCw, ChevronLeft, PlayCircle, AlertCircle, Upload, X } from 'lucide-react';
+import React, { useMemo, useState, useRef, useEffect } from 'react';
+import { Camera, CheckCircle2, Lock, Info, RefreshCw, ChevronLeft, PlayCircle, AlertCircle, Upload, X, Clock3 } from 'lucide-react';
 import { motion } from '../lib/motion';
 import { Screen, Service, TeamMember } from '../types';
-import { formatElapsedMinutes, normalizeDateKey, optimizeImageFile } from '../utils/app';
+import { enqueuePendingPhotoSave, flushPendingPhotoSaves, formatElapsedMinutes, listPendingPhotoIds, normalizeDateKey, optimizeImageFile } from '../utils/app';
 import ModalSurface from './ModalSurface';
 import { api } from '../services/api';
 
@@ -73,16 +73,58 @@ export default function InspectionPre({ onNavigate, onStartWash, elapsedMinutes 
   };
 
   const [lastSavedInfo, setLastSavedInfo] = useState<string | null>(null);
+  const [isFlushingPending, setIsFlushingPending] = useState(false);
+  const [pendingVersion, setPendingVersion] = useState(0);
 
-  async function upsertWithRetry(payload: Service, attempts = 3) {
+  const pendingPhotoIds = useMemo(() => {
+    return new Set(listPendingPhotoIds(service?.id || '', 'pre'));
+  }, [service?.id, pendingVersion]);
+
+  const pendingCount = pendingPhotoIds.size;
+
+  const flushNow = async () => {
     if (!navigator.onLine) {
-      enqueuePendingSave({
+      setLastSavedInfo('Sem internet. Fotos pendentes serao reenviadas automaticamente.');
+      setTimeout(() => setLastSavedInfo(null), 3000);
+      return;
+    }
+
+    setIsFlushingPending(true);
+    try {
+      const result = await flushPendingPhotoSaves({
+        stage: 'pre',
+        fetchService: api.getService,
+        upsertService: api.upsertService,
+        onSaved: (entry) => {
+          if (entry.serviceId === service?.id) {
+            setPendingVersion((value) => value + 1);
+          }
+        },
+      });
+
+      setPendingVersion((value) => value + 1);
+      if (result.savedCount) {
+        setLastSavedInfo(`${result.savedCount} foto(s) reenviada(s)`);
+        setTimeout(() => setLastSavedInfo(null), 3000);
+      }
+    } finally {
+      setIsFlushingPending(false);
+    }
+  };
+
+  async function upsertWithRetry(
+    payload: Service,
+    saveInfo: { photoId: string; imageData: string },
+    attempts = 3
+  ) {
+    if (!navigator.onLine) {
+      enqueuePendingPhotoSave({
         serviceId: payload.id,
         stage: 'pre',
-        photoId: activePhotoId || '',
-        imageData: (payload.preInspectionPhotos || {})[activePhotoId || ''] || '',
-        payload,
+        photoId: saveInfo.photoId,
+        imageData: saveInfo.imageData,
       });
+      setPendingVersion((value) => value + 1);
       setLastSavedInfo('Sem internet. Foto sera reenviada automaticamente.');
       setTimeout(() => setLastSavedInfo(null), 3000);
       return;
@@ -94,65 +136,28 @@ export default function InspectionPre({ onNavigate, onStartWash, elapsedMinutes 
         return;
       } catch (error) {
         lastError = error;
+        if (!navigator.onLine) {
+          enqueuePendingPhotoSave({
+            serviceId: payload.id,
+            stage: 'pre',
+            photoId: saveInfo.photoId,
+            imageData: saveInfo.imageData,
+          });
+          setPendingVersion((value) => value + 1);
+          setLastSavedInfo('A internet caiu. Foto sera reenviada automaticamente.');
+          setTimeout(() => setLastSavedInfo(null), 3000);
+          return;
+        }
         await new Promise((r) => setTimeout(r, 1000 * Math.pow(2, i)));
       }
     }
     throw lastError instanceof Error ? lastError : new Error('Falha ao salvar a foto no servidor.');
   }
 
-  type PendingSave = {
-    serviceId: string;
-    stage: 'pre' | 'post';
-    photoId: string;
-    imageData: string;
-    payload: Service;
-  };
-
-  function readPendingSaves(): PendingSave[] {
-    try {
-      const raw = window.localStorage.getItem('pendingPhotoSaves') || '[]';
-      const list = JSON.parse(raw);
-      return Array.isArray(list) ? list : [];
-    } catch {
-      return [];
-    }
-  }
-
-  function writePendingSaves(list: PendingSave[]) {
-    try {
-      window.localStorage.setItem('pendingPhotoSaves', JSON.stringify(list));
-    } catch {}
-  }
-
-  function enqueuePendingSave(entry: PendingSave) {
-    const list = readPendingSaves();
-    writePendingSaves([...list, entry]);
-  }
-
-  async function flushPendingSaves() {
-    if (!navigator.onLine) return;
-    const list = readPendingSaves();
-    const next: PendingSave[] = [];
-    for (const item of list) {
-      if (item.stage !== 'pre') {
-        next.push(item);
-        continue;
-      }
-      try {
-        await api.upsertService(item.payload);
-        setLastSavedInfo(`Foto ${item.photoId} salva`);
-        setTimeout(() => setLastSavedInfo(null), 3000);
-      } catch {
-        next.push(item);
-      }
-    }
-    writePendingSaves(next);
-  }
-
   useEffect(() => {
-    const handler = () => void flushPendingSaves();
+    const handler = () => void flushNow();
     window.addEventListener('online', handler);
-    void flushPendingSaves();
+    void flushNow();
     return () => window.removeEventListener('online', handler);
   }, []);
 
@@ -179,13 +184,20 @@ export default function InspectionPre({ onNavigate, onStartWash, elapsedMinutes 
               ...(service.timeline || {}),
               preInspectionStartedAt: service.timeline?.preInspectionStartedAt || nowIso,
             },
-          });
-          setLastSavedInfo(`Foto ${activePhotoId} salva`);
-          setTimeout(() => setLastSavedInfo(null), 3000);
+          }, { photoId: activePhotoId, imageData });
+          if (navigator.onLine) {
+            setLastSavedInfo(`Foto ${activePhotoId} salva`);
+            setTimeout(() => setLastSavedInfo(null), 3000);
+          }
         }
       } catch (error) {
         console.error(error);
-        alert(error instanceof Error ? error.message : 'Nao foi possivel processar a foto.');
+        if (!navigator.onLine) {
+          setLastSavedInfo('Sem internet. Foto sera reenviada automaticamente.');
+          setTimeout(() => setLastSavedInfo(null), 3000);
+        } else {
+          alert(error instanceof Error ? error.message : 'Nao foi possivel salvar a foto agora.');
+        }
       } finally {
         setIsProcessingPhoto(false);
       }
@@ -366,6 +378,7 @@ export default function InspectionPre({ onNavigate, onStartWash, elapsedMinutes 
               key={type.id}
               label={type.label}
               image={photos[type.id]}
+              status={photos[type.id] ? (pendingPhotoIds.has(type.id) ? 'pending' : 'saved') : undefined}
               onClick={() => handlePhotoClick(type.id)}
               required={!completedCount}
             />
@@ -385,6 +398,22 @@ export default function InspectionPre({ onNavigate, onStartWash, elapsedMinutes 
               {isPhotosComplete ? 'Tudo pronto!' : 'Capture ao menos 1 foto'}
             </span>
           </div>
+          {pendingCount > 0 && (
+            <div className="mb-2 flex items-center justify-between gap-2 rounded-2xl border border-amber-100 bg-amber-50 px-3 py-2">
+              <div className="flex items-center gap-2 text-[12px] font-bold text-amber-800">
+                <Clock3 className="w-4 h-4" />
+                <span>{pendingCount} foto(s) pendente(s) de envio</span>
+              </div>
+              <button
+                type="button"
+                disabled={!navigator.onLine || isFlushingPending}
+                onClick={flushNow}
+                className="rounded-xl bg-amber-600 px-3 py-1.5 text-[11px] font-black uppercase tracking-widest text-white disabled:opacity-50"
+              >
+                Reenviar agora
+              </button>
+            </div>
+          )}
           {lastSavedInfo && (
             <div className="mb-2 rounded-2xl border border-emerald-100 bg-emerald-50 px-3 py-2 text-[12px] font-bold text-emerald-700">
               {lastSavedInfo}
@@ -479,7 +508,7 @@ export default function InspectionPre({ onNavigate, onStartWash, elapsedMinutes 
   );
 }
 
-function PhotoItem({ label, image, onClick, required }: { label: string, image?: string, onClick: () => void, required?: boolean, key?: string }) {
+function PhotoItem({ label, image, status, onClick, required }: { label: string, image?: string, status?: 'saved' | 'pending', onClick: () => void, required?: boolean, key?: string }) {
   if (image) {
     return (
       <div className="relative group" onClick={onClick}>
@@ -490,9 +519,15 @@ function PhotoItem({ label, image, onClick, required }: { label: string, image?:
           <div className="absolute inset-0 flex flex-col justify-end p-3">
             <p className="text-white text-[10px] font-black uppercase tracking-widest drop-shadow-md">{label}</p>
           </div>
-          <div className="absolute top-2 right-2 bg-emerald-500 text-white rounded-full p-1 shadow-lg ring-2 ring-white/20">
-            <CheckCircle2 className="w-4 h-4" />
-          </div>
+          {status === 'pending' ? (
+            <div className="absolute top-2 right-2 bg-amber-500 text-white rounded-full p-1 shadow-lg ring-2 ring-white/20">
+              <Clock3 className="w-4 h-4" />
+            </div>
+          ) : (
+            <div className="absolute top-2 right-2 bg-emerald-500 text-white rounded-full p-1 shadow-lg ring-2 ring-white/20">
+              <CheckCircle2 className="w-4 h-4" />
+            </div>
+          )}
           <div className="absolute top-2 left-2 bg-black/40 backdrop-blur-sm text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity">
             <RefreshCw className="w-3 h-3" />
           </div>

@@ -251,3 +251,193 @@ export async function optimizeImageFile(
   context.drawImage(image, 0, 0, width, height);
   return canvas.toDataURL('image/jpeg', quality);
 }
+
+export type PendingPhotoStage = 'pre' | 'post';
+
+export type PendingPhotoSaveEntry = {
+  id: string;
+  createdAt: number;
+  serviceId: string;
+  stage: PendingPhotoStage;
+  photoId: string;
+  imageData: string;
+};
+
+const PENDING_PHOTO_SAVES_KEY = 'pendingPhotoSavesV2';
+const LEGACY_PENDING_PHOTO_SAVES_KEY = 'pendingPhotoSaves';
+
+function safeReadJson(value: string): unknown {
+  try {
+    return JSON.parse(value);
+  } catch {
+    return null;
+  }
+}
+
+function normalizePendingPhotoList(value: unknown): PendingPhotoSaveEntry[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  const items: PendingPhotoSaveEntry[] = [];
+  for (const raw of value) {
+    if (!raw || typeof raw !== 'object') continue;
+    const candidate = raw as Partial<PendingPhotoSaveEntry> & {
+      payload?: Partial<Service> & { preInspectionPhotos?: Record<string, string>; postInspectionPhotos?: Record<string, string> };
+    };
+
+    const serviceId = typeof candidate.serviceId === 'string' ? candidate.serviceId : '';
+    const stage = candidate.stage === 'pre' || candidate.stage === 'post' ? candidate.stage : null;
+    const photoId = typeof candidate.photoId === 'string' ? candidate.photoId : '';
+    const createdAt = typeof candidate.createdAt === 'number' ? candidate.createdAt : Date.now();
+    const id = typeof candidate.id === 'string' ? candidate.id : generateId();
+
+    let imageData = typeof candidate.imageData === 'string' ? candidate.imageData : '';
+    if (!imageData && candidate.payload && stage && photoId) {
+      const payloadPhotos = stage === 'pre' ? candidate.payload.preInspectionPhotos : candidate.payload.postInspectionPhotos;
+      imageData = (payloadPhotos || {})[photoId] || '';
+    }
+
+    if (!serviceId || !stage || !photoId || !imageData) continue;
+    items.push({ id, createdAt, serviceId, stage, photoId, imageData });
+  }
+
+  return items;
+}
+
+function dedupePendingPhotoList(items: PendingPhotoSaveEntry[]) {
+  const seen = new Map<string, PendingPhotoSaveEntry>();
+  for (const item of items) {
+    const key = `${item.serviceId}:${item.stage}:${item.photoId}`;
+    const existing = seen.get(key);
+    if (!existing || existing.createdAt < item.createdAt) {
+      seen.set(key, item);
+    }
+  }
+  return Array.from(seen.values()).sort((a, b) => b.createdAt - a.createdAt);
+}
+
+export function readPendingPhotoSaves() {
+  const raw = typeof window !== 'undefined' ? window.localStorage.getItem(PENDING_PHOTO_SAVES_KEY) : null;
+  const parsed = raw ? safeReadJson(raw) : null;
+  const normalized = normalizePendingPhotoList(parsed);
+  if (normalized.length) {
+    return normalized;
+  }
+
+  const legacyRaw = typeof window !== 'undefined' ? window.localStorage.getItem(LEGACY_PENDING_PHOTO_SAVES_KEY) : null;
+  const legacyParsed = legacyRaw ? safeReadJson(legacyRaw) : null;
+  const legacyNormalized = normalizePendingPhotoList(legacyParsed);
+  if (legacyNormalized.length) {
+    writePendingPhotoSaves(legacyNormalized);
+    try {
+      window.localStorage.removeItem(LEGACY_PENDING_PHOTO_SAVES_KEY);
+    } catch {}
+  }
+  return legacyNormalized;
+}
+
+export function writePendingPhotoSaves(items: PendingPhotoSaveEntry[]) {
+  const normalized = dedupePendingPhotoList(items);
+  try {
+    window.localStorage.setItem(PENDING_PHOTO_SAVES_KEY, JSON.stringify(normalized));
+  } catch {}
+}
+
+export function enqueuePendingPhotoSave(
+  entry: Omit<PendingPhotoSaveEntry, 'id' | 'createdAt'>,
+  options?: {
+    maxEntries?: number;
+    maxAgeMs?: number;
+  }
+) {
+  const maxEntries = options?.maxEntries ?? 15;
+  const maxAgeMs = options?.maxAgeMs ?? 1000 * 60 * 60 * 24 * 3;
+  const now = Date.now();
+
+  const existing = readPendingPhotoSaves();
+  const candidate: PendingPhotoSaveEntry = {
+    ...entry,
+    id: generateId(),
+    createdAt: now,
+  };
+
+  const combined = dedupePendingPhotoList([candidate, ...existing])
+    .filter((item) => now - item.createdAt <= maxAgeMs)
+    .slice(0, Math.max(1, maxEntries));
+
+  writePendingPhotoSaves(combined);
+  return candidate;
+}
+
+export function listPendingPhotoIds(serviceId: string, stage: PendingPhotoStage) {
+  if (!serviceId) return [];
+  return readPendingPhotoSaves()
+    .filter((item) => item.serviceId === serviceId && item.stage === stage)
+    .map((item) => item.photoId);
+}
+
+export async function flushPendingPhotoSaves(options: {
+  stage?: PendingPhotoStage;
+  serviceId?: string;
+  fetchService: (serviceId: string) => Promise<Service>;
+  upsertService: (service: Service) => Promise<unknown>;
+  onSaved?: (entry: PendingPhotoSaveEntry) => void;
+}) {
+  const list = readPendingPhotoSaves();
+  const remaining: PendingPhotoSaveEntry[] = [];
+  let savedCount = 0;
+  const nowIso = new Date().toISOString();
+
+  for (const entry of list) {
+    if (options.stage && entry.stage !== options.stage) {
+      remaining.push(entry);
+      continue;
+    }
+    if (options.serviceId && entry.serviceId !== options.serviceId) {
+      remaining.push(entry);
+      continue;
+    }
+    try {
+      const current = await options.fetchService(entry.serviceId);
+      if (!current?.id) {
+        remaining.push(entry);
+        continue;
+      }
+
+      if (entry.stage === 'pre') {
+        const nextPhotos = { ...(current.preInspectionPhotos || {}), [entry.photoId]: entry.imageData };
+        await options.upsertService({
+          ...current,
+          preInspectionPhotos: nextPhotos,
+          image: nextPhotos.front || current.image || '',
+          timeline: {
+            ...(current.timeline || {}),
+            preInspectionStartedAt: current.timeline?.preInspectionStartedAt || nowIso,
+          },
+        });
+      } else {
+        const nextPhotos = { ...(current.postInspectionPhotos || {}), [entry.photoId]: entry.imageData };
+        await options.upsertService({
+          ...current,
+          postInspectionPhotos: nextPhotos,
+          image: nextPhotos.front || current.image || '',
+          timeline: {
+            ...(current.timeline || {}),
+          },
+        });
+      }
+
+      savedCount += 1;
+      options.onSaved?.(entry);
+    } catch {
+      remaining.push(entry);
+    }
+  }
+
+  writePendingPhotoSaves(remaining);
+  return {
+    savedCount,
+    remainingCount: remaining.length,
+  };
+}

@@ -3,10 +3,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useEffect, useRef, useState } from 'react';
-import { Camera, CheckCircle2, ChevronLeft, CreditCard, RefreshCw, Upload, X, AlertCircle } from 'lucide-react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { AlertCircle, Camera, CheckCircle2, ChevronLeft, Clock3, CreditCard, RefreshCw, Upload, X } from 'lucide-react';
 import { Screen, Service } from '../types';
-import { formatElapsedMinutes, optimizeImageFile } from '../utils/app';
+import { enqueuePendingPhotoSave, flushPendingPhotoSaves, formatElapsedMinutes, listPendingPhotoIds, optimizeImageFile } from '../utils/app';
 import ModalSurface from './ModalSurface';
 import { api } from '../services/api';
 
@@ -34,12 +34,50 @@ export default function InspectionPost({
   const [isPhotoSourceOpen, setIsPhotoSourceOpen] = useState(false);
   const [isProcessingPhoto, setIsProcessingPhoto] = useState(false);
   const [lastSavedInfo, setLastSavedInfo] = useState<string | null>(null);
+  const [isFlushingPending, setIsFlushingPending] = useState(false);
+  const [pendingVersion, setPendingVersion] = useState(0);
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const galleryInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     setPhotos(service?.postInspectionPhotos || {});
   }, [service?.id, service?.postInspectionPhotos]);
+
+  const pendingPhotoIds = useMemo(() => {
+    return new Set(listPendingPhotoIds(service?.id || '', 'post'));
+  }, [service?.id, pendingVersion]);
+
+  const pendingCount = pendingPhotoIds.size;
+
+  const flushNow = async () => {
+    if (!navigator.onLine) {
+      setLastSavedInfo('Sem internet. Fotos pendentes serao reenviadas automaticamente.');
+      setTimeout(() => setLastSavedInfo(null), 3000);
+      return;
+    }
+
+    setIsFlushingPending(true);
+    try {
+      const result = await flushPendingPhotoSaves({
+        stage: 'post',
+        fetchService: api.getService,
+        upsertService: api.upsertService,
+        onSaved: (entry) => {
+          if (entry.serviceId === service?.id) {
+            setPendingVersion((value) => value + 1);
+          }
+        },
+      });
+
+      setPendingVersion((value) => value + 1);
+      if (result.savedCount) {
+        setLastSavedInfo(`${result.savedCount} foto(s) reenviada(s)`);
+        setTimeout(() => setLastSavedInfo(null), 3000);
+      }
+    } finally {
+      setIsFlushingPending(false);
+    }
+  };
 
   const handlePhotoClick = (photoId: string) => {
     setActivePhotoId(photoId);
@@ -73,24 +111,54 @@ export default function InspectionPost({
             },
           };
           if (!navigator.onLine) {
-            enqueuePendingSave({
+            enqueuePendingPhotoSave({
               serviceId: payload.id,
               stage: 'post',
               photoId: activePhotoId,
-              imageData: imageData,
-              payload,
+              imageData,
             });
+            setPendingVersion((value) => value + 1);
             setLastSavedInfo('Sem internet. Foto sera reenviada automaticamente.');
             setTimeout(() => setLastSavedInfo(null), 3000);
           } else {
-            await api.upsertService(payload);
+            let saved = false;
+            for (let i = 0; i < 2; i += 1) {
+              try {
+                await api.upsertService(payload);
+                saved = true;
+                break;
+              } catch (error) {
+                if (!navigator.onLine) {
+                  enqueuePendingPhotoSave({
+                    serviceId: payload.id,
+                    stage: 'post',
+                    photoId: activePhotoId,
+                    imageData,
+                  });
+                  setPendingVersion((value) => value + 1);
+                  setLastSavedInfo('A internet caiu. Foto sera reenviada automaticamente.');
+                  setTimeout(() => setLastSavedInfo(null), 3000);
+                  saved = true;
+                  break;
+                }
+                await new Promise((resolve) => setTimeout(resolve, 1000 * (i + 1)));
+              }
+            }
+            if (!saved) {
+              throw new Error('Nao foi possivel salvar a foto agora.');
+            }
             setLastSavedInfo(`Foto ${activePhotoId} salva`);
             setTimeout(() => setLastSavedInfo(null), 3000);
           }
         }
       } catch (error) {
         console.error(error);
-        alert(error instanceof Error ? error.message : 'Nao foi possivel processar a foto.');
+        if (!navigator.onLine) {
+          setLastSavedInfo('Sem internet. Foto sera reenviada automaticamente.');
+          setTimeout(() => setLastSavedInfo(null), 3000);
+        } else {
+          alert(error instanceof Error ? error.message : 'Nao foi possivel salvar a foto agora.');
+        }
       } finally {
         setIsProcessingPhoto(false);
       }
@@ -105,59 +173,10 @@ export default function InspectionPost({
     }
   };
 
-  type PendingSave = {
-    serviceId: string;
-    stage: 'pre' | 'post';
-    photoId: string;
-    imageData: string;
-    payload: Service;
-  };
-
-  function readPendingSaves(): PendingSave[] {
-    try {
-      const raw = window.localStorage.getItem('pendingPhotoSaves') || '[]';
-      const list = JSON.parse(raw);
-      return Array.isArray(list) ? list : [];
-    } catch {
-      return [];
-    }
-  }
-
-  function writePendingSaves(list: PendingSave[]) {
-    try {
-      window.localStorage.setItem('pendingPhotoSaves', JSON.stringify(list));
-    } catch {}
-  }
-
-  function enqueuePendingSave(entry: PendingSave) {
-    const list = readPendingSaves();
-    writePendingSaves([...list, entry]);
-  }
-
-  async function flushPendingSaves() {
-    if (!navigator.onLine) return;
-    const list = readPendingSaves();
-    const next: PendingSave[] = [];
-    for (const item of list) {
-      if (item.stage !== 'post') {
-        next.push(item);
-        continue;
-      }
-      try {
-        await api.upsertService(item.payload);
-        setLastSavedInfo(`Foto ${item.photoId} salva`);
-        setTimeout(() => setLastSavedInfo(null), 3000);
-      } catch {
-        next.push(item);
-      }
-    }
-    writePendingSaves(next);
-  }
-
   useEffect(() => {
-    const handler = () => void flushPendingSaves();
+    const handler = () => void flushNow();
     window.addEventListener('online', handler);
-    void flushPendingSaves();
+    void flushNow();
     return () => window.removeEventListener('online', handler);
   }, []);
 
@@ -238,6 +257,7 @@ export default function InspectionPost({
               key={type.id}
               label={type.label}
               image={photos[type.id]}
+              status={photos[type.id] ? (pendingPhotoIds.has(type.id) ? 'pending' : 'saved') : undefined}
               onClick={() => handlePhotoClick(type.id)}
               required={!completedCount}
             />
@@ -256,6 +276,22 @@ export default function InspectionPost({
               {canComplete ? 'Entrega pronta' : 'Capture ao menos 1 foto'}
             </span>
           </div>
+          {pendingCount > 0 && (
+            <div className="mb-2 flex items-center justify-between gap-2 rounded-2xl border border-amber-100 bg-amber-50 px-3 py-2">
+              <div className="flex items-center gap-2 text-[12px] font-bold text-amber-800">
+                <Clock3 className="w-4 h-4" />
+                <span>{pendingCount} foto(s) pendente(s) de envio</span>
+              </div>
+              <button
+                type="button"
+                disabled={!navigator.onLine || isFlushingPending}
+                onClick={flushNow}
+                className="rounded-xl bg-amber-600 px-3 py-1.5 text-[11px] font-black uppercase tracking-widest text-white disabled:opacity-50"
+              >
+                Reenviar agora
+              </button>
+            </div>
+          )}
           <div className="w-full bg-slate-100 h-3 rounded-full overflow-hidden p-0.5 border border-slate-200">
             <div
               className={`h-full rounded-full ${canComplete ? 'bg-emerald-500' : 'bg-primary'}`}
@@ -341,12 +377,14 @@ export default function InspectionPost({
 function PhotoItem({
   label,
   image,
+  status,
   onClick,
   required,
 }: {
   key?: React.Key;
   label: string;
   image?: string;
+  status?: 'saved' | 'pending';
   onClick: () => void;
   required?: boolean;
 }) {
@@ -360,9 +398,15 @@ function PhotoItem({
           <div className="absolute inset-0 flex flex-col justify-end p-3">
             <p className="text-white text-[10px] font-black uppercase tracking-widest drop-shadow-md">{label}</p>
           </div>
-          <div className="absolute top-2 right-2 bg-emerald-500 text-white rounded-full p-1 shadow-lg ring-2 ring-white/20">
-            <CheckCircle2 className="w-4 h-4" />
-          </div>
+          {status === 'pending' ? (
+            <div className="absolute top-2 right-2 bg-amber-500 text-white rounded-full p-1 shadow-lg ring-2 ring-white/20">
+              <Clock3 className="w-4 h-4" />
+            </div>
+          ) : (
+            <div className="absolute top-2 right-2 bg-emerald-500 text-white rounded-full p-1 shadow-lg ring-2 ring-white/20">
+              <CheckCircle2 className="w-4 h-4" />
+            </div>
+          )}
           <div className="absolute top-2 left-2 bg-black/40 backdrop-blur-sm text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity">
             <RefreshCw className="w-3 h-3" />
           </div>
