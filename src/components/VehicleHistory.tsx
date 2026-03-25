@@ -201,9 +201,21 @@ export default function VehicleHistory({
               className="w-full h-12 rounded-2xl border border-slate-200 bg-slate-50 pl-11 pr-4 text-sm font-medium text-slate-900 outline-none focus:border-primary"
             />
           </div>
-          <div className="inline-flex rounded-2xl bg-slate-100 p-1">
-            <ScopeButton active={scope === 'history'} onClick={() => setScope('history')} label="Com historico" />
-            <ScopeButton active={scope === 'all'} onClick={() => setScope('all')} label="Todos os veiculos" />
+          <div className="flex items-center gap-2">
+            <div className="inline-flex rounded-2xl bg-slate-100 p-1">
+              <ScopeButton active={scope === 'history'} onClick={() => setScope('history')} label="Com historico" />
+              <ScopeButton active={scope === 'all'} onClick={() => setScope('all')} label="Todos os veiculos" />
+            </div>
+            <button
+              type="button"
+              onClick={handleExportCsv}
+              disabled={!canExport}
+              className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 py-2 text-[11px] font-black uppercase tracking-wide text-slate-700 transition-all hover:border-primary hover:text-primary active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed"
+              title={canExport ? 'Exportar CSV (filtra pelo que está visível)' : 'Sem dados para exportar'}
+            >
+              <Download className="w-4 h-4" />
+              <span>Exportar CSV</span>
+            </button>
           </div>
         </div>
 
