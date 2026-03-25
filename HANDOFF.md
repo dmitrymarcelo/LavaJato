@@ -1,12 +1,12 @@
 # Handoff Lava Jato - Norte Tech
 
-Atualizado em: 2026-03-24
+Atualizado em: 2026-03-25
 
 ## Estado atual
 
 - Repositorio: `https://github.com/dmitrymarcelo/LavaJato`
 - Branch principal: `main`
-- Commit atual: (ver ultimo commit no GitHub ou execute `git rev-parse HEAD`)
+- Commit atual: `2c66b61ce33d2d07be606962b1041f04cb10384c`
 - Producao AWS atual: `http://3.145.153.19/`
 - Regiao AWS: `us-east-2`
 - Instancia usada no deploy: `i-0ba1477cbbe3d986d`
@@ -116,14 +116,14 @@ Observacao:
 
 ## Commits recentes relevantes
 
-- `f91c376` `perf: trim bootstrap payload for dashboard`
-- `7db96f9` `fix: make bulk persistence transactional`
-- `3cdf139` `fix: harden wash completion photo uploads`
-- `4ea3cbc` `feat: add queue card action menu`
-- `3f6714a` `fix: default dashboard to today view`
-- `a934d6f` `refactor: open scheduling directly from queue`
-- `a959469` `fix: show real daily metrics in branch view`
-- `eee1e9d` `fix: scope scheduling by selected base`
+- `2c66b61` `feat(history): adicionar botao Exportar CSV na barra de filtros`
+- `2c3d163` `docs: ajustar HANDOFF para commit atual dinamico`
+- `2e5a7e4` `docs: atualizar HANDOFF (commit atual)`
+- `d2baf32` `docs: atualizar HANDOFF (commit atual)`
+- `4aac5a8` `ci: permitir deploy com OIDC ou chaves estaticas`
+- `1e6d1f3` `docs: atualizar HANDOFF (commit atual)`
+- `ebf9024` `chore(offline-photos): flush pendentes ao abrir app e ao voltar conexao`
+- `ad8f618` `docs: atualizar HANDOFF (commit atual)`
 
 ## Arquivos centrais
 
@@ -176,11 +176,18 @@ Permissoes minimas recomendadas do Role:
 
 Com isso, qualquer alteracao publicada em `main` dispara o deploy via SSM no EC2.
 
+### Handoff automatico na AWS
+
+- Durante cada deploy em `main`, a EC2 executa `node scripts/update-handoff.mjs`.
+- O handoff sincronizado fica no proprio repo da instancia em `/opt/lavajato/app/HANDOFF.md`.
+- Uma copia operacional tambem e salva em `/opt/lavajato/runtime/HANDOFF_AWS.md`.
+- Isso garante que a memoria persistente acompanhe o commit realmente implantado.
+
 ## Observacoes importantes
 
 - Este arquivo nao guarda o chat literal. Ele guarda o contexto tecnico consolidado para continuar o trabalho.
 - O GitHub e a fonte principal da continuidade.
-- Se mudar de computador, o ideal e continuar a partir do commit `f91c376` ou posterior.
+- Se mudar de computador, o ideal e continuar a partir do commit `2c66b61` ou posterior.
 - Imagens enviadas ficam em `server/storage/uploads` (persistidas via volume Docker).
 - Em producao, altere a senha do administrador imediatamente.
 

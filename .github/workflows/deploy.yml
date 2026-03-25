@@ -36,12 +36,13 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
       - name: Send SSM deploy command
         run: |
+          SSM_PARAMETERS=$(node -e "process.stdout.write(JSON.stringify({ commands: ['cd /opt/lavajato/app', 'git fetch origin', 'git checkout main', 'git pull --ff-only origin main', 'mkdir -p /opt/lavajato/runtime', 'node scripts/update-handoff.mjs --deployed-sha ' + process.env.GITHUB_SHA, 'cp HANDOFF.md /opt/lavajato/runtime/HANDOFF_AWS.md', 'docker compose up -d --build', 'docker compose ps'] }))")
           CMD_ID=$(aws ssm send-command \
             --region us-east-2 \
             --instance-ids i-0ba1477cbbe3d986d \
             --document-name AWS-RunShellScript \
             --comment "Deploy LavaJato ${GITHUB_SHA}" \
-            --parameters '{"commands":["cd /opt/lavajato/app","git fetch origin","git checkout main","git pull --ff-only origin main","docker compose up -d --build","docker compose ps"]}' \
+            --parameters "${SSM_PARAMETERS}" \
             --query "Command.CommandId" \
             --output text)
           echo "CMD_ID=${CMD_ID}" >> $GITHUB_ENV
