@@ -8,6 +8,7 @@ import { Camera, CheckCircle2, ChevronLeft, CreditCard, RefreshCw, Upload, X, Al
 import { Screen, Service } from '../types';
 import { formatElapsedMinutes, optimizeImageFile } from '../utils/app';
 import ModalSurface from './ModalSurface';
+import { api } from '../services/api';
 
 const PHOTO_TYPES = [
   { id: 'front', label: 'Frente' },
@@ -58,6 +59,18 @@ export default function InspectionPost({
           [activePhotoId]: imageData,
         }));
         setIsPhotoSourceOpen(false);
+        const nextPhotos: Record<string, string> = { ...(service?.postInspectionPhotos || {}), [activePhotoId]: imageData };
+        const nextImage = nextPhotos.front || service?.image || '';
+        if (service?.id) {
+          void api.upsertService({
+            ...(service as Service),
+            postInspectionPhotos: nextPhotos,
+            image: nextImage,
+            timeline: {
+              ...(service.timeline || {}),
+            },
+          });
+        }
       })
       .catch((error) => {
         console.error(error);

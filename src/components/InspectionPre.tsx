@@ -9,6 +9,7 @@ import { motion } from '../lib/motion';
 import { Screen, Service, TeamMember } from '../types';
 import { formatElapsedMinutes, normalizeDateKey, optimizeImageFile } from '../utils/app';
 import ModalSurface from './ModalSurface';
+import { api } from '../services/api';
 
 const PHOTO_TYPES = [
   { id: 'front', label: 'Frente' },
@@ -82,6 +83,20 @@ export default function InspectionPre({ onNavigate, onStartWash, elapsedMinutes 
             [activePhotoId]: imageData
           }));
           setIsPhotoSourceOpen(false);
+          const nowIso = new Date().toISOString();
+          const nextPhotos: Record<string, string> = { ...(service?.preInspectionPhotos || {}), [activePhotoId]: imageData };
+          const nextImage = nextPhotos.front || service?.image || '';
+          if (service?.id) {
+            void api.upsertService({
+              ...(service as Service),
+              preInspectionPhotos: nextPhotos,
+              image: nextImage,
+              timeline: {
+                ...(service.timeline || {}),
+                preInspectionStartedAt: service.timeline?.preInspectionStartedAt || nowIso,
+              },
+            });
+          }
         })
         .catch((error) => {
           console.error(error);
