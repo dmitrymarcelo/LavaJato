@@ -6,7 +6,7 @@ Atualizado em: 2026-03-26
 
 - Repositorio: `https://github.com/dmitrymarcelo/LavaJato`
 - Branch principal: `main`
-- Commit atual: `11c17175b3c7946a2d8419407e5e7da4400ab47a`
+- Commit atual: `1fd8dd0f313e7ca2597122857e8c0b99dae05216`
 - Producao AWS atual: `http://3.145.153.19/`
 - Regiao AWS: `us-east-2`
 - Instancia usada no deploy: `i-0ba1477cbbe3d986d`
@@ -129,6 +129,7 @@ Observacao:
 
 ## Commits recentes relevantes
 
+- `1fd8dd0` `Fix mobile wash stage persistence`
 - `11c1717` `docs: enforce handoff updates`
 - `c13e451` `Improve mobile photo autosave resilience`
 - `d43746d` `Fix mobile inspection photo persistence`
@@ -136,7 +137,6 @@ Observacao:
 - `e327ef5` `ci: use pnpm in aws deploy workflow`
 - `e83c423` `ci: fix aws workflow secret guards`
 - `7d83baa` `ci: automate handoff sync during aws deploy`
-- `2c66b61` `feat(history): adicionar botao Exportar CSV na barra de filtros`
 
 ## Arquivos centrais
 
@@ -201,7 +201,7 @@ Com isso, qualquer alteracao publicada em `main` dispara o deploy via SSM no EC2
 
 - Este arquivo nao guarda o chat literal. Ele guarda o contexto tecnico consolidado para continuar o trabalho.
 - O GitHub e a fonte principal da continuidade.
-- Se mudar de computador, o ideal e continuar a partir do commit `11c1717` ou posterior.
+- Se mudar de computador, o ideal e continuar a partir do commit `1fd8dd0` ou posterior.
 - Imagens enviadas ficam em `server/storage/uploads` (persistidas via volume Docker).
 - Em producao, altere a senha do administrador imediatamente.
 
