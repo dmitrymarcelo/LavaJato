@@ -1,5 +1,8 @@
 # AGENTS.md - Lava Jato Norte Tech
 
+Atualizado em: 2026-03-26
+Commit de referencia: `80b404b31994b6b74da9174c8ae10d0315444432`
+
 ## Objetivo
 
 Este documento e a referencia principal de agentes, skills, responsabilidades, guardrails e metricas operacionais do projeto Lava Jato Norte Tech. Ele existe para alinhar produto, operacao, engenharia e manutencao futura em uma unica fonte de verdade.
@@ -287,7 +290,7 @@ Atualize `AGENTS.md` sempre que ocorrer pelo menos um destes eventos:
 3. atualizar a secao de `Catalogo de SKILLS`
 4. revisar `Diretrizes` e `KPIs` se a mudanca alterar objetivo ou risco
 5. atualizar `HANDOFF.md`
-6. rodar `pnpm run handoff:update`
+6. rodar `pnpm run docs:update`
 7. validar o que for aplicavel para a mudanca
 8. publicar e acompanhar o deploy automatico
 
@@ -303,6 +306,7 @@ Uma mudanca so esta realmente pronta quando:
 
 - o agente ou skill novo esta descrito aqui
 - o `HANDOFF.md` registra o contexto operacional
+- o `SKILLS.md` registra ou confirma a capacidade reutilizavel associada
 - existe owner
 - existe KPI
 - existe fallback

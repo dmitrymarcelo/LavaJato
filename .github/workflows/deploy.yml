@@ -30,12 +30,16 @@ jobs:
         run: pnpm install --frozen-lockfile
       - name: Typecheck
         run: pnpm run lint
-      - name: Check handoff freshness
-        run: pnpm run handoff:check
-      - name: Generate deployed handoff
+      - name: Check persistence docs freshness
+        run: pnpm run docs:check
+      - name: Generate deployed persistence docs
         run: |
           cp HANDOFF.md HANDOFF_AWS.md
+          cp AGENTS.md AGENTS_AWS.md
+          cp SKILLS.md SKILLS_AWS.md
           node scripts/update-handoff.mjs --deployed-sha "${GITHUB_SHA}" --output HANDOFF_AWS.md
+          node scripts/update-doc-metadata.mjs --deployed-sha "${GITHUB_SHA}" --file AGENTS_AWS.md
+          node scripts/update-doc-metadata.mjs --deployed-sha "${GITHUB_SHA}" --file SKILLS_AWS.md
       - name: Configure AWS credentials (OIDC)
         if: ${{ env.AWS_ROLE_ARN_VALUE != '' }}
         uses: aws-actions/configure-aws-credentials@v4
@@ -51,7 +55,7 @@ jobs:
           aws-secret-access-key: ${{ env.AWS_SECRET_ACCESS_KEY_VALUE }}
       - name: Send SSM deploy command
         run: |
-          SSM_PARAMETERS=$(node -e "const fs=require('fs'); const handoff=fs.readFileSync('HANDOFF_AWS.md').toString('base64'); process.stdout.write(JSON.stringify({ commands: ['cd /opt/lavajato/app', 'git fetch origin', 'git checkout main', 'git pull --ff-only origin main', 'mkdir -p /opt/lavajato/runtime', \"printf '%s' '\" + handoff + \"' | base64 -d > /opt/lavajato/runtime/HANDOFF_AWS.md\", 'cp /opt/lavajato/runtime/HANDOFF_AWS.md /opt/lavajato/app/HANDOFF.md', 'docker compose up -d --build', 'docker compose ps'] }))")
+          SSM_PARAMETERS=$(node -e "const fs=require('fs'); const handoff=fs.readFileSync('HANDOFF_AWS.md').toString('base64'); const agents=fs.readFileSync('AGENTS_AWS.md').toString('base64'); const skills=fs.readFileSync('SKILLS_AWS.md').toString('base64'); process.stdout.write(JSON.stringify({ commands: ['cd /opt/lavajato/app', 'git fetch origin', 'git checkout main', 'git pull --ff-only origin main', 'mkdir -p /opt/lavajato/runtime', \"printf '%s' '\" + handoff + \"' | base64 -d > /opt/lavajato/runtime/HANDOFF_AWS.md\", \"printf '%s' '\" + agents + \"' | base64 -d > /opt/lavajato/runtime/AGENTS_AWS.md\", \"printf '%s' '\" + skills + \"' | base64 -d > /opt/lavajato/runtime/SKILLS_AWS.md\", 'cp /opt/lavajato/runtime/HANDOFF_AWS.md /opt/lavajato/app/HANDOFF.md', 'cp /opt/lavajato/runtime/AGENTS_AWS.md /opt/lavajato/app/AGENTS.md', 'cp /opt/lavajato/runtime/SKILLS_AWS.md /opt/lavajato/app/SKILLS.md', 'docker compose up -d --build', 'docker compose ps'] }))")
           CMD_ID=$(aws ssm send-command \
             --region us-east-2 \
             --instance-ids i-0ba1477cbbe3d986d \

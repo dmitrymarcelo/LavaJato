@@ -141,6 +141,7 @@ Observacao:
 ## Arquivos centrais
 
 - `AGENTS.md`
+- `SKILLS.md`
 - `src/App.tsx`
 - `src/components/Dashboard.tsx`
 - `src/components/Scheduling.tsx`
@@ -194,14 +195,22 @@ Com isso, qualquer alteracao publicada em `main` dispara o deploy via SSM no EC2
 
 - Durante cada deploy em `main`, o GitHub Actions gera um handoff atualizado para o commit publicado.
 - Em seguida, o workflow envia essa copia pronta para a EC2 via SSM.
+- O mesmo fluxo agora sincroniza tambem `AGENTS.md` e `SKILLS.md` com metadados do commit implantado.
 - O handoff sincronizado fica no proprio repo da instancia em `/opt/lavajato/app/HANDOFF.md`.
+- As referencias operacionais adicionais ficam em:
+  - `/opt/lavajato/app/AGENTS.md`
+  - `/opt/lavajato/app/SKILLS.md`
 - Uma copia operacional tambem e salva em `/opt/lavajato/runtime/HANDOFF_AWS.md`.
+- Copias operacionais adicionais tambem sao salvas em:
+  - `/opt/lavajato/runtime/AGENTS_AWS.md`
+  - `/opt/lavajato/runtime/SKILLS_AWS.md`
 - Isso garante que a memoria persistente acompanhe o commit realmente implantado.
 
 ## Observacoes importantes
 
 - Este arquivo nao guarda o chat literal. Ele guarda o contexto tecnico consolidado para continuar o trabalho.
 - `AGENTS.md` passa a ser a referencia principal de agentes, skills, ownership, KPIs e guardrails do projeto.
+- `SKILLS.md` passa a ser a referencia persistente de capacidades reutilizaveis e contratos tecnicos do projeto.
 - O GitHub e a fonte principal da continuidade.
 - Se mudar de computador, o ideal e continuar a partir do commit `a5a3cfe` ou posterior.
 - Imagens enviadas ficam em `server/storage/uploads` (persistidas via volume Docker).
