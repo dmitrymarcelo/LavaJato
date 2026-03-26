@@ -6,7 +6,7 @@ Atualizado em: 2026-03-26
 
 - Repositorio: `https://github.com/dmitrymarcelo/LavaJato`
 - Branch principal: `main`
-- Commit atual: `1fd8dd0f313e7ca2597122857e8c0b99dae05216`
+- Commit atual: `a5a3cfed2daf373b621edf9b9e0e64184319ebe6`
 - Producao AWS atual: `http://3.145.153.19/`
 - Regiao AWS: `us-east-2`
 - Instancia usada no deploy: `i-0ba1477cbbe3d986d`
@@ -129,14 +129,14 @@ Observacao:
 
 ## Commits recentes relevantes
 
+- `a5a3cfe` `docs: add AGENTS operating guide`
+- `5d8d776` `docs: refresh HANDOFF after wash persistence fix`
 - `1fd8dd0` `Fix mobile wash stage persistence`
 - `11c1717` `docs: enforce handoff updates`
 - `c13e451` `Improve mobile photo autosave resilience`
 - `d43746d` `Fix mobile inspection photo persistence`
 - `6b80b5c` `ci: copy generated handoff to aws runtime`
 - `e327ef5` `ci: use pnpm in aws deploy workflow`
-- `e83c423` `ci: fix aws workflow secret guards`
-- `7d83baa` `ci: automate handoff sync during aws deploy`
 
 ## Arquivos centrais
 
@@ -203,7 +203,7 @@ Com isso, qualquer alteracao publicada em `main` dispara o deploy via SSM no EC2
 - Este arquivo nao guarda o chat literal. Ele guarda o contexto tecnico consolidado para continuar o trabalho.
 - `AGENTS.md` passa a ser a referencia principal de agentes, skills, ownership, KPIs e guardrails do projeto.
 - O GitHub e a fonte principal da continuidade.
-- Se mudar de computador, o ideal e continuar a partir do commit `1fd8dd0` ou posterior.
+- Se mudar de computador, o ideal e continuar a partir do commit `a5a3cfe` ou posterior.
 - Imagens enviadas ficam em `server/storage/uploads` (persistidas via volume Docker).
 - Em producao, altere a senha do administrador imediatamente.
 
