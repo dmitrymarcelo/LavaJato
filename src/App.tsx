@@ -21,8 +21,27 @@ import Sidebar from './components/Sidebar';
 import ModalSurface from './components/ModalSurface';
 import Notifications from './components/Notifications';
 import Scheduling, { QueueSection } from './components/Scheduling';
-import { flushPendingPhotoSaves, getElapsedMinutes, getServicePreviewImage, getTodayDate, normalizeDateKey } from './utils/app';
-import { api, ApiError, Appointment, UNAUTHORIZED_SESSION_EVENT } from './services/api';
+import {
+  enqueuePendingOperationalAction,
+  flushPendingOperationalActions,
+  flushPendingPhotoSaves,
+  getElapsedMinutes,
+  getServicePreviewImage,
+  getTodayDate,
+  normalizeDateKey,
+  PENDING_OPERATIONAL_ACTIONS_UPDATED_EVENT,
+  readPendingOperationalActions,
+  shouldQueuePendingPhotoSave,
+} from './utils/app';
+import {
+  api,
+  ApiError,
+  Appointment,
+  CompleteWashPayload,
+  ServiceStageTransitionPayload,
+  StartWashPayload,
+  UNAUTHORIZED_SESSION_EVENT,
+} from './services/api';
 import { BASES, getBaseById } from './data/bases';
 
 const LEGACY_STORAGE_KEYS = ['bootstrapCacheV2', 'bootstrapCacheV3', 'vehicleDbCacheV1', 'authUserV1', 'selectedBase', 'activeServiceId', 'access_rules', 'appCacheVersion', 'authToken'];
@@ -262,14 +281,19 @@ export default function App() {
       }));
       const nextProducts = data.products || [];
       const nextTeam = data.team || [];
+      const reconciledBootstrap = applyPendingOperationalTransitions(nextServices, nextAppointments);
 
       setServiceTypes(nextServiceTypes);
       setCurrentUser(data.currentUser || null);
       setAccessRules(Array.isArray(data.accessRules) ? data.accessRules : []);
-      setServices(nextServices);
-      setAppointments(nextAppointments);
+      setServices(reconciledBootstrap.services);
+      servicesRef.current = reconciledBootstrap.services;
+      setAppointments(reconciledBootstrap.appointments);
+      appointmentsRef.current = reconciledBootstrap.appointments;
       setProducts(nextProducts);
+      productsRef.current = nextProducts;
       setTeam(nextTeam);
+      teamRef.current = nextTeam;
       isRecoveringSessionRef.current = false;
     } catch (error: any) {
       if (error instanceof ApiError && error.status === 401) {
@@ -390,6 +414,156 @@ export default function App() {
     });
   }, []);
 
+  const mergeServiceTransitionIntoState = React.useCallback((payload: ServiceStageTransitionPayload) => {
+    mergeServiceIntoState(payload.service);
+
+    if (!payload.appointment) {
+      return;
+    }
+
+    setAppointments((current) => {
+      const next = current.some((item) => item.id === payload.appointment?.id)
+        ? current.map((item) => (item.id === payload.appointment?.id ? payload.appointment! : item))
+        : [payload.appointment!, ...current];
+      appointmentsRef.current = next;
+      return next;
+    });
+  }, [mergeServiceIntoState]);
+
+  const buildLocalStartWashTransition = React.useCallback((
+    service: Service,
+    payload: StartWashPayload
+  ): ServiceStageTransitionPayload => {
+    const nowIso = new Date().toISOString();
+    const nextPreviewImage = payload.preInspectionPhotos?.front || getServicePreviewImage(service);
+    const nextObservations = String(payload.observations || '').trim() || service.observations || '';
+    const nextServiceStatus = ['waiting_payment', 'completed', 'no_show'].includes(service.status)
+      ? service.status
+      : 'in_progress';
+    const nextService: Service = {
+      ...service,
+      washers: payload.washers,
+      observations: nextObservations,
+      preInspectionPhotos: payload.preInspectionPhotos || service.preInspectionPhotos,
+      image: nextPreviewImage || service.image,
+      status: nextServiceStatus,
+      startTime: service.startTime || nowIso,
+      timeline: {
+        ...(service.timeline || {}),
+        preInspectionStartedAt: service.timeline?.preInspectionStartedAt || nowIso,
+        preInspectionCompletedAt: service.timeline?.preInspectionCompletedAt || nowIso,
+        washStartedAt: service.timeline?.washStartedAt || service.startTime || nowIso,
+      },
+    };
+
+    const currentAppointment = appointmentsRef.current.find((appointment) => appointment.id === service.id) || null;
+    const nextAppointmentStatus: Appointment['status'] = currentAppointment
+      ? (['in_progress', 'waiting_payment', 'completed', 'no_show'].includes(currentAppointment.status)
+        ? currentAppointment.status
+        : 'in_progress')
+      : 'in_progress';
+    return {
+      service: nextService,
+      appointment: currentAppointment ? {
+        ...currentAppointment,
+        status: nextAppointmentStatus,
+      } : null,
+    };
+  }, []);
+
+  const buildLocalCompleteWashTransition = React.useCallback((
+    service: Service,
+    payload: CompleteWashPayload
+  ): ServiceStageTransitionPayload => {
+    const nowIso = new Date().toISOString();
+    const nextPreviewImage = payload.postInspectionPhotos?.front || getServicePreviewImage(service);
+    const nextServiceStatus = ['waiting_payment', 'completed', 'no_show'].includes(service.status)
+      ? service.status
+      : 'waiting_payment';
+    const nextService: Service = {
+      ...service,
+      postInspectionPhotos: payload.postInspectionPhotos || service.postInspectionPhotos,
+      image: nextPreviewImage || service.image,
+      status: nextServiceStatus,
+      endTime: service.endTime || nowIso,
+      timeline: {
+        ...(service.timeline || {}),
+        postInspectionStartedAt: service.timeline?.postInspectionStartedAt || nowIso,
+        washCompletedAt: service.timeline?.washCompletedAt || service.endTime || nowIso,
+        postInspectionCompletedAt: service.timeline?.postInspectionCompletedAt || nowIso,
+      },
+    };
+
+    const currentAppointment = appointmentsRef.current.find((appointment) => appointment.id === service.id) || null;
+    const nextAppointmentStatus: Appointment['status'] = currentAppointment
+      ? (['waiting_payment', 'completed', 'no_show'].includes(currentAppointment.status)
+        ? currentAppointment.status
+        : 'waiting_payment')
+      : 'waiting_payment';
+    return {
+      service: nextService,
+      appointment: currentAppointment ? {
+        ...currentAppointment,
+        status: nextAppointmentStatus,
+      } : null,
+    };
+  }, []);
+
+  const applyPendingOperationalTransitions = React.useCallback((
+    baseServices: Service[],
+    baseAppointments: Appointment[]
+  ) => {
+    const queuedActions = readPendingOperationalActions();
+    if (!queuedActions.length) {
+      return {
+        services: normalizeServicesForPersistence(baseServices),
+        appointments: baseAppointments,
+      };
+    }
+
+    let nextServices = normalizeServicesForPersistence(baseServices);
+    let nextAppointments = [...baseAppointments];
+
+    for (const queuedAction of queuedActions) {
+      const currentService = nextServices.find((service) => service.id === queuedAction.serviceId);
+      if (!currentService) {
+        continue;
+      }
+
+      const previousAppointments = appointmentsRef.current;
+      appointmentsRef.current = nextAppointments;
+
+      const transition = queuedAction.type === 'start_wash'
+        ? buildLocalStartWashTransition(currentService, {
+            washers: Array.isArray(queuedAction.payload.washers) ? queuedAction.payload.washers : [],
+            observations: queuedAction.payload.observations,
+            preInspectionPhotos: queuedAction.payload.preInspectionPhotos,
+          })
+        : buildLocalCompleteWashTransition(currentService, {
+            postInspectionPhotos: queuedAction.payload.postInspectionPhotos,
+          });
+
+      appointmentsRef.current = previousAppointments;
+
+      nextServices = normalizeServicesForPersistence(
+        nextServices.map((service) => (service.id === transition.service.id ? transition.service : service))
+      );
+
+      if (transition.appointment) {
+        nextAppointments = nextAppointments.some((appointment) => appointment.id === transition.appointment?.id)
+          ? nextAppointments.map((appointment) => (
+              appointment.id === transition.appointment?.id ? transition.appointment! : appointment
+            ))
+          : [transition.appointment, ...nextAppointments];
+      }
+    }
+
+    return {
+      services: nextServices,
+      appointments: nextAppointments,
+    };
+  }, [buildLocalCompleteWashTransition, buildLocalStartWashTransition]);
+
   useEffect(() => {
     if (!isAuthenticated) {
       return;
@@ -400,6 +574,20 @@ export default function App() {
         return;
       }
       try {
+        await flushPendingOperationalActions<ServiceStageTransitionPayload>({
+          startWash: (serviceId, payload) => api.startWash(serviceId, {
+            washers: Array.isArray(payload.washers) ? payload.washers : [],
+            observations: payload.observations,
+            preInspectionPhotos: payload.preInspectionPhotos,
+          }),
+          completeWash: (serviceId, payload) => api.completeWash(serviceId, {
+            postInspectionPhotos: payload.postInspectionPhotos,
+          }),
+          onSaved: (_entry, payload) => {
+            mergeServiceTransitionIntoState(payload);
+          },
+        });
+
         const result = await flushPendingPhotoSaves({
           saveInspectionPhoto: api.saveInspectionPhoto,
         });
@@ -447,7 +635,39 @@ export default function App() {
       document.removeEventListener('visibilitychange', visibilityHandler);
       window.clearInterval(intervalId);
     };
-  }, [isAuthenticated, mergeServiceIntoState]);
+  }, [isAuthenticated, mergeServiceIntoState, mergeServiceTransitionIntoState]);
+
+  useEffect(() => {
+    if (!isAuthenticated) {
+      return;
+    }
+
+    const reconcilePendingTransitions = () => {
+      const queuedActions = readPendingOperationalActions();
+      if (!queuedActions.length || (!servicesRef.current.length && !appointmentsRef.current.length)) {
+        return;
+      }
+
+      const reconciled = applyPendingOperationalTransitions(servicesRef.current, appointmentsRef.current);
+      if (JSON.stringify(reconciled.services) !== JSON.stringify(servicesRef.current)) {
+        setServices(reconciled.services);
+        servicesRef.current = reconciled.services;
+      }
+
+      if (JSON.stringify(reconciled.appointments) !== JSON.stringify(appointmentsRef.current)) {
+        setAppointments(reconciled.appointments);
+        appointmentsRef.current = reconciled.appointments;
+      }
+    };
+
+    const handler = () => reconcilePendingTransitions();
+    window.addEventListener(PENDING_OPERATIONAL_ACTIONS_UPDATED_EVENT, handler as EventListener);
+    reconcilePendingTransitions();
+
+    return () => {
+      window.removeEventListener(PENDING_OPERATIONAL_ACTIONS_UPDATED_EVENT, handler as EventListener);
+    };
+  }, [applyPendingOperationalTransitions, appointments, isAuthenticated, services]);
 
   const queueServicesSync = (task: () => Promise<void>) => {
     servicesSyncQueueRef.current = servicesSyncQueueRef.current
@@ -799,15 +1019,18 @@ export default function App() {
   };
 
   const touchServiceTimeline = (id: string, timelineKey: keyof NonNullable<Service['timeline']>) => {
-    void updateServiceRecord(id, (service) => {
-      const nowIso = new Date().toISOString();
-      return {
-        ...service,
-        timeline: {
-          ...(service.timeline || {}),
-          [timelineKey]: service.timeline?.[timelineKey] || nowIso,
-        },
-      };
+    const currentService = servicesRef.current.find((service) => service.id === id);
+    if (!currentService) {
+      return;
+    }
+
+    const nowIso = new Date().toISOString();
+    mergeServiceIntoState({
+      ...currentService,
+      timeline: {
+        ...(currentService.timeline || {}),
+        [timelineKey]: currentService.timeline?.[timelineKey] || nowIso,
+      },
     });
   };
 
@@ -938,6 +1161,122 @@ export default function App() {
       await handlePersistenceError(error, 'Nao foi possivel finalizar o pagamento.');
       throw error;
     }
+  };
+
+  const startWashForService = async (
+    serviceId: string,
+    payload: StartWashPayload
+  ): Promise<{ persisted: boolean; transition: ServiceStageTransitionPayload }> => {
+    const currentService = servicesRef.current.find((service) => service.id === serviceId);
+    if (!currentService) {
+      throw new Error('Servico nao encontrado para iniciar a lavagem.');
+    }
+
+    const fallbackTransition = buildLocalStartWashTransition(currentService, payload);
+
+    if (!navigator.onLine) {
+      enqueuePendingOperationalAction({
+        serviceId,
+        type: 'start_wash',
+        payload,
+      });
+      mergeServiceTransitionIntoState(fallbackTransition);
+      return {
+        persisted: false,
+        transition: fallbackTransition,
+      };
+    }
+
+    let lastError: unknown = null;
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      try {
+        const response = await api.startWash(serviceId, payload);
+        mergeServiceTransitionIntoState(response);
+        return {
+          persisted: true,
+          transition: response,
+        };
+      } catch (error) {
+        lastError = error;
+        if (!navigator.onLine) {
+          break;
+        }
+        await new Promise((resolve) => setTimeout(resolve, 1000 * (attempt + 1)));
+      }
+    }
+
+    if (shouldQueuePendingPhotoSave(lastError)) {
+      enqueuePendingOperationalAction({
+        serviceId,
+        type: 'start_wash',
+        payload,
+      });
+      mergeServiceTransitionIntoState(fallbackTransition);
+      return {
+        persisted: false,
+        transition: fallbackTransition,
+      };
+    }
+
+    throw lastError instanceof Error ? lastError : new Error('Nao foi possivel iniciar a lavagem.');
+  };
+
+  const completeWashForService = async (
+    serviceId: string,
+    payload: CompleteWashPayload
+  ): Promise<{ persisted: boolean; transition: ServiceStageTransitionPayload }> => {
+    const currentService = servicesRef.current.find((service) => service.id === serviceId);
+    if (!currentService) {
+      throw new Error('Servico nao encontrado para concluir a lavagem.');
+    }
+
+    const fallbackTransition = buildLocalCompleteWashTransition(currentService, payload);
+
+    if (!navigator.onLine) {
+      enqueuePendingOperationalAction({
+        serviceId,
+        type: 'complete_wash',
+        payload,
+      });
+      mergeServiceTransitionIntoState(fallbackTransition);
+      return {
+        persisted: false,
+        transition: fallbackTransition,
+      };
+    }
+
+    let lastError: unknown = null;
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      try {
+        const response = await api.completeWash(serviceId, payload);
+        mergeServiceTransitionIntoState(response);
+        return {
+          persisted: true,
+          transition: response,
+        };
+      } catch (error) {
+        lastError = error;
+        if (!navigator.onLine) {
+          break;
+        }
+        await new Promise((resolve) => setTimeout(resolve, 1000 * (attempt + 1)));
+      }
+    }
+
+    if (shouldQueuePendingPhotoSave(lastError)) {
+      enqueuePendingOperationalAction({
+        serviceId,
+        type: 'complete_wash',
+        payload,
+      });
+      mergeServiceTransitionIntoState(fallbackTransition);
+      return {
+        persisted: false,
+        transition: fallbackTransition,
+      };
+    }
+
+    throw lastError instanceof Error ? lastError : new Error('Nao foi possivel concluir a lavagem.');
   };
 
   const reorderServices = async (newServices: Service[]) => {
@@ -1089,46 +1428,17 @@ export default function App() {
       case 'checkin': return <CheckIn onNavigate={navigateTo} onAddService={addService} serviceTypes={serviceTypes} vehicleDb={vehicleDb} selectedBaseId={selectedBaseInfo?.id} selectedBaseName={selectedBaseInfo?.name} />;
       case 'inspection-pre': return <InspectionPre service={activeService} teamMembers={team} elapsedMinutes={activeServiceElapsedMinutes} onNavigate={navigateTo} onServiceChange={mergeServiceIntoState} onStartWash={async (washers, photos, observations) => {
         if (activeServiceId) {
-          await updateServiceRecord(activeServiceId, (service) => {
-            const nowIso = new Date().toISOString();
-            const nextPreviewImage = photos.front || getServicePreviewImage(service);
-            const nextObservations = observations.trim() || service.observations || '';
-            return {
-              ...service,
-              washers,
-              observations: nextObservations,
-              preInspectionPhotos: photos,
-              image: nextPreviewImage || service.image,
-              status: 'in_progress',
-              startTime: nowIso,
-              timeline: {
-                ...(service.timeline || {}),
-                preInspectionStartedAt: service.timeline?.preInspectionStartedAt || nowIso,
-                preInspectionCompletedAt: nowIso,
-                washStartedAt: nowIso,
-              },
-            };
+          return startWashForService(activeServiceId, {
+            washers,
+            observations,
+            preInspectionPhotos: photos,
           });
         }
       }} />;
       case 'inspection-post': return <InspectionPost service={activeService} elapsedMinutes={activeServiceElapsedMinutes} onNavigate={navigateTo} onServiceChange={mergeServiceIntoState} onCompleteWash={async (photos) => {
         if (activeServiceId) {
-          await updateServiceRecord(activeServiceId, (service) => {
-            const nowIso = new Date().toISOString();
-            const nextPreviewImage = photos.front || getServicePreviewImage(service);
-            return {
-              ...service,
-              postInspectionPhotos: photos,
-              image: nextPreviewImage || service.image,
-              status: 'waiting_payment',
-              endTime: nowIso,
-              timeline: {
-                ...(service.timeline || {}),
-                postInspectionStartedAt: service.timeline?.postInspectionStartedAt || nowIso,
-                washCompletedAt: nowIso,
-                postInspectionCompletedAt: nowIso,
-              },
-            };
+          return completeWashForService(activeServiceId, {
+            postInspectionPhotos: photos,
           });
         }
       }} />;

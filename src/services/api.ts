@@ -48,6 +48,21 @@ export interface PaymentCompletionPayload {
   appointment: Appointment | null;
 }
 
+export interface ServiceStageTransitionPayload {
+  service: Service;
+  appointment: Appointment | null;
+}
+
+export interface StartWashPayload {
+  washers: string[];
+  observations?: string;
+  preInspectionPhotos?: Record<string, string>;
+}
+
+export interface CompleteWashPayload {
+  postInspectionPhotos?: Record<string, string>;
+}
+
 export type InspectionPhotoStage = 'pre' | 'post';
 
 export interface SchedulingDeletionPayload {
@@ -202,6 +217,16 @@ export const api = {
     request<VehicleHistoryDetail>(`/vehicle-history/${encodeURIComponent(plate)}`),
   upsertService: (service: Service) =>
     request<Service>('/services/upsert', { method: 'POST', body: JSON.stringify(service) }),
+  startWash: (serviceId: string, payload: StartWashPayload) =>
+    request<ServiceStageTransitionPayload>(`/services/${encodeURIComponent(serviceId)}/start-wash`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+  completeWash: (serviceId: string, payload: CompleteWashPayload) =>
+    request<ServiceStageTransitionPayload>(`/services/${encodeURIComponent(serviceId)}/complete-wash`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
   saveInspectionPhoto: (serviceId: string, stage: InspectionPhotoStage, photoId: string, imageData: string) =>
     request<Service>(`/services/${encodeURIComponent(serviceId)}/inspection-photo`, {
       method: 'POST',

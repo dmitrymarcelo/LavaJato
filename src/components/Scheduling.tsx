@@ -27,7 +27,7 @@ import {
 import { motion, AnimatePresence } from '../lib/motion';
 import { Screen, Service, TeamMember, VehicleCategory, VehicleType, VehicleRegistration, WashingZoneId } from '../types';
 import { api, ApiError, Appointment } from '../services/api';
-import { addDays, digitsOnly, formatCpf, generateId, getElapsedMinutes, getServicePreviewImage, listPendingPhotoIds, normalizeDateKey } from '../utils/app';
+import { addDays, digitsOnly, formatCpf, generateId, getElapsedMinutes, getServicePreviewImage, listPendingOperationalActionTypes, listPendingPhotoIds, normalizeDateKey } from '../utils/app';
 import { getSourceVehicleTypeLabel } from '../utils/vehicleType';
 import { BASES, BaseInfo, getBaseById } from '../data/bases';
 import ModalSurface from './ModalSurface';
@@ -1634,6 +1634,13 @@ export function QueueSection({
             services.map((service, index) => {
               const timerValue = timers[service.id];
               const hasTimer = typeof timerValue === 'number';
+              const pendingOperationalTypes = new Set(listPendingOperationalActionTypes(service.id));
+              const hasPendingOperationalSync = pendingOperationalTypes.size > 0;
+              const pendingOperationalLabel = pendingOperationalTypes.has('complete_wash')
+                ? 'Finalizacao sincronizando'
+                : pendingOperationalTypes.has('start_wash')
+                  ? 'Inicio sincronizando'
+                  : '';
               const timerClass = !hasTimer
                 ? 'bg-slate-400'
                 : timerValue > 30
@@ -1806,6 +1813,11 @@ export function QueueSection({
                           <p className="mt-1 text-[10px] font-bold text-sky-700">{service.washingZoneName}</p>
                         )}
                       </div>
+                      {hasPendingOperationalSync && (
+                        <div className="rounded-lg border border-amber-100 bg-amber-50 px-2 py-1 text-[9px] font-black uppercase tracking-widest text-amber-700">
+                          {pendingOperationalLabel}
+                        </div>
+                      )}
                     </div>
                   </div>
 

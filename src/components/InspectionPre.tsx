@@ -22,7 +22,11 @@ import { api } from '../services/api';
 
 type InspectionPreProps = {
   onNavigate: (screen: Screen) => void;
-  onStartWash: (washers: string[], photos: Record<string, string>, observations: string) => Promise<void> | void;
+  onStartWash: (
+    washers: string[],
+    photos: Record<string, string>,
+    observations: string
+  ) => Promise<{ persisted?: boolean } | void> | void;
   elapsedMinutes?: number;
   teamMembers?: TeamMember[];
   service?: Service | null;
@@ -100,6 +104,8 @@ export default function InspectionPre({
   const [lastSavedInfo, setLastSavedInfo] = useState<string | null>(null);
   const [isFlushingPending, setIsFlushingPending] = useState(false);
   const [pendingVersion, setPendingVersion] = useState(0);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   const pendingPhotoIds = useMemo(() => {
     return new Set(listPendingPhotoIds(service?.id || '', 'pre'));
@@ -284,19 +290,31 @@ export default function InspectionPre({
   const scheduledDateKey = normalizeDateKey(service?.scheduledDate);
   const requiresCarryOverObservation = Boolean(createdDateKey && scheduledDateKey && createdDateKey < scheduledDateKey);
   const hasValidObservation = !requiresCarryOverObservation || observations.trim().length >= 10;
-  const canStart = isPhotosComplete && isWashersSelected && hasValidObservation;
+  const hasAlreadyStarted = Boolean(service && (service.status !== 'pending' || service.timeline?.washStartedAt));
+  const canStart = isPhotosComplete && isWashersSelected && hasValidObservation && !hasAlreadyStarted;
 
   const handleStartWash = async () => {
-    if (canStart) {
-      const washerNames = teamMembers
-        .filter(m => selectedWashers.includes(m.id))
-        .map(m => m.name);
-      try {
-        await onStartWash(washerNames, photos, observations.trim());
-        onNavigate('queue');
-      } catch (error) {
-        console.error(error);
+    if (!canStart || isSubmitting) {
+      return;
+    }
+
+    const washerNames = teamMembers
+      .filter(m => selectedWashers.includes(m.id))
+      .map(m => m.name);
+    setIsSubmitting(true);
+    setSubmitError(null);
+
+    try {
+      const result = await onStartWash(washerNames, photos, observations.trim());
+      if (result && typeof result === 'object' && 'persisted' in result && result.persisted === false) {
+        setLastSavedInfo('Inicio salvo neste aparelho. A sincronizacao sera retomada automaticamente.');
       }
+      onNavigate('queue');
+    } catch (error) {
+      console.error(error);
+      setSubmitError(error instanceof Error ? error.message : 'Nao foi possivel iniciar a lavagem agora.');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -544,22 +562,41 @@ export default function InspectionPre({
       {/* Footer Action */}
       <footer className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[430px] p-4 bg-white/95 backdrop-blur-lg border-t border-slate-100 pb-6 z-[70]">
         <div className="space-y-3">
+          {submitError && (
+            <div className="rounded-2xl border border-rose-100 bg-rose-50 px-3 py-2 text-[12px] font-bold text-rose-700">
+              {submitError}
+            </div>
+          )}
           <button 
-            disabled={!canStart}
+            disabled={!canStart || isSubmitting}
             onClick={handleStartWash}
             className={`w-full py-4 rounded-2xl font-bold flex items-center justify-center gap-3 transition-all ${
-              canStart 
+              canStart && !isSubmitting
                 ? 'bg-primary text-white shadow-lg shadow-primary/20 active:scale-[0.98]' 
                 : 'text-slate-400 bg-slate-50 border border-slate-100 cursor-not-allowed'
             }`}
           >
-            {canStart ? <PlayCircle className="w-5 h-5" /> : <Lock className="w-5 h-5" />}
-            <span>Salvar e Iniciar Lavagem</span>
+            {isSubmitting ? (
+              <RefreshCw className="w-5 h-5 animate-spin" />
+            ) : hasAlreadyStarted ? (
+              <CheckCircle2 className="w-5 h-5" />
+            ) : canStart ? (
+              <PlayCircle className="w-5 h-5" />
+            ) : (
+              <Lock className="w-5 h-5" />
+            )}
+            <span>
+              {isSubmitting
+                ? 'Salvando inicio...'
+                : hasAlreadyStarted
+                  ? 'Lavagem ja iniciada'
+                  : 'Salvar e Iniciar Lavagem'}
+            </span>
           </button>
           <div className="flex items-center justify-center gap-2 px-6">
             <Info className={`w-4 h-4 ${canStart ? 'text-emerald-500' : 'text-amber-500'}`} />
             <p className="text-center text-[10px] uppercase font-bold tracking-wider text-slate-500">
-              {!isPhotosComplete 
+              {hasAlreadyStarted ? 'Inicio ja registrado para este veiculo' : !isPhotosComplete 
                 ? 'Capture ao menos 1 foto para habilitar'
                 : !isWashersSelected 
                   ? 'Selecione pelo menos um responsável'

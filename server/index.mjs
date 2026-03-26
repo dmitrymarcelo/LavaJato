@@ -756,6 +756,103 @@ async function saveInspectionPhoto(serviceId, stage, photoId, imageData) {
   });
 }
 
+async function transitionServiceStage(serviceId, action, payload = {}) {
+  return withTransaction(async (client) => {
+    const executor = (text, params = []) => client.query(text, params);
+    const serviceResult = await executor('SELECT * FROM services WHERE id = $1 FOR UPDATE', [serviceId]);
+    const serviceRow = serviceResult.rows[0];
+
+    if (!serviceRow) {
+      const error = new Error('Servico nao encontrado.');
+      error.statusCode = 404;
+      throw error;
+    }
+
+    const currentService = toCamelService(serviceRow);
+    const nowIso = new Date().toISOString();
+    let nextService = currentService;
+
+    if (action === 'start_wash') {
+      const nextPrePhotos = {
+        ...(currentService.preInspectionPhotos || {}),
+        ...((payload.preInspectionPhotos && typeof payload.preInspectionPhotos === 'object') ? payload.preInspectionPhotos : {}),
+      };
+      const nextWashers = Array.isArray(payload.washers)
+        ? payload.washers.map((value) => String(value).trim()).filter(Boolean)
+        : (currentService.washers || []);
+      const nextObservations = String(payload.observations || '').trim() || currentService.observations || '';
+
+      nextService = {
+        ...currentService,
+        washers: nextWashers,
+        observations: nextObservations,
+        preInspectionPhotos: nextPrePhotos,
+        image: nextPrePhotos.front || currentService.image || '',
+        status: currentService.status === 'pending' ? 'in_progress' : currentService.status,
+        startTime: currentService.startTime || nowIso,
+        timeline: {
+          ...(currentService.timeline || {}),
+          preInspectionStartedAt: currentService.timeline?.preInspectionStartedAt || nowIso,
+          preInspectionCompletedAt: currentService.timeline?.preInspectionCompletedAt || nowIso,
+          washStartedAt: currentService.timeline?.washStartedAt || currentService.startTime || nowIso,
+        },
+      };
+    }
+
+    if (action === 'complete_wash') {
+      const nextPostPhotos = {
+        ...(currentService.postInspectionPhotos || {}),
+        ...((payload.postInspectionPhotos && typeof payload.postInspectionPhotos === 'object') ? payload.postInspectionPhotos : {}),
+      };
+
+      nextService = {
+        ...currentService,
+        postInspectionPhotos: nextPostPhotos,
+        image: nextPostPhotos.front || currentService.image || '',
+        status: ['completed', 'no_show'].includes(currentService.status) ? currentService.status : 'waiting_payment',
+        endTime: currentService.endTime || nowIso,
+        timeline: {
+          ...(currentService.timeline || {}),
+          postInspectionStartedAt: currentService.timeline?.postInspectionStartedAt || nowIso,
+          washCompletedAt: currentService.timeline?.washCompletedAt || currentService.endTime || nowIso,
+          postInspectionCompletedAt: currentService.timeline?.postInspectionCompletedAt || nowIso,
+        },
+      };
+    }
+
+    await upsertServiceRow(nextService, executor);
+
+    const appointmentResult = await executor('SELECT * FROM appointments WHERE id = $1 FOR UPDATE', [serviceId]);
+    let nextAppointment = null;
+
+    if (appointmentResult.rows[0]) {
+      const currentAppointment = toCamelAppointment(appointmentResult.rows[0]);
+      const nextAppointmentStatus = action === 'start_wash'
+        ? (
+          ['in_progress', 'waiting_payment', 'completed', 'no_show'].includes(currentAppointment.status)
+            ? currentAppointment.status
+            : 'in_progress'
+        )
+        : (
+          ['waiting_payment', 'completed', 'no_show'].includes(currentAppointment.status)
+            ? currentAppointment.status
+            : 'waiting_payment'
+        );
+      nextAppointment = {
+        ...currentAppointment,
+        status: nextAppointmentStatus,
+      };
+      await upsertAppointmentRow(nextAppointment, executor);
+    }
+
+    const updatedServiceResult = await executor('SELECT * FROM services WHERE id = $1', [serviceId]);
+    return {
+      service: toCamelService(updatedServiceResult.rows[0]),
+      appointment: nextAppointment,
+    };
+  });
+}
+
 async function upsertVehicleRow(vehicle, executor = query) {
   const plate = String(vehicle.plate || '').toUpperCase().trim();
   if (!plate) {
@@ -1380,6 +1477,34 @@ app.post('/api/services/:id/inspection-photo', async (req, res) => {
 
   const updatedService = await saveInspectionPhoto(req.params.id, stage, photoId, imageData);
   res.json(updatedService);
+});
+
+app.post('/api/services/:id/start-wash', async (req, res) => {
+  const serviceResult = await query('SELECT base_id FROM services WHERE id = $1', [req.params.id]);
+  const serviceRow = serviceResult.rows[0];
+
+  if (!serviceRow) {
+    return res.status(404).json({ error: 'Servico nao encontrado.' });
+  }
+
+  assertUserCanAccessBase(req.user, serviceRow.base_id);
+
+  const payload = await transitionServiceStage(req.params.id, 'start_wash', req.body || {});
+  res.json(payload);
+});
+
+app.post('/api/services/:id/complete-wash', async (req, res) => {
+  const serviceResult = await query('SELECT base_id FROM services WHERE id = $1', [req.params.id]);
+  const serviceRow = serviceResult.rows[0];
+
+  if (!serviceRow) {
+    return res.status(404).json({ error: 'Servico nao encontrado.' });
+  }
+
+  assertUserCanAccessBase(req.user, serviceRow.base_id);
+
+  const payload = await transitionServiceStage(req.params.id, 'complete_wash', req.body || {});
+  res.json(payload);
 });
 
 app.post('/api/services/upsert', async (req, res) => {

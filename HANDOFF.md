@@ -1,12 +1,12 @@
 # Handoff Lava Jato - Norte Tech
 
-Atualizado em: 2026-03-25
+Atualizado em: 2026-03-26
 
 ## Estado atual
 
 - Repositorio: `https://github.com/dmitrymarcelo/LavaJato`
 - Branch principal: `main`
-- Commit atual: `c13e4514a0c288f6a540175ee007ac7937f02de4`
+- Commit atual: `11c17175b3c7946a2d8419407e5e7da4400ab47a`
 - Producao AWS atual: `http://3.145.153.19/`
 - Regiao AWS: `us-east-2`
 - Instancia usada no deploy: `i-0ba1477cbbe3d986d`
@@ -109,6 +109,16 @@ Observacao:
 - Fotos de inspecao no mobile agora usam salvamento atomico por foto para evitar sobrescrita entre requisicoes lentas.
 - Se a rede oscilar, as fotos entram em fila local no aparelho e tentam sincronizar ao voltar conexao, foco, visibilidade da aba e em retentativas periodicas.
 - O modal de fotos da fila/agendamento passou a exibir fallback local e avisar quando ainda existe sincronizacao pendente no aparelho.
+- Inicio e finalizacao de lavagem no mobile agora usam transicoes atomicas separadas do `upsert` completo do servico.
+- O backend passou a expor:
+  - `POST /api/services/:id/start-wash`
+  - `POST /api/services/:id/complete-wash`
+- O smartphone tambem mantem fila local para essas transicoes operacionais.
+- Se a internet cair depois de iniciar ou finalizar:
+  - a etapa muda localmente no aparelho
+  - a fila exibe aviso de sincronizacao pendente
+  - o app reenvia automaticamente quando voltar conexao, foco ou visibilidade
+- Isso reduz o risco de o time reiniciar a mesma lavagem por falta de confirmacao imediata do servidor.
 - Endpoints `PUT` em lote deixaram de usar `TRUNCATE` direto e passaram a usar substituicao transacional.
 - Isso vale para:
   - `vehicles`
@@ -119,6 +129,7 @@ Observacao:
 
 ## Commits recentes relevantes
 
+- `11c1717` `docs: enforce handoff updates`
 - `c13e451` `Improve mobile photo autosave resilience`
 - `d43746d` `Fix mobile inspection photo persistence`
 - `6b80b5c` `ci: copy generated handoff to aws runtime`
@@ -126,7 +137,6 @@ Observacao:
 - `e83c423` `ci: fix aws workflow secret guards`
 - `7d83baa` `ci: automate handoff sync during aws deploy`
 - `2c66b61` `feat(history): adicionar botao Exportar CSV na barra de filtros`
-- `2c3d163` `docs: ajustar HANDOFF para commit atual dinamico`
 
 ## Arquivos centrais
 
@@ -191,12 +201,16 @@ Com isso, qualquer alteracao publicada em `main` dispara o deploy via SSM no EC2
 
 - Este arquivo nao guarda o chat literal. Ele guarda o contexto tecnico consolidado para continuar o trabalho.
 - O GitHub e a fonte principal da continuidade.
-- Se mudar de computador, o ideal e continuar a partir do commit `c13e451` ou posterior.
+- Se mudar de computador, o ideal e continuar a partir do commit `11c1717` ou posterior.
 - Imagens enviadas ficam em `server/storage/uploads` (persistidas via volume Docker).
 - Em producao, altere a senha do administrador imediatamente.
 
 ## Proximo ponto de investigacao sugerido
 
+- Prioridade recomendada agora:
+  - habilitar HTTPS na producao para melhorar confiabilidade de camera/upload no celular
+  - endurecer autorizacao de backend nos endpoints administrativos
+  - remover a senha padrao previsivel na criacao de usuarios
 - Se ainda houver lentidao percebida, medir:
   - tempo de resposta do `bootstrap`
   - tempo de upload das fotos

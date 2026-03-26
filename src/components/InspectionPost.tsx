@@ -34,7 +34,7 @@ export default function InspectionPost({
   onServiceChange,
 }: {
   onNavigate: (screen: Screen) => void;
-  onCompleteWash: (photos: Record<string, string>) => Promise<void> | void;
+  onCompleteWash: (photos: Record<string, string>) => Promise<{ persisted?: boolean } | void> | void;
   elapsedMinutes?: number;
   service?: Service | null;
   onServiceChange?: (service: Service) => void;
@@ -46,6 +46,8 @@ export default function InspectionPost({
   const [lastSavedInfo, setLastSavedInfo] = useState<string | null>(null);
   const [isFlushingPending, setIsFlushingPending] = useState(false);
   const [pendingVersion, setPendingVersion] = useState(0);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const galleryInputRef = useRef<HTMLInputElement>(null);
 
@@ -233,18 +235,28 @@ export default function InspectionPost({
 
   const completedCount = Object.keys(photos).length;
   const progress = (completedCount / PHOTO_TYPES.length) * 100;
-  const canComplete = completedCount >= 1;
+  const hasAlreadyCompleted = ['waiting_payment', 'completed', 'no_show'].includes(service?.status || '')
+    || Boolean(service?.timeline?.washCompletedAt);
+  const canComplete = completedCount >= 1 && !hasAlreadyCompleted;
 
   const handleComplete = async () => {
-    if (!canComplete) {
+    if (!canComplete || isSubmitting) {
       return;
     }
 
+    setIsSubmitting(true);
+    setSubmitError(null);
     try {
-      await onCompleteWash(photos);
+      const result = await onCompleteWash(photos);
+      if (result && typeof result === 'object' && 'persisted' in result && result.persisted === false) {
+        setLastSavedInfo('Finalizacao salva neste aparelho. A sincronizacao sera retomada automaticamente.');
+      }
       onNavigate('payment');
     } catch (error) {
       console.error(error);
+      setSubmitError(error instanceof Error ? error.message : 'Nao foi possivel finalizar a lavagem agora.');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -401,22 +413,43 @@ export default function InspectionPost({
               {lastSavedInfo}
             </div>
           )}
+          {submitError && (
+            <div className="rounded-2xl border border-rose-100 bg-rose-50 px-3 py-2 text-[12px] font-bold text-rose-700">
+              {submitError}
+            </div>
+          )}
           <button
-            disabled={!canComplete}
+            disabled={!canComplete || isSubmitting}
             onClick={handleComplete}
             className={`w-full py-4 rounded-2xl font-bold flex items-center justify-center gap-3 transition-all ${
-              canComplete
+              canComplete && !isSubmitting
                 ? 'bg-primary text-white shadow-lg shadow-primary/20 active:scale-[0.98]'
                 : 'text-slate-400 bg-slate-50 border border-slate-100 cursor-not-allowed'
             }`}
           >
-            <CreditCard className="w-5 h-5" />
-            <span>Salvar e Liberar para Pagamento</span>
+            {isSubmitting ? (
+              <RefreshCw className="w-5 h-5 animate-spin" />
+            ) : hasAlreadyCompleted ? (
+              <CheckCircle2 className="w-5 h-5" />
+            ) : (
+              <CreditCard className="w-5 h-5" />
+            )}
+            <span>
+              {isSubmitting
+                ? 'Salvando finalizacao...'
+                : hasAlreadyCompleted
+                  ? 'Lavagem ja finalizada'
+                  : 'Salvar e Liberar para Pagamento'}
+            </span>
           </button>
           <div className="flex items-center justify-center gap-2 px-6">
             <AlertCircle className={`w-4 h-4 ${canComplete ? 'text-emerald-500' : 'text-amber-500'}`} />
             <p className="text-center text-[10px] uppercase font-bold tracking-wider text-slate-500">
-              {canComplete ? 'Tudo pronto para finalizar a lavagem' : 'Capture ao menos 1 foto final para habilitar'}
+              {hasAlreadyCompleted
+                ? 'Finalizacao ja registrada para este veiculo'
+                : canComplete
+                  ? 'Tudo pronto para finalizar a lavagem'
+                  : 'Capture ao menos 1 foto final para habilitar'}
             </p>
           </div>
         </div>

@@ -263,9 +263,28 @@ export type PendingPhotoSaveEntry = {
   imageData: string;
 };
 
+export type PendingOperationalActionType = 'start_wash' | 'complete_wash';
+
+export type PendingOperationalActionPayload = {
+  washers?: string[];
+  observations?: string;
+  preInspectionPhotos?: Record<string, string>;
+  postInspectionPhotos?: Record<string, string>;
+};
+
+export type PendingOperationalActionEntry = {
+  id: string;
+  createdAt: number;
+  serviceId: string;
+  type: PendingOperationalActionType;
+  payload: PendingOperationalActionPayload;
+};
+
 const PENDING_PHOTO_SAVES_KEY = 'pendingPhotoSavesV2';
 const LEGACY_PENDING_PHOTO_SAVES_KEY = 'pendingPhotoSaves';
 export const PENDING_PHOTO_SAVES_UPDATED_EVENT = 'app:pending-photo-saves-updated';
+const PENDING_OPERATIONAL_ACTIONS_KEY = 'pendingOperationalActionsV1';
+export const PENDING_OPERATIONAL_ACTIONS_UPDATED_EVENT = 'app:pending-operational-actions-updated';
 
 function safeReadJson(value: string): unknown {
   try {
@@ -332,6 +351,66 @@ function dispatchPendingPhotoQueueUpdated(count: number) {
   } catch {}
 }
 
+function dispatchPendingOperationalQueueUpdated(count: number) {
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  try {
+    window.dispatchEvent(new CustomEvent(PENDING_OPERATIONAL_ACTIONS_UPDATED_EVENT, {
+      detail: {
+        count,
+      },
+    }));
+  } catch {}
+}
+
+function normalizePendingOperationalActionList(value: unknown): PendingOperationalActionEntry[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  const items: PendingOperationalActionEntry[] = [];
+  for (const raw of value) {
+    if (!raw || typeof raw !== 'object') continue;
+    const candidate = raw as Partial<PendingOperationalActionEntry>;
+    const serviceId = typeof candidate.serviceId === 'string' ? candidate.serviceId : '';
+    const type = candidate.type === 'start_wash' || candidate.type === 'complete_wash' ? candidate.type : null;
+    const createdAt = typeof candidate.createdAt === 'number' ? candidate.createdAt : Date.now();
+    const id = typeof candidate.id === 'string' ? candidate.id : generateId();
+    const payload = candidate.payload && typeof candidate.payload === 'object'
+      ? {
+          washers: Array.isArray(candidate.payload.washers) ? candidate.payload.washers.map((value) => String(value)) : undefined,
+          observations: typeof candidate.payload.observations === 'string' ? candidate.payload.observations : undefined,
+          preInspectionPhotos: candidate.payload.preInspectionPhotos && typeof candidate.payload.preInspectionPhotos === 'object'
+            ? candidate.payload.preInspectionPhotos
+            : undefined,
+          postInspectionPhotos: candidate.payload.postInspectionPhotos && typeof candidate.payload.postInspectionPhotos === 'object'
+            ? candidate.payload.postInspectionPhotos
+            : undefined,
+        }
+      : {};
+
+    if (!serviceId || !type) continue;
+    items.push({ id, createdAt, serviceId, type, payload });
+  }
+
+  return items;
+}
+
+function dedupePendingOperationalActionList(items: PendingOperationalActionEntry[]) {
+  const seen = new Map<string, PendingOperationalActionEntry>();
+  for (const item of items) {
+    const key = `${item.serviceId}:${item.type}`;
+    const existing = seen.get(key);
+    if (!existing || existing.createdAt < item.createdAt) {
+      seen.set(key, item);
+    }
+  }
+
+  return Array.from(seen.values()).sort((left, right) => left.createdAt - right.createdAt);
+}
+
 export function readPendingPhotoSaves() {
   const raw = typeof window !== 'undefined' ? window.localStorage.getItem(PENDING_PHOTO_SAVES_KEY) : null;
   const parsed = raw ? safeReadJson(raw) : null;
@@ -360,6 +439,20 @@ export function writePendingPhotoSaves(items: PendingPhotoSaveEntry[]) {
   dispatchPendingPhotoQueueUpdated(normalized.length);
 }
 
+export function readPendingOperationalActions() {
+  const raw = typeof window !== 'undefined' ? window.localStorage.getItem(PENDING_OPERATIONAL_ACTIONS_KEY) : null;
+  const parsed = raw ? safeReadJson(raw) : null;
+  return normalizePendingOperationalActionList(parsed);
+}
+
+export function writePendingOperationalActions(items: PendingOperationalActionEntry[]) {
+  const normalized = dedupePendingOperationalActionList(items);
+  try {
+    window.localStorage.setItem(PENDING_OPERATIONAL_ACTIONS_KEY, JSON.stringify(normalized));
+  } catch {}
+  dispatchPendingOperationalQueueUpdated(normalized.length);
+}
+
 export function enqueuePendingPhotoSave(
   entry: Omit<PendingPhotoSaveEntry, 'id' | 'createdAt'>,
   options?: {
@@ -386,11 +479,44 @@ export function enqueuePendingPhotoSave(
   return candidate;
 }
 
+export function enqueuePendingOperationalAction(
+  entry: Omit<PendingOperationalActionEntry, 'id' | 'createdAt'>,
+  options?: {
+    maxEntries?: number;
+    maxAgeMs?: number;
+  }
+) {
+  const maxEntries = options?.maxEntries ?? 20;
+  const maxAgeMs = options?.maxAgeMs ?? 1000 * 60 * 60 * 24 * 3;
+  const now = Date.now();
+
+  const existing = readPendingOperationalActions();
+  const candidate: PendingOperationalActionEntry = {
+    ...entry,
+    id: generateId(),
+    createdAt: now,
+  };
+
+  const combined = dedupePendingOperationalActionList([candidate, ...existing])
+    .filter((item) => now - item.createdAt <= maxAgeMs)
+    .slice(0, Math.max(1, maxEntries));
+
+  writePendingOperationalActions(combined);
+  return candidate;
+}
+
 export function listPendingPhotoIds(serviceId: string, stage: PendingPhotoStage) {
   if (!serviceId) return [];
   return readPendingPhotoSaves()
     .filter((item) => item.serviceId === serviceId && item.stage === stage)
     .map((item) => item.photoId);
+}
+
+export function listPendingOperationalActionTypes(serviceId: string) {
+  if (!serviceId) return [];
+  return readPendingOperationalActions()
+    .filter((item) => item.serviceId === serviceId)
+    .map((item) => item.type);
 }
 
 export async function flushPendingPhotoSaves(options: {
@@ -424,6 +550,37 @@ export async function flushPendingPhotoSaves(options: {
   }
 
   writePendingPhotoSaves(remaining);
+  return {
+    savedCount,
+    savedEntries,
+    remainingCount: remaining.length,
+  };
+}
+
+export async function flushPendingOperationalActions<T>(options: {
+  startWash: (serviceId: string, payload: PendingOperationalActionPayload) => Promise<T>;
+  completeWash: (serviceId: string, payload: PendingOperationalActionPayload) => Promise<T>;
+  onSaved?: (entry: PendingOperationalActionEntry, result: T) => void;
+}) {
+  const list = readPendingOperationalActions();
+  const remaining: PendingOperationalActionEntry[] = [];
+  const savedEntries: PendingOperationalActionEntry[] = [];
+  let savedCount = 0;
+
+  for (const entry of list) {
+    try {
+      const result = entry.type === 'start_wash'
+        ? await options.startWash(entry.serviceId, entry.payload)
+        : await options.completeWash(entry.serviceId, entry.payload);
+      savedCount += 1;
+      savedEntries.push(entry);
+      options.onSaved?.(entry, result);
+    } catch {
+      remaining.push(entry);
+    }
+  }
+
+  writePendingOperationalActions(remaining);
   return {
     savedCount,
     savedEntries,
