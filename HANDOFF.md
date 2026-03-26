@@ -140,6 +140,7 @@ Observacao:
 
 ## Arquivos centrais
 
+- `AGENTS.md`
 - `src/App.tsx`
 - `src/components/Dashboard.tsx`
 - `src/components/Scheduling.tsx`
@@ -200,6 +201,7 @@ Com isso, qualquer alteracao publicada em `main` dispara o deploy via SSM no EC2
 ## Observacoes importantes
 
 - Este arquivo nao guarda o chat literal. Ele guarda o contexto tecnico consolidado para continuar o trabalho.
+- `AGENTS.md` passa a ser a referencia principal de agentes, skills, ownership, KPIs e guardrails do projeto.
 - O GitHub e a fonte principal da continuidade.
 - Se mudar de computador, o ideal e continuar a partir do commit `1fd8dd0` ou posterior.
 - Imagens enviadas ficam em `server/storage/uploads` (persistidas via volume Docker).
