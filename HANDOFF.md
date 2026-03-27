@@ -266,6 +266,7 @@ Com isso, qualquer alteracao publicada em `main` dispara o deploy via SSM no EC2
 - O segundo bloqueio real apareceu ja dentro do endurecimento HTTPS: a EC2 ficava sem espaco ao baixar a imagem `certbot`, entao o deploy agora faz limpeza controlada de `containers`, `images` e `builder cache` antes da etapa TLS e publica `docker system df` no diagnostico.
 - O terceiro bloqueio real foi de configuracao: sem `HTTPS_CERT_EMAIL` valido, o `certbot` recusava o cadastro. O deploy e a renovacao agora aceitam email real quando existir e fazem fallback automatico para emissao sem email de contato quando o secret estiver ausente.
 - O quarto bloqueio real foi de timing: depois do `docker compose up`, o Nginx ficava de pe antes da API e o `curl /api/health` falhava com `502` por alguns segundos. O deploy agora espera o health check HTTP estabilizar antes de avancar para TLS.
+- O quinto bloqueio real aconteceu ja depois do certificado emitido: a renovacao estava presa a `/etc/cron.d`, mas a EC2 nao tinha essa estrutura pronta. O deploy agora registra a renovacao via `systemd timer`, que e nativo da instancia e nao depende de `crond`.
 - O handoff sincronizado fica no proprio repo da instancia em `/opt/lavajato/app/HANDOFF.md`.
 - As referencias operacionais adicionais ficam em:
   - `/opt/lavajato/app/AGENTS.md`
