@@ -1,7 +1,7 @@
 # SKILLS.md - Lava Jato Norte Tech
 
 Atualizado em: 2026-03-27
-Commit de referencia: `4f01aeba267988258178eff126aca508b59b3af4`
+Commit de referencia: `3b48c4e7c9a5e19218dcf8ecac334f51725945f5`
 
 ## Objetivo
 
@@ -233,11 +233,11 @@ Ele complementa o `AGENTS.md`:
 
 - Tipo: governanca
 - Objetivo: garantir que o frontend publicado na AWS reflita o commit mais recente e fique acessivel por HTTPS estavel no mobile
-- Entradas: `APP_BUILD_SHA`, meta `app-build-sha`, `APP_DOMAIN`, `docker compose build web`, `docker compose up -d --force-recreate`, `certbot`, verificador SSM e arquivos do frontend
-- Saidas: bundle web recompilado, HTML marcado com o SHA da build, runtime docs copiados do checkout atualizado, proxy HTTP valido antes da emissao do certificado e HTTPS ativo apos a renovacao
+- Entradas: `APP_BUILD_SHA`, meta `app-build-sha`, `APP_HOST`, `docker compose build web`, `docker compose up -d --force-recreate`, `certbot`, verificador SSM e arquivos do frontend
+- Saidas: bundle web recompilado, HTML marcado com o SHA da build, runtime docs copiados do checkout atualizado, proxy HTTP valido antes da emissao do certificado e HTTPS ativo no proprio IP publico apos a renovacao
 - Dependencias: `index.html`, `package.json`, `Dockerfile.web`, `docker-compose.yml`, `infra/nginx/http.conf.template`, `infra/nginx/https.conf.template`, `infra/nginx/render-config.sh`, `infra/aws/renew-https.sh`, `.github/workflows/deploy.yml`, `scripts/build-ssm-deploy-command.mjs`, `scripts/run-vite-build.mjs`
 - Falha esperada: deploy verde com HTML ainda apontando para assets antigos, proxy tentando subir TLS sem certificado ou HTTPS nao publicado para smartphone
-- Resposta esperada: validar HTTP antes do `certbot`, renderizar apenas `1` config final do Nginx por vez, executar `nginx -t` antes do reload, despejar logs no erro e reprovar o workflow se o SHA servido ou o health check HTTPS nao baterem com o commit publicado
+- Resposta esperada: validar HTTP antes do `certbot`, emitir certificado diretamente para o IP publico com perfil short-lived, renderizar apenas `1` config final do Nginx por vez, executar `nginx -t` antes do reload, despejar logs no erro e reprovar o workflow se o SHA servido ou o health check HTTPS nao baterem com o commit publicado
 
 ### S19. `settings-in-app-feedback`
 

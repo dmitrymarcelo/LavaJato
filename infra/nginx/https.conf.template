@@ -1,6 +1,6 @@
 server {
     listen 80 default_server;
-    server_name _;
+    server_name ${APP_HOST} _;
     client_max_body_size 80m;
 
     location /.well-known/acme-challenge/ {
@@ -10,21 +10,21 @@ server {
     }
 
     location / {
-        return 301 https://${APP_DOMAIN}$request_uri;
+        return 301 https://${APP_HOST}$request_uri;
     }
 }
 
 server {
     listen 443 ssl;
     http2 on;
-    server_name ${APP_DOMAIN};
+    server_name ${APP_HOST};
     client_max_body_size 80m;
     gzip on;
     gzip_types text/plain text/css application/json application/javascript text/xml application/xml application/xml+rss text/javascript image/svg+xml;
     gzip_min_length 1024;
 
-    ssl_certificate /etc/letsencrypt/live/${APP_DOMAIN}/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/${APP_DOMAIN}/privkey.pem;
+    ssl_certificate /etc/letsencrypt/live/${APP_CERT_NAME}/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/${APP_CERT_NAME}/privkey.pem;
     ssl_protocols TLSv1.2 TLSv1.3;
     ssl_session_timeout 1d;
     ssl_session_cache shared:SSL:10m;

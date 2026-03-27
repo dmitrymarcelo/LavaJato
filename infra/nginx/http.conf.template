@@ -1,6 +1,6 @@
 server {
     listen 80 default_server;
-    server_name _;
+    server_name ${APP_HOST} _;
     client_max_body_size 80m;
     gzip on;
     gzip_types text/plain text/css application/json application/javascript text/xml application/xml application/xml+rss text/javascript image/svg+xml;

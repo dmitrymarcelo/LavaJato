@@ -35,7 +35,7 @@ Deploy automatico do `LavaJato` em uma unica EC2 com persistencia real:
 3. clona `https://github.com/dmitrymarcelo/LavaJato.git`
 4. faz checkout do branch `main`
 5. executa `docker compose up -d --build`
-6. publica a aplicacao em `https://IP-PUBLICO.sslip.io/`
+6. publica a aplicacao em `https://IP_PUBLICO/`
 
 ## Banco de dados
 
@@ -51,10 +51,10 @@ O volume Docker `postgres_data` garante persistencia entre reinicios da EC2.
 
 ## HTTPS automatico
 
-- O deploy resolve automaticamente o dominio `IP-PUBLICO.sslip.io`
+- O deploy usa o proprio IP publico da EC2 como host canonico
 - O Nginx sobe primeiro em HTTP para responder ao desafio ACME
-- O Certbot emite ou renova o certificado Let's Encrypt
-- O proxy troca automaticamente para HTTPS com redirecionamento de `http://IP_PUBLICO` para o dominio seguro
+- O Certbot emite ou renova um certificado short-lived da Let's Encrypt para o IP publico
+- O proxy troca automaticamente para HTTPS com redirecionamento de `http://IP_PUBLICO` para `https://IP_PUBLICO`
 - A renovacao roda via cron no host
 
 ## Credencial inicial

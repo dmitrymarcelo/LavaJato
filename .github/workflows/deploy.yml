@@ -53,10 +53,8 @@ jobs:
             --instance-ids i-0ba1477cbbe3d986d \
             --query 'Reservations[0].Instances[0].PublicIpAddress' \
             --output text)
-          APP_DOMAIN=$(echo "${PUBLIC_IP}" | tr '.' '-').sslip.io
           echo "PUBLIC_IP=${PUBLIC_IP}" >> $GITHUB_ENV
-          echo "APP_DOMAIN=${APP_DOMAIN}" >> $GITHUB_ENV
-          echo "Resolved endpoint: https://${APP_DOMAIN}"
+          echo "Resolved endpoint: https://${PUBLIC_IP}"
       - name: Ensure public ingress for HTTP and HTTPS
         run: |
           SG_IDS=$(aws ec2 describe-instances \
@@ -126,5 +124,5 @@ jobs:
         run: |
           set -e
           curl -sS -I "http://${PUBLIC_IP}/" | head -n 5
-          curl -sS -I "https://${APP_DOMAIN}/" | head -n 5
-          curl -sS "https://${APP_DOMAIN}/api/health"
+          curl -sS -I "https://${PUBLIC_IP}/" | head -n 5
+          curl -sS "https://${PUBLIC_IP}/api/health"

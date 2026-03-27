@@ -6,8 +6,8 @@ Atualizado em: 2026-03-27
 
 - Repositorio: `https://github.com/dmitrymarcelo/LavaJato`
 - Branch principal: `main`
-- Commit atual: `4f01aeba267988258178eff126aca508b59b3af4`
-- Producao AWS atual: `http://3.145.153.19/` (HTTPS em endurecimento via `sslip.io` + Let's Encrypt)
+- Commit atual: `3b48c4e7c9a5e19218dcf8ecac334f51725945f5`
+- Producao AWS atual: `http://3.145.153.19/` (HTTPS em endurecimento com certificado direto no IP publico)
 - Regiao AWS: `us-east-2`
 - Instancia usada no deploy: `i-0ba1477cbbe3d986d`
 
@@ -148,11 +148,11 @@ Observacao:
 ### HTTPS e acesso mobile
 
 - O acesso mobile ainda dependia de HTTP puro, o que prejudicava camera, upload e armazenamento em navegadores de smartphone.
-- A producao passou a ser endurecida para publicar em um dominio canonico derivado do IP publico:
-  - `https://<ip-publico-com-tracos>.sslip.io/`
+- A producao passou a ser endurecida para publicar diretamente em:
+  - `https://<ip-publico>/`
 - O deploy agora prepara:
   - porta `443` no `docker-compose.yml`
-  - emissao automatica de certificado Let's Encrypt via `certbot`
+  - emissao automatica de certificado Let's Encrypt via `certbot` para o proprio IP publico
   - renovacao automatica por cron na EC2
   - headers basicos de seguranca no Nginx
 - A causa raiz da primeira queda do ambiente HTTPS foi estrutural:
@@ -166,9 +166,14 @@ Observacao:
   - validar HTTP antes de pedir certificado
   - validar `nginx -t` antes do reload final
   - despejar `docker compose ps` e logs de `web/api` automaticamente se o SSM falhar
+- A iteracao atual elimina a dependencia operacional de `sslip.io`:
+  - o acesso final passa a ser o proprio IP da EC2
+  - o certificado e emitido diretamente para esse IP
+  - isso simplifica o uso no smartphone e reduz uma camada de DNS no caminho
 
 ## Commits recentes relevantes
 
+- `3b48c4e` `fix: harden nginx https deploy flow`
 - `4f01aeb` `feat: enable automatic https for mobile access`
 - `1304598` `fix: preserve inspection photos across mobile sync`
 - `37862b8` `docs: refresh persistence after vehicle loading fix`
@@ -176,7 +181,6 @@ Observacao:
 - `07c8475` `feat: speed up vehicle sync and history exports`
 - `2efa069` `ci: clean legacy docs before aws deploy`
 - `87eb0ce` `ci: simplify aws deploy payload`
-- `0215545` `ci: verify deployed frontend build sha`
 
 ## Arquivos centrais
 
@@ -251,10 +255,10 @@ Com isso, qualquer alteracao publicada em `main` dispara o deploy via SSM no EC2
   - continua validando o SHA real servido em `http://localhost/`
 - Isso acelerou o deploy sem abrir mao da confirmacao de versao publicada.
 - O deploy HTTPS agora:
-  - calcula `APP_DOMAIN` a partir do IP publico da EC2 usando `sslip.io`
+  - calcula `APP_HOST` a partir do IP publico da EC2
   - sobe primeiro em HTTP
   - valida que o frontend e a API estao servindo corretamente em `localhost`
-  - emite ou renova o certificado
+  - emite ou renova o certificado do proprio IP publico
   - renderiza o config HTTPS definitivo e recarrega o Nginx
 - Se algo falhar nesse caminho, o payload SSM agora imprime diagnostico automatico de containers e logs.
 - O handoff sincronizado fica no proprio repo da instancia em `/opt/lavajato/app/HANDOFF.md`.
@@ -276,14 +280,14 @@ Com isso, qualquer alteracao publicada em `main` dispara o deploy via SSM no EC2
 - O botao flutuante do assistente IA foi removido da UI principal; a integracao Bedrock segue existente no backend, mas sem CTA visivel no app.
 - A tela `Configuracoes > Cadastros de Clientes` trocou `alert/confirm` por feedback visual interno, leve e mais amigavel para smartphone, sem adicionar polling ou dependencias pesadas.
 - O GitHub e a fonte principal da continuidade.
-- Se mudar de computador, o ideal e continuar a partir do commit `4f01aeb` ou posterior.
+- Se mudar de computador, o ideal e continuar a partir do commit `3b48c4e` ou posterior.
 - Imagens enviadas ficam em `server/storage/uploads` (persistidas via volume Docker).
 - Em producao, altere a senha do administrador imediatamente.
 
 ## Proximo ponto de investigacao sugerido
 
 - Prioridade recomendada agora:
-  - concluir a validacao publica do HTTPS em `sslip.io` e migrar o acesso mobile para o link seguro
+  - concluir a validacao publica do HTTPS direto no IP da EC2 e migrar o acesso mobile para o link seguro
   - endurecer autorizacao de backend nos endpoints administrativos
   - remover a senha padrao previsivel na criacao de usuarios
 - Se ainda houver lentidao percebida, medir:

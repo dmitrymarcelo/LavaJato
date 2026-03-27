@@ -35,7 +35,8 @@ services:
         APP_BUILD_SHA: ${APP_BUILD_SHA:-local}
     restart: unless-stopped
     environment:
-      APP_DOMAIN: ${APP_DOMAIN:-localhost}
+      APP_HOST: ${APP_HOST:-localhost}
+      APP_CERT_NAME: ${APP_CERT_NAME:-localhost}
     depends_on:
       - api
     ports:
