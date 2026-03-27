@@ -1,7 +1,7 @@
 # SKILLS.md - Lava Jato Norte Tech
 
 Atualizado em: 2026-03-27
-Commit de referencia: `3b48c4e7c9a5e19218dcf8ecac334f51725945f5`
+Commit de referencia: `0be500ae2807a443d9b02fe74481cd79c92bc6d5`
 
 ## Objetivo
 
@@ -237,7 +237,7 @@ Ele complementa o `AGENTS.md`:
 - Saidas: bundle web recompilado, HTML marcado com o SHA da build, runtime docs copiados do checkout atualizado, proxy HTTP valido antes da emissao do certificado e HTTPS ativo no proprio IP publico apos a renovacao
 - Dependencias: `index.html`, `package.json`, `Dockerfile.web`, `docker-compose.yml`, `infra/nginx/http.conf.template`, `infra/nginx/https.conf.template`, `infra/nginx/render-config.sh`, `infra/aws/renew-https.sh`, `.github/workflows/deploy.yml`, `scripts/build-ssm-deploy-command.mjs`, `scripts/run-vite-build.mjs`
 - Falha esperada: deploy verde com HTML ainda apontando para assets antigos, proxy tentando subir TLS sem certificado ou HTTPS nao publicado para smartphone
-- Resposta esperada: validar HTTP antes do `certbot`, emitir certificado diretamente para o IP publico com perfil short-lived, renderizar apenas `1` config final do Nginx por vez, executar `nginx -t` antes do reload, despejar logs no erro e reprovar o workflow se o SHA servido ou o health check HTTPS nao baterem com o commit publicado
+- Resposta esperada: validar HTTP antes do `certbot`, restaurar `HANDOFF.md`, `AGENTS.md` e `SKILLS.md` pelo Git antes do `git pull`, emitir certificado diretamente para o IP publico com perfil short-lived, renderizar apenas `1` config final do Nginx por vez, executar `nginx -t` antes do reload, despejar logs no erro e reprovar o workflow se o SHA servido ou o health check HTTPS nao baterem com o commit publicado
 
 ### S19. `settings-in-app-feedback`
 

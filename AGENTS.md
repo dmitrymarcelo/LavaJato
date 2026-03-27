@@ -1,7 +1,7 @@
 # AGENTS.md - Lava Jato Norte Tech
 
 Atualizado em: 2026-03-27
-Commit de referencia: `3b48c4e7c9a5e19218dcf8ecac334f51725945f5`
+Commit de referencia: `0be500ae2807a443d9b02fe74481cd79c92bc6d5`
 
 ## Objetivo
 
@@ -211,7 +211,7 @@ Este projeto adota os seguintes principios, alinhados a boas praticas publicadas
 - Missao: publicar em AWS, validar handoff e preservar continuidade entre maquinas, pessoas e deploys
 - Entradas: push em `main`, segredos AWS, estado do repositorio e `HANDOFF.md`
 - Saidas: deploy automatico, handoff sincronizado na EC2 e trilha historica recente
-- Guardrails: `handoff:check` antes do deploy, health check da API, sincronizacao documental, limpeza controlada dos docs legados no checkout da EC2, `APP_BUILD_SHA` no HTML, build cacheado de `api` e `web`, `--force-recreate`, validacao por `curl localhost` para impedir deploy verde com frontend velho, emissao/renovacao HTTPS direta no IP publico via `certbot`, `nginx -t` antes de recarregar o proxy e despejo automatico de logs quando o SSM falhar
+- Guardrails: `handoff:check` antes do deploy, health check da API, sincronizacao documental, restauracao segura de `HANDOFF.md`, `AGENTS.md` e `SKILLS.md` pelo proprio Git no checkout da EC2, `APP_BUILD_SHA` no HTML, build cacheado de `api` e `web`, `--force-recreate`, validacao por `curl localhost` para impedir deploy verde com frontend velho, emissao/renovacao HTTPS direta no IP publico via `certbot`, `nginx -t` antes de recarregar o proxy e despejo automatico de logs quando o SSM falhar
 - Owner sugerido: plataforma + engenharia
 
 ## Catalogo de SKILLS do projeto
