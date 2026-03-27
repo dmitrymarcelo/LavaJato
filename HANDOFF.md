@@ -6,7 +6,7 @@ Atualizado em: 2026-03-27
 
 - Repositorio: `https://github.com/dmitrymarcelo/LavaJato`
 - Branch principal: `main`
-- Commit atual: `3b48c4e7c9a5e19218dcf8ecac334f51725945f5`
+- Commit atual: `ea9559db4ad2bc26b0814c8099c05de210d046c9`
 - Producao AWS atual: `http://3.145.153.19/` (HTTPS em endurecimento com certificado direto no IP publico)
 - Regiao AWS: `us-east-2`
 - Instancia usada no deploy: `i-0ba1477cbbe3d986d`
@@ -173,6 +173,7 @@ Observacao:
 
 ## Commits recentes relevantes
 
+- `ea9559d` `feat: issue aws tls directly on public ip`
 - `3b48c4e` `fix: harden nginx https deploy flow`
 - `4f01aeb` `feat: enable automatic https for mobile access`
 - `1304598` `fix: preserve inspection photos across mobile sync`
@@ -180,7 +181,6 @@ Observacao:
 - `06a42e7` `fix: prevent vehicle settings loading deadlock`
 - `07c8475` `feat: speed up vehicle sync and history exports`
 - `2efa069` `ci: clean legacy docs before aws deploy`
-- `87eb0ce` `ci: simplify aws deploy payload`
 
 ## Arquivos centrais
 
@@ -261,6 +261,7 @@ Com isso, qualquer alteracao publicada em `main` dispara o deploy via SSM no EC2
   - emite ou renova o certificado do proprio IP publico
   - renderiza o config HTTPS definitivo e recarrega o Nginx
 - Se algo falhar nesse caminho, o payload SSM agora imprime diagnostico automatico de containers e logs.
+- Em falha de deploy, o SSM tambem publica um diagnostico temporario em `http://IP_PUBLICO/deploy-debug.txt` para acelerar depuracao remota sem CLI da AWS.
 - O handoff sincronizado fica no proprio repo da instancia em `/opt/lavajato/app/HANDOFF.md`.
 - As referencias operacionais adicionais ficam em:
   - `/opt/lavajato/app/AGENTS.md`
@@ -280,7 +281,7 @@ Com isso, qualquer alteracao publicada em `main` dispara o deploy via SSM no EC2
 - O botao flutuante do assistente IA foi removido da UI principal; a integracao Bedrock segue existente no backend, mas sem CTA visivel no app.
 - A tela `Configuracoes > Cadastros de Clientes` trocou `alert/confirm` por feedback visual interno, leve e mais amigavel para smartphone, sem adicionar polling ou dependencias pesadas.
 - O GitHub e a fonte principal da continuidade.
-- Se mudar de computador, o ideal e continuar a partir do commit `3b48c4e` ou posterior.
+- Se mudar de computador, o ideal e continuar a partir do commit `ea9559d` ou posterior.
 - Imagens enviadas ficam em `server/storage/uploads` (persistidas via volume Docker).
 - Em producao, altere a senha do administrador imediatamente.
 

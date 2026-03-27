@@ -7,6 +7,14 @@ if (!deploySha) {
 const deployScript = [
   '#!/usr/bin/env bash',
   'set -euo pipefail',
+  'DEBUG_LOG="/opt/lavajato/runtime/DEPLOY_DEBUG.txt"',
+  'mkdir -p /opt/lavajato/runtime',
+  'exec > >(tee "${DEBUG_LOG}") 2>&1',
+  'publish_debug_log() {',
+  '  if docker compose ps --services 2>/dev/null | grep -qx "web"; then',
+  '    docker compose exec -T web sh -lc \'cat > /usr/share/nginx/html/deploy-debug.txt\' < "${DEBUG_LOG}" || true',
+  '  fi',
+  '}',
   'log_failure() {',
   '  echo "Deploy falhou. Estado atual dos containers:"',
   '  docker compose ps || true',
@@ -14,6 +22,7 @@ const deployScript = [
   '  docker compose logs --tail 120 web || true',
   '  echo "Logs recentes da api:"',
   '  docker compose logs --tail 120 api || true',
+  '  publish_debug_log',
   '}',
   'trap log_failure ERR',
   `DEPLOY_SHA="${deploySha}"`,
@@ -35,7 +44,6 @@ const deployScript = [
   'APP_CERT_NAME="${PUBLIC_IP}"',
   'HTTPS_CERT_EMAIL="${HTTPS_CERT_EMAIL:-ops@lavajato.local}"',
   'echo "Canonical HTTPS host: ${APP_HOST}"',
-  'mkdir -p /opt/lavajato/runtime',
   'mkdir -p .runtime/letsencrypt/conf .runtime/letsencrypt/www',
   'cp HANDOFF.md /opt/lavajato/runtime/HANDOFF_AWS.md',
   'cp AGENTS.md /opt/lavajato/runtime/AGENTS_AWS.md',
@@ -59,6 +67,7 @@ const deployScript = [
   'done',
   'curl -fsS http://127.0.0.1/api/health',
   'docker compose pull certbot',
+  'docker compose run --rm certbot --version',
   'docker compose run --rm certbot certonly --preferred-profile shortlived --webroot --webroot-path /var/www/certbot --non-interactive --agree-tos --keep-until-expiring --cert-name "${APP_CERT_NAME}" --email "${HTTPS_CERT_EMAIL}" --ip-address "${APP_HOST}"',
   'docker compose exec -T web nginx -t',
   'docker compose exec -T web /usr/local/bin/render-nginx-config.sh',
@@ -87,6 +96,8 @@ const deployScript = [
   'done',
   'docker compose ps',
   'curl -fsS --connect-to "${APP_HOST}:443:127.0.0.1:443" "https://${APP_HOST}/api/health"',
+  'docker compose exec -T web rm -f /usr/share/nginx/html/deploy-debug.txt || true',
+  'rm -f "${DEBUG_LOG}" || true',
 ].join('\n');
 
 const commandPayload = {
