@@ -13,6 +13,7 @@ ARG VITE_API_URL=/api
 ENV VITE_API_URL=${VITE_API_URL}
 ARG APP_BUILD_SHA=local
 ENV APP_BUILD_SHA=${APP_BUILD_SHA}
+ENV VITE_APP_BUILD_SHA=${APP_BUILD_SHA}
 
 RUN printf '%s' "${APP_BUILD_SHA}" > /app/.build-sha && pnpm build
 

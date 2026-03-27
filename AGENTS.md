@@ -1,7 +1,7 @@
 # AGENTS.md - Lava Jato Norte Tech
 
 Atualizado em: 2026-03-27
-Commit de referencia: `c7056d8e9fc8405cb36f2ca5087cff60937417e2`
+Commit de referencia: `7b0b602b0ce626d04925355fc5d474e2fa7c46e0`
 
 ## Objetivo
 
@@ -52,7 +52,7 @@ O sistema precisa garantir cinco resultados de negocio sem ambiguidade:
 - backend monolitico em `server/index.mjs`, com rotas REST e helpers internos de persistencia/transacao
 - modelo de dados relacional com campos `JSONB` para estruturas flexiveis como timeline, fotos, movimentos e configuracoes
 - persistencia mobile resiliente usando fila local para fotos e transicoes operacionais
-- deploy automatico em `main`, com memoria operacional sincronizada em `HANDOFF.md`
+- deploy automatico em `main`, com memoria operacional sincronizada em `HANDOFF.md` e validacao de SHA real do frontend servido pela EC2
 
 ### Hotspots tecnicos
 
@@ -208,7 +208,7 @@ Este projeto adota os seguintes principios, alinhados a boas praticas publicadas
 - Missao: publicar em AWS, validar handoff e preservar continuidade entre maquinas, pessoas e deploys
 - Entradas: push em `main`, segredos AWS, estado do repositorio e `HANDOFF.md`
 - Saidas: deploy automatico, handoff sincronizado na EC2 e trilha historica recente
-- Guardrails: `handoff:check` antes do deploy, health check da API, sincronizacao documental, `APP_BUILD_SHA`, rebuild `web` sem cache e `--force-recreate` para evitar frontend desatualizado na EC2
+- Guardrails: `handoff:check` antes do deploy, health check da API, sincronizacao documental, restauracao controlada dos docs no checkout da EC2, `APP_BUILD_SHA` no HTML, rebuild `web` sem cache, `--force-recreate` e validacao por `curl localhost` para impedir deploy verde com frontend velho
 - Owner sugerido: plataforma + engenharia
 
 ## Catalogo de SKILLS do projeto
@@ -234,7 +234,7 @@ Definicao adotada neste documento: `SKILL` e uma capacidade reutilizavel, docume
 | `dashboard-analytics` | Gera KPIs de volume, faturamento, tempo medio e ranking | gestao diaria e analise de produtividade | `Dashboard.tsx` | ver melhor lavador e base mais demandada |
 | `bedrock-advisory` | Gera dicas consultivas de clima e operacao | apoio a decisao, leitura do painel | `server/assistant.mjs` | sugerir reforco de equipe por chuva |
 | `handoff-sync` | Atualiza memoria operacional com data, commit e historico | qualquer entrega relevante | `scripts/update-handoff.mjs` | registrar contexto para outro computador |
-| `deploy-aws-ssm` | Publica build e sincroniza handoff na EC2 | push em `main` | `.github/workflows/deploy.yml` | deploy automatico apos merge |
+| `deploy-aws-ssm` | Publica build, sincroniza docs e valida o SHA real servido pela EC2 | push em `main` | `.github/workflows/deploy.yml`, `scripts/build-ssm-deploy-command.mjs`, `scripts/run-vite-build.mjs` | deploy automatico apos merge |
 
 ## Diretrizes de consistencia e alinhamento com objetivos de negocio
 
@@ -343,6 +343,7 @@ Uma mudanca so esta realmente pronta quando:
 | KPI | Meta recomendada | Motivo |
 | --- | --- | --- |
 | deploy com health check verde | `100%` | confiabilidade de publicacao |
+| deploy com `app-build-sha` igual ao commit publicado | `100%` | evitar pagina antiga em producao |
 | handoff atualizado em toda entrega relevante | `100%` | continuidade operacional |
 | `AGENTS.md` atualizado quando arquitetura muda | `100%` | memoria de sistema viva |
 | incidentes causados por permissao apenas no frontend | `0` | seguranca minima aceitavel |
