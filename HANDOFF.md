@@ -120,6 +120,7 @@ Observacao:
   - o app reenvia automaticamente quando voltar conexao, foco ou visibilidade
 - Isso reduz o risco de o time reiniciar a mesma lavagem por falta de confirmacao imediata do servidor.
 - A carga da base de veiculos em `Configuracoes` agora ignora respostas antigas da API quando a lista local ja mudou, evitando que um CSV importado suma da tela logo apos a importacao.
+- A tela `Configuracoes` passou a usar feedback visual nativo do app para sucesso, erro e confirmacoes, evitando `alert` e `confirm` do navegador nessa area.
 - Endpoints `PUT` em lote deixaram de usar `TRUNCATE` direto e passaram a usar substituicao transacional.
 - Isso vale para:
   - `vehicles`

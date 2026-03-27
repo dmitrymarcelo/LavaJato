@@ -14,6 +14,20 @@ interface Permission {
   icon: React.ReactNode;
 }
 
+interface FeedbackState {
+  id: number;
+  tone: 'success' | 'error' | 'info';
+  message: string;
+}
+
+interface ConfirmationState {
+  title: string;
+  message: string;
+  confirmLabel: string;
+  tone?: 'danger' | 'primary';
+  onConfirm: () => Promise<void> | void;
+}
+
 const PERMISSIONS: Permission[] = [
   { id: 'view_analytics', label: 'Ver Relatórios', description: 'Acesso total ao módulo de produtividade e faturamento.', icon: <BarChart3 className="w-4 h-4" /> },
   { id: 'manage_team', label: 'Gerenciar Equipe', description: 'Adicionar, editar ou remover membros da equipe.', icon: <UserCog className="w-4 h-4" /> },
@@ -65,6 +79,9 @@ export default function Settings({
   const [serviceFormPrice, setServiceFormPrice] = useState('');
   const [isAddingVehicle, setIsAddingVehicle] = useState(false);
   const [newVehicle, setNewVehicle] = useState<Partial<VehicleRegistration>>({ type: 'car' });
+  const [feedback, setFeedback] = useState<FeedbackState | null>(null);
+  const [confirmation, setConfirmation] = useState<ConfirmationState | null>(null);
+  const [isConfirmingAction, setIsConfirmingAction] = useState(false);
   const newVehicleCpfError = newVehicle.thirdPartyCpf ? (!isValidCpf(newVehicle.thirdPartyCpf) ? 'CPF invalido.' : null) : null;
 
   const filteredTeam = team.filter(member => 
@@ -114,6 +131,55 @@ export default function Settings({
     setTeam(teamProp ?? []);
   }, [accessRules, teamProp]);
 
+  React.useEffect(() => {
+    if (!feedback) {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      setFeedback(null);
+    }, 3200);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [feedback]);
+
+  const showFeedback = (message: string, tone: FeedbackState['tone'] = 'error') => {
+    setFeedback({
+      id: Date.now(),
+      tone,
+      message,
+    });
+  };
+
+  const requestConfirmation = (nextConfirmation: ConfirmationState) => {
+    setConfirmation(nextConfirmation);
+  };
+
+  const closeConfirmation = () => {
+    if (isConfirmingAction) {
+      return;
+    }
+
+    setConfirmation(null);
+  };
+
+  const handleConfirmAction = async () => {
+    if (!confirmation) {
+      return;
+    }
+
+    setIsConfirmingAction(true);
+    try {
+      await confirmation.onConfirm();
+      setConfirmation(null);
+    } catch (error) {
+      console.error(error);
+      showFeedback(error instanceof Error ? error.message : 'Nao foi possivel concluir a acao solicitada.');
+    } finally {
+      setIsConfirmingAction(false);
+    }
+  };
+
   const resetMemberForm = () => {
     setEditingMemberId(null);
     setNewMemberName('');
@@ -130,7 +196,7 @@ export default function Settings({
     if (!file) return;
 
     if (!file.type.startsWith('image/')) {
-      alert('Selecione um arquivo de imagem valido.');
+      showFeedback('Selecione um arquivo de imagem valido.');
       return;
     }
 
@@ -140,7 +206,7 @@ export default function Settings({
       })
       .catch((error) => {
         console.error(error);
-        alert(error instanceof Error ? error.message : 'Nao foi possivel processar a foto do colaborador.');
+        showFeedback(error instanceof Error ? error.message : 'Nao foi possivel processar a foto do colaborador.');
       });
     event.target.value = '';
   };
@@ -151,27 +217,27 @@ export default function Settings({
     const normalizedEmail = newMemberEmail.trim().toLowerCase();
 
     if (!newMemberName.trim() || (requiresRegistration && !newMemberRegistration.trim()) || (!editingMemberId && !newMemberPassword.trim())) {
-      alert('Preencha todos os campos.');
+      showFeedback('Preencha todos os campos.');
       return;
     }
 
     if (newMemberPassword && newMemberPasswordError) {
-      alert(newMemberPasswordError);
+      showFeedback(newMemberPasswordError);
       return;
     }
 
     if (activeRole === 'Clientes' && !normalizedEmail) {
-      alert('Informe o email do cliente.');
+      showFeedback('Informe o email do cliente.');
       return;
     }
 
     if (newMemberEmailError) {
-      alert(newMemberEmailError);
+      showFeedback(newMemberEmailError);
       return;
     }
 
     if (activeRole === 'Clientes' && newMemberAllowedBaseIds.length === 0) {
-      alert('Selecione ao menos uma base para este cliente.');
+      showFeedback('Selecione ao menos uma base para este cliente.');
       return;
     }
 
@@ -199,16 +265,23 @@ export default function Settings({
     await onUpdateTeam?.(updatedTeam);
     
     resetMemberForm();
-    alert(editingMemberId ? 'Colaborador atualizado com sucesso!' : 'Colaborador adicionado com sucesso!');
+    showFeedback(editingMemberId ? 'Colaborador atualizado com sucesso!' : 'Colaborador adicionado com sucesso!', 'success');
   };
 
   const handleDeleteMember = async (id: string) => {
-    if (confirm('Tem certeza que deseja remover este colaborador?')) {
-      const updatedTeam = team.filter(m => m.id !== id);
-      setTeam(updatedTeam);
-      await onUpdateTeam?.(updatedTeam);
-      setOpenMenuId(null);
-    }
+    requestConfirmation({
+      title: 'Remover colaborador',
+      message: 'Tem certeza que deseja remover este colaborador? Essa acao nao podera ser desfeita.',
+      confirmLabel: 'Remover',
+      tone: 'danger',
+      onConfirm: async () => {
+        const updatedTeam = team.filter(m => m.id !== id);
+        setTeam(updatedTeam);
+        await onUpdateTeam?.(updatedTeam);
+        setOpenMenuId(null);
+        showFeedback('Colaborador removido com sucesso.', 'success');
+      },
+    });
   };
 
   const handleEditMember = (member: TeamMember) => {
@@ -235,13 +308,13 @@ export default function Settings({
     setIsSaving(true);
     Promise.resolve(onUpdateAccessRules?.(rules))
       .then(() => {
-      setIsSaving(false);
-      alert('Configurações atualizadas com sucesso!');
+        setIsSaving(false);
+        showFeedback('Configuracoes atualizadas com sucesso!', 'success');
       })
       .catch((error) => {
         console.error(error);
         setIsSaving(false);
-        alert(error instanceof Error ? error.message : 'Nao foi possivel salvar as configuracoes.');
+        showFeedback(error instanceof Error ? error.message : 'Nao foi possivel salvar as configuracoes.');
       });
   };
 
@@ -304,12 +377,12 @@ export default function Settings({
     const normalizedPrice = Number(serviceFormPrice);
 
     if (!normalizedLabel) {
-      alert('Informe o nome do serviço.');
+      showFeedback('Informe o nome do servico.');
       return;
     }
 
     if (!Number.isFinite(normalizedPrice) || normalizedPrice < 0) {
-      alert('Informe um valor válido para o serviço.');
+      showFeedback('Informe um valor valido para o servico.');
       return;
     }
 
@@ -343,32 +416,38 @@ export default function Settings({
 
     await onUpdateServiceTypes(updatedTypes);
     resetServiceForm();
+    showFeedback(editingService ? 'Servico atualizado com sucesso!' : 'Servico cadastrado com sucesso!', 'success');
   };
 
   const handleDeleteServiceType = async (vehicle: VehicleType, serviceId: string) => {
     if (!serviceTypes || !onUpdateServiceTypes) return;
 
-    if (!confirm('Tem certeza que deseja excluir este serviço?')) {
-      return;
-    }
+    requestConfirmation({
+      title: 'Excluir servico',
+      message: 'Tem certeza que deseja excluir este servico? Essa alteracao afeta a tabela de precos imediatamente.',
+      confirmLabel: 'Excluir',
+      tone: 'danger',
+      onConfirm: async () => {
+        const updatedTypes = { ...serviceTypes };
+        updatedTypes[vehicle] = {
+          ...updatedTypes[vehicle],
+          services: updatedTypes[vehicle].services.filter((service) => service.id !== serviceId),
+        };
 
-    const updatedTypes = { ...serviceTypes };
-    updatedTypes[vehicle] = {
-      ...updatedTypes[vehicle],
-      services: updatedTypes[vehicle].services.filter((service) => service.id !== serviceId),
-    };
-
-    await onUpdateServiceTypes(updatedTypes);
+        await onUpdateServiceTypes(updatedTypes);
+        showFeedback('Servico excluido com sucesso.', 'success');
+      },
+    });
   };
 
   const handleAddVehicle = async () => {
     if (!newVehicle.plate || !newVehicle.customer || !newVehicle.model) {
-      alert('Preencha placa, cliente e modelo.');
+      showFeedback('Preencha placa, cliente e modelo.');
       return;
     }
 
     if ((newVehicle.thirdPartyName || newVehicle.thirdPartyCpf) && newVehicleCpfError) {
-      alert(newVehicleCpfError);
+      showFeedback(newVehicleCpfError);
       return;
     }
     
@@ -381,7 +460,7 @@ export default function Settings({
       } as VehicleRegistration]);
       setIsAddingVehicle(false);
       setNewVehicle({ type: 'car' });
-      alert('Veículo cadastrado com sucesso!');
+      showFeedback('Veiculo cadastrado com sucesso!', 'success');
     }
   };
 
@@ -442,6 +521,11 @@ export default function Settings({
         }
       }
 
+      if (newVehicles.length === 0) {
+        showFeedback('Nenhum veiculo valido foi encontrado no CSV enviado.');
+        return;
+      }
+
       if (onUpdateVehicleDb) {
         // Merge with existing or replace? Usually import adds/updates.
         // Let's replace for now as it seems to be a full base import, or we can append.
@@ -458,7 +542,7 @@ export default function Settings({
 
           setDbSearchQuery('');
           await onUpdateVehicleDb(mergedVehicles);
-          alert(`${newVehicles.length} veículos importados com sucesso!`);
+          showFeedback(`${newVehicles.length} veiculos importados com sucesso!`, 'success');
         }
       };
       reader.readAsText(file);
@@ -472,6 +556,52 @@ export default function Settings({
 
   return (
     <div className="flex flex-col min-h-full bg-white pb-24">
+      <AnimatePresence>
+        {feedback && (
+          <motion.div
+            key={feedback.id}
+            initial={{ opacity: 0, y: -12, scale: 0.98 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -12, scale: 0.98 }}
+            className="fixed top-4 right-4 left-4 z-[130] sm:left-auto sm:w-full sm:max-w-sm"
+          >
+            <div
+              className={`rounded-2xl border px-4 py-3 shadow-2xl backdrop-blur-sm ${
+                feedback.tone === 'success'
+                  ? 'border-emerald-200 bg-emerald-50/95 text-emerald-700'
+                  : feedback.tone === 'info'
+                    ? 'border-sky-200 bg-sky-50/95 text-sky-700'
+                    : 'border-rose-200 bg-rose-50/95 text-rose-700'
+              }`}
+            >
+              <div className="flex items-start gap-3">
+                <div
+                  className={`mt-0.5 rounded-xl p-2 ${
+                    feedback.tone === 'success'
+                      ? 'bg-emerald-100 text-emerald-600'
+                      : feedback.tone === 'info'
+                        ? 'bg-sky-100 text-sky-600'
+                        : 'bg-rose-100 text-rose-600'
+                  }`}
+                >
+                  {feedback.tone === 'success' ? <CheckCircle2 className="w-4 h-4" /> : <Info className="w-4 h-4" />}
+                </div>
+                <div className="flex-1">
+                  <p className="text-sm font-bold">{feedback.message}</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setFeedback(null)}
+                  className="text-[10px] font-black uppercase tracking-widest opacity-70 hover:opacity-100"
+                >
+                  Fechar
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Tabs */}
       <div className="flex px-6 border-b border-slate-100 overflow-x-auto no-scrollbar pt-6">
         <button 
@@ -895,6 +1025,43 @@ export default function Settings({
 
       {/* Add Member Modal */}
       <AnimatePresence>
+        {confirmation && (
+          <ModalSurface onClose={closeConfirmation} overlayClassName="z-[140]" panelClassName="max-w-sm rounded-3xl p-6 space-y-5">
+            <div className="space-y-2">
+              <div className={`inline-flex rounded-2xl p-3 ${confirmation.tone === 'danger' ? 'bg-rose-50 text-rose-500' : 'bg-primary/10 text-primary'}`}>
+                {confirmation.tone === 'danger' ? <Trash2 className="w-5 h-5" /> : <Info className="w-5 h-5" />}
+              </div>
+              <div>
+                <h3 className="text-lg font-black text-slate-900">{confirmation.title}</h3>
+                <p className="mt-2 text-sm leading-relaxed text-slate-500">{confirmation.message}</p>
+              </div>
+            </div>
+
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={closeConfirmation}
+                disabled={isConfirmingAction}
+                className="flex-1 rounded-2xl border border-slate-200 px-4 py-3 text-sm font-bold text-slate-500 transition-colors hover:bg-slate-50 disabled:opacity-60"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmAction}
+                disabled={isConfirmingAction}
+                className={`flex-1 rounded-2xl px-4 py-3 text-sm font-bold text-white transition-all disabled:opacity-70 ${
+                  confirmation.tone === 'danger'
+                    ? 'bg-rose-500 shadow-lg shadow-rose-500/20 hover:bg-rose-600'
+                    : 'bg-primary shadow-lg shadow-primary/20 hover:bg-blue-600'
+                }`}
+              >
+                {isConfirmingAction ? 'Processando...' : confirmation.confirmLabel}
+              </button>
+            </div>
+          </ModalSurface>
+        )}
+
         {isAddingMember && (
           <ModalSurface onClose={resetMemberForm} panelClassName="max-w-[400px] p-6 space-y-6">
               <div className="flex justify-between items-center">

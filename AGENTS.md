@@ -176,6 +176,7 @@ Este projeto adota os seguintes principios, alinhados a boas praticas publicadas
 - Entradas: credenciais, perfis, base autorizada, regras de acesso e dados mestres
 - Saidas: sessao autenticada, usuarios atualizados, configuracoes persistidas
 - Guardrails: sessoes persistidas em `auth_sessions`, filtro por base para clientes, validacoes de senha e email no frontend
+- UX atual: a tela de configuracoes usa feedback visual proprio para erro, sucesso e confirmacao, evitando dialogos nativos do navegador
 - Risco atual: a autorizacao administrativa ainda precisa ser endurecida no backend e a senha padrao do seed deve ser removida em producao
 - Owner sugerido: backend + seguranca + administracao
 

@@ -219,6 +219,16 @@ Ele complementa o `AGENTS.md`:
 - Falha esperada: commit sem atualizar docs persistentes
 - Resposta esperada: impedir deploy e forcar sincronizacao documental
 
+### S19. `settings-in-app-feedback`
+
+- Tipo: governanca
+- Objetivo: substituir dialogos nativos por feedback visual leve e consistente na tela de configuracoes
+- Entradas: validacoes de formulario, confirmacoes de exclusao e resultado de persistencia
+- Saidas: toast local de sucesso/erro e modal de confirmacao do proprio app
+- Dependencias: `src/components/Settings.tsx`, `ModalSurface`, `AnimatePresence`
+- Falha esperada: acao sensivel sem confirmacao explicita ou erro silencioso
+- Resposta esperada: mensagem clara, sem bloquear o app inteiro e sem custo perceptivel de performance
+
 ## Procedimento operacional
 
 ### Ao criar uma skill nova
