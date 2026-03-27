@@ -6,7 +6,7 @@ Atualizado em: 2026-03-27
 
 - Repositorio: `https://github.com/dmitrymarcelo/LavaJato`
 - Branch principal: `main`
-- Commit atual: `16697dcd08d239b2f3550543a8de020cab88701a`
+- Commit atual: `c7056d8e9fc8405cb36f2ca5087cff60937417e2`
 - Producao AWS atual: `http://3.145.153.19/`
 - Regiao AWS: `us-east-2`
 - Instancia usada no deploy: `i-0ba1477cbbe3d986d`
@@ -131,14 +131,14 @@ Observacao:
 
 ## Commits recentes relevantes
 
+- `c7056d8` `ci: rebuild web container without cache on aws`
+- `1a461dd` `docs: refresh persistence after deploy hardening`
 - `16697dc` `ci: force fresh frontend rebuild on aws`
 - `b7d644c` `docs: refresh persistence after settings feedback update`
 - `305e31a` `feat: replace settings dialogs with in-app feedback`
 - `b6634e9` `docs: refresh persistence after vehicle import fix`
 - `8369a9a` `fix: preserve imported vehicles and remove ai button`
 - `83c4cc9` `docs: refresh persistence files after sync automation`
-- `e7acf00` `ci: sync persistence docs across aws`
-- `80b404b` `docs: refresh HANDOFF after AGENTS guide`
 
 ## Arquivos centrais
 
@@ -216,7 +216,7 @@ Com isso, qualquer alteracao publicada em `main` dispara o deploy via SSM no EC2
 - `SKILLS.md` passa a ser a referencia persistente de capacidades reutilizaveis e contratos tecnicos do projeto.
 - O botao flutuante do assistente IA foi removido da UI principal; a integracao Bedrock segue existente no backend, mas sem CTA visivel no app.
 - O GitHub e a fonte principal da continuidade.
-- Se mudar de computador, o ideal e continuar a partir do commit `16697dc` ou posterior.
+- Se mudar de computador, o ideal e continuar a partir do commit `c7056d8` ou posterior.
 - Imagens enviadas ficam em `server/storage/uploads` (persistidas via volume Docker).
 - Em producao, altere a senha do administrador imediatamente.
 
