@@ -48,6 +48,7 @@ export default function Settings({
   serviceTypes, 
   onUpdateServiceTypes,
   vehicleDb,
+  isVehicleDbLoading = false,
   onUpdateVehicleDb,
   team: teamProp,
   onUpdateTeam,
@@ -58,6 +59,7 @@ export default function Settings({
   serviceTypes?: Record<VehicleType, VehicleCategory>, 
   onUpdateServiceTypes?: (types: Record<VehicleType, VehicleCategory>) => Promise<void> | void,
   vehicleDb?: VehicleRegistration[],
+  isVehicleDbLoading?: boolean,
   onUpdateVehicleDb?: (db: VehicleRegistration[]) => Promise<void> | void,
   team?: TeamMember[],
   onUpdateTeam?: (team: TeamMember[]) => Promise<void> | void,
@@ -473,7 +475,7 @@ export default function Settings({
       const text = e.target?.result as string;
       if (!text) return;
 
-      const lines = text.split('\n');
+      const lines = text.split(/\r?\n/);
       const newVehicles: VehicleRegistration[] = [];
 
       // Skip header row if exists (assuming first row is header based on prompt)
@@ -973,7 +975,13 @@ export default function Settings({
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    {filteredDb.length === 0 ? (
+                    {isVehicleDbLoading && filteredDb.length === 0 ? (
+                      <tr>
+                        <td colSpan={5} className="px-4 py-8 text-center text-xs text-slate-400 font-medium">
+                          Carregando base de veiculos...
+                        </td>
+                      </tr>
+                    ) : filteredDb.length === 0 ? (
                       <tr>
                         <td colSpan={5} className="px-4 py-8 text-center text-xs text-slate-400 font-medium">
                           Nenhum registro encontrado. Importe uma base de dados.

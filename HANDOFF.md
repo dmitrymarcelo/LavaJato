@@ -6,7 +6,7 @@ Atualizado em: 2026-03-27
 
 - Repositorio: `https://github.com/dmitrymarcelo/LavaJato`
 - Branch principal: `main`
-- Commit atual: `87eb0ce2c250d68006a8a253b6515a28bb6a6976`
+- Commit atual: `2efa06954360cf01b1e342dfc1ba0b580b17fa31`
 - Producao AWS atual: `http://3.145.153.19/`
 - Regiao AWS: `us-east-2`
 - Instancia usada no deploy: `i-0ba1477cbbe3d986d`
@@ -120,7 +120,20 @@ Observacao:
   - o app reenvia automaticamente quando voltar conexao, foco ou visibilidade
 - Isso reduz o risco de o time reiniciar a mesma lavagem por falta de confirmacao imediata do servidor.
 - A carga da base de veiculos em `Configuracoes` agora ignora respostas antigas da API quando a lista local ja mudou, evitando que um CSV importado suma da tela logo apos a importacao.
+- A importacao da base de veiculos agora usa `bulk upsert` transacional no backend e envio em lotes no frontend.
+- Isso reduz drasticamente o tempo para importar CSVs grandes e evita perder parte da base quando a rede oscila no meio da sincronizacao.
+- A tela `Cadastros de Clientes` passou a mostrar `Carregando base de veiculos...` enquanto busca a lista remota, evitando o falso estado de vazio logo apos refresh.
 - A tela `Configuracoes` passou a usar feedback visual nativo do app para sucesso, erro e confirmacoes, evitando `alert` e `confirm` do navegador nessa area.
+- `Historico de Veiculos > Exportar CSV` agora leva mais contexto operacional:
+  - tipo de veiculo
+  - ultimo tipo de lavagem
+  - ultimo status
+  - ultimo valor
+  - ultimo responsavel
+  - ticket medio
+  - media e ultimo tempo de lavagem
+  - tempo de espera, pagamento e tempo total
+- O CSV detalhado por veiculo tambem passou a incluir cliente, tipo de veiculo, responsaveis, terceiro, observacoes e tempos operacionais completos.
 - Endpoints `PUT` em lote deixaram de usar `TRUNCATE` direto e passaram a usar substituicao transacional.
 - Isso vale para:
   - `vehicles`
@@ -131,6 +144,7 @@ Observacao:
 
 ## Commits recentes relevantes
 
+- `2efa069` `ci: clean legacy docs before aws deploy`
 - `87eb0ce` `ci: simplify aws deploy payload`
 - `0215545` `ci: verify deployed frontend build sha`
 - `7b0b602` `docs: refresh persistence after web rebuild hardening`
@@ -138,7 +152,6 @@ Observacao:
 - `1a461dd` `docs: refresh persistence after deploy hardening`
 - `16697dc` `ci: force fresh frontend rebuild on aws`
 - `b7d644c` `docs: refresh persistence after settings feedback update`
-- `305e31a` `feat: replace settings dialogs with in-app feedback`
 
 ## Arquivos centrais
 
@@ -202,7 +215,11 @@ Com isso, qualquer alteracao publicada em `main` dispara o deploy via SSM no EC2
 - O build local e o build do container agora passam por `scripts/run-vite-build.mjs`, garantindo `VITE_APP_BUILD_SHA` padrao mesmo fora da AWS.
 - Antes do `git pull`, a EC2 restaura `HANDOFF.md` e remove apenas os legados `AGENTS.md` e `SKILLS.md` gerados manualmente em checkouts antigos, evitando que o repositorio remoto fique preso em working tree suja ou com arquivos nao rastreados bloqueando o fast-forward.
 - O frontend continua recebendo `APP_BUILD_SHA`, mas agora o `index.html` publica tambem a meta `app-build-sha` para validacao objetiva da build em producao.
-- O deploy do frontend remove o container `web`, recompila `web` com `--no-cache`, sobe tudo com `docker compose up -d --build --force-recreate` e so termina com sucesso se `http://localhost/` responder com o SHA exato do commit implantado.
+- O deploy agora evita rebuild duplicado:
+  - faz `docker compose build api web`
+  - sobe com `docker compose up -d --force-recreate api web`
+  - continua validando o SHA real servido em `http://localhost/`
+- Isso acelerou o deploy sem abrir mao da confirmacao de versao publicada.
 - O handoff sincronizado fica no proprio repo da instancia em `/opt/lavajato/app/HANDOFF.md`.
 - As referencias operacionais adicionais ficam em:
   - `/opt/lavajato/app/AGENTS.md`
@@ -222,7 +239,7 @@ Com isso, qualquer alteracao publicada em `main` dispara o deploy via SSM no EC2
 - O botao flutuante do assistente IA foi removido da UI principal; a integracao Bedrock segue existente no backend, mas sem CTA visivel no app.
 - A tela `Configuracoes > Cadastros de Clientes` trocou `alert/confirm` por feedback visual interno, leve e mais amigavel para smartphone, sem adicionar polling ou dependencias pesadas.
 - O GitHub e a fonte principal da continuidade.
-- Se mudar de computador, o ideal e continuar a partir do commit `87eb0ce` ou posterior.
+- Se mudar de computador, o ideal e continuar a partir do commit `2efa069` ou posterior.
 - Imagens enviadas ficam em `server/storage/uploads` (persistidas via volume Docker).
 - Em producao, altere a senha do administrador imediatamente.
 

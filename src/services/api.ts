@@ -81,8 +81,18 @@ export interface VehicleHistorySummary {
   noShowCount: number;
   activeCount: number;
   totalRevenue: number;
+  averageTicket?: number | null;
   lastRecordedAt?: string | null;
   lastBaseName?: string | null;
+  lastServiceType?: string | null;
+  lastStatus?: Service['status'] | null;
+  lastPrice?: number | null;
+  lastWashers?: string[];
+  averageWashMinutes?: number | null;
+  lastWaitingMinutes?: number | null;
+  lastWashMinutes?: number | null;
+  lastPaymentMinutes?: number | null;
+  lastTotalMinutes?: number | null;
 }
 
 export interface VehicleHistoryDetail extends VehicleHistorySummary {
@@ -207,6 +217,8 @@ export const api = {
     request<RoleAccessRule[]>('/access-rules', { method: 'PUT', body: JSON.stringify(rules) }),
   upsertVehicle: (vehicle: VehicleRegistration) =>
     request<VehicleRegistration>('/vehicles/upsert', { method: 'POST', body: JSON.stringify(vehicle) }),
+  bulkUpsertVehicles: (vehicles: VehicleRegistration[]) =>
+    request<VehicleRegistration[]>('/vehicles/bulk-upsert', { method: 'POST', body: JSON.stringify({ vehicles }) }),
   deleteVehicle: (plate: string) =>
     request<void>(`/vehicles/${encodeURIComponent(plate)}`, { method: 'DELETE' }),
   getService: (id: string) =>

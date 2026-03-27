@@ -1,7 +1,7 @@
 # AGENTS.md - Lava Jato Norte Tech
 
 Atualizado em: 2026-03-27
-Commit de referencia: `87eb0ce2c250d68006a8a253b6515a28bb6a6976`
+Commit de referencia: `2efa06954360cf01b1e342dfc1ba0b580b17fa31`
 
 ## Objetivo
 
@@ -177,6 +177,7 @@ Este projeto adota os seguintes principios, alinhados a boas praticas publicadas
 - Saidas: sessao autenticada, usuarios atualizados, configuracoes persistidas
 - Guardrails: sessoes persistidas em `auth_sessions`, filtro por base para clientes, validacoes de senha e email no frontend
 - UX atual: a tela de configuracoes usa feedback visual proprio para erro, sucesso e confirmacao, evitando dialogos nativos do navegador
+- Persistencia atual: importacao de CSV da base de veiculos usa `bulk upsert` transacional no backend e lotes no frontend, com estado de carregamento explicito apos refresh
 - Risco atual: a autorizacao administrativa ainda precisa ser endurecida no backend e a senha padrao do seed deve ser removida em producao
 - Owner sugerido: backend + seguranca + administracao
 
@@ -188,6 +189,7 @@ Este projeto adota os seguintes principios, alinhados a boas praticas publicadas
 - Entradas: servicos, agendamentos, equipe, produtos e timeline
 - Saidas: KPIs do painel, rankings, faturamento, historico exportavel e contexto para clientes
 - Guardrails: escopo por base para clientes, consultas separadas para historico detalhado
+- Capacidade recente: o export de `Historico de Veiculos` passou a levar tipo de lavagem, status, responsaveis, ticket medio e tempos operacionais por resumo e por detalhe
 - Owner sugerido: produto + gestao operacional
 
 ### A11. Agente Assistente Bedrock
@@ -208,7 +210,7 @@ Este projeto adota os seguintes principios, alinhados a boas praticas publicadas
 - Missao: publicar em AWS, validar handoff e preservar continuidade entre maquinas, pessoas e deploys
 - Entradas: push em `main`, segredos AWS, estado do repositorio e `HANDOFF.md`
 - Saidas: deploy automatico, handoff sincronizado na EC2 e trilha historica recente
-- Guardrails: `handoff:check` antes do deploy, health check da API, sincronizacao documental, limpeza controlada dos docs legados no checkout da EC2, `APP_BUILD_SHA` no HTML, rebuild `web` sem cache, `--force-recreate` e validacao por `curl localhost` para impedir deploy verde com frontend velho
+- Guardrails: `handoff:check` antes do deploy, health check da API, sincronizacao documental, limpeza controlada dos docs legados no checkout da EC2, `APP_BUILD_SHA` no HTML, build cacheado de `api` e `web`, `--force-recreate` e validacao por `curl localhost` para impedir deploy verde com frontend velho
 - Owner sugerido: plataforma + engenharia
 
 ## Catalogo de SKILLS do projeto

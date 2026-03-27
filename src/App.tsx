@@ -831,11 +831,15 @@ export default function App() {
       try {
         const previousMap = new Map(previous.map((vehicle) => [vehicle.plate, vehicle]));
         const nextMap = new Map(next.map((vehicle) => [vehicle.plate, vehicle]));
-
-        for (const vehicle of next) {
+        const changedVehicles = next.filter((vehicle) => {
           const previousVehicle = previousMap.get(vehicle.plate);
-          if (!previousVehicle || JSON.stringify(previousVehicle) !== JSON.stringify(vehicle)) {
-            await api.upsertVehicle(vehicle);
+          return !previousVehicle || JSON.stringify(previousVehicle) !== JSON.stringify(vehicle);
+        });
+
+        if (changedVehicles.length > 0) {
+          const batchSize = 250;
+          for (let index = 0; index < changedVehicles.length; index += batchSize) {
+            await api.bulkUpsertVehicles(changedVehicles.slice(index, index + batchSize));
           }
         }
 
@@ -1481,7 +1485,7 @@ export default function App() {
           />
         </div>
       );
-      case 'settings': return <Settings onNavigate={navigateTo} serviceTypes={serviceTypes} onUpdateServiceTypes={persistServiceTypes} vehicleDb={vehicleDb} onUpdateVehicleDb={persistVehicleDb} team={team} onUpdateTeam={persistTeam} accessRules={accessRules} onUpdateAccessRules={persistAccessRules} />;
+      case 'settings': return <Settings onNavigate={navigateTo} serviceTypes={serviceTypes} onUpdateServiceTypes={persistServiceTypes} vehicleDb={vehicleDb} isVehicleDbLoading={isVehicleDbLoading} onUpdateVehicleDb={persistVehicleDb} team={team} onUpdateTeam={persistTeam} accessRules={accessRules} onUpdateAccessRules={persistAccessRules} />;
       default: return <Dashboard onNavigate={handleNavigateWithService} services={services} appointments={appointments} currentDateKey={currentDateKey} team={team} />;
     }
   };

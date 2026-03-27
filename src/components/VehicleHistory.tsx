@@ -53,6 +53,9 @@ const getStatusClassName = (status: Service['status']) => {
   return 'bg-slate-50 text-slate-600 border-slate-100';
 };
 
+const formatCsvMetricValue = (value?: number | null) =>
+  typeof value === 'number' && Number.isFinite(value) ? String(value) : '';
+
 export default function VehicleHistory({
   onNavigate,
   onOpenVehicle,
@@ -124,14 +127,24 @@ export default function VehicleHistory({
       'placa',
       'cliente',
       'modelo',
-      'tipo',
+      'tipo_veiculo',
       'registros',
       'finalizados',
       'no_show',
       'ativos',
       'receita_total',
+      'ticket_medio',
+      'ultimo_tipo_lavagem',
+      'ultimo_status',
+      'ultimo_valor',
+      'ultimo_responsavel',
       'ultimo_registro',
       'ultima_base',
+      'media_tempo_lavagem_min',
+      'ultimo_tempo_espera_min',
+      'ultimo_tempo_lavagem_min',
+      'ultimo_tempo_pagamento_min',
+      'ultimo_tempo_total_min',
     ];
 
     const rows = filteredGroups.map((group) => [
@@ -144,8 +157,18 @@ export default function VehicleHistory({
       String(group.noShowCount),
       String(group.activeCount),
       String(group.totalRevenue ?? 0),
+      formatCsvMetricValue(group.averageTicket),
+      group.lastServiceType ? String(group.lastServiceType) : '',
+      group.lastStatus ? getStatusLabel(group.lastStatus) : '',
+      formatCsvMetricValue(group.lastPrice),
+      group.lastWashers?.length ? group.lastWashers.join(', ') : '',
       group.lastRecordedAt ? String(group.lastRecordedAt) : '',
       group.lastBaseName ? String(group.lastBaseName) : '',
+      formatCsvMetricValue(group.averageWashMinutes),
+      formatCsvMetricValue(group.lastWaitingMinutes),
+      formatCsvMetricValue(group.lastWashMinutes),
+      formatCsvMetricValue(group.lastPaymentMinutes),
+      formatCsvMetricValue(group.lastTotalMinutes),
     ]);
 
     const csv = buildCsvContent(header, rows);
@@ -395,11 +418,16 @@ export function VehicleHistoryDetail({
     const header = [
       'id',
       'placa',
+      'cliente',
       'modelo',
+      'tipo_veiculo',
       'status',
-      'servico',
+      'tipo_lavagem',
       'base',
       'zona',
+      'responsaveis',
+      'terceiro_nome',
+      'terceiro_cpf',
       'agendado_data',
       'agendado_hora',
       'preco',
@@ -415,6 +443,7 @@ export function VehicleHistoryDetail({
       'tempo_lavagem_min',
       'tempo_pagamento_min',
       'tempo_total_min',
+      'observacoes',
     ];
 
     const rows = group.records.map((record) => {
@@ -432,11 +461,16 @@ export function VehicleHistoryDetail({
       return [
         record.id,
         record.plate,
+        group.customer,
         record.model,
-        record.status,
+        getVehicleTypeLabel(group.type),
+        getStatusLabel(record.status),
         record.type,
         record.baseName || '',
         record.washingZoneName || '',
+        record.washers?.length ? record.washers.join(', ') : '',
+        record.thirdPartyName || '',
+        record.thirdPartyCpf || '',
         record.scheduledDate || '',
         record.scheduledTime || '',
         String(record.price ?? 0),
@@ -452,6 +486,7 @@ export function VehicleHistoryDetail({
         typeof washMinutes === 'number' ? String(washMinutes) : '',
         typeof paymentMinutes === 'number' ? String(paymentMinutes) : '',
         typeof totalMinutes === 'number' ? String(totalMinutes) : '',
+        record.observations || '',
       ];
     });
 

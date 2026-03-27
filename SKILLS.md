@@ -1,7 +1,7 @@
 # SKILLS.md - Lava Jato Norte Tech
 
 Atualizado em: 2026-03-27
-Commit de referencia: `87eb0ce2c250d68006a8a253b6515a28bb6a6976`
+Commit de referencia: `2efa06954360cf01b1e342dfc1ba0b580b17fa31`
 
 ## Objetivo
 
@@ -74,9 +74,9 @@ Ele complementa o `AGENTS.md`:
 - Objetivo: padronizar placa, tipo e cadastro de veiculo
 - Entradas: placa digitada, tipo de origem, dados de cliente/modelo
 - Saidas: chave de placa canonica e categoria compatibilizada
-- Dependencias: `CheckIn.tsx`, `Settings.tsx`, `vehicle-type.mjs`
+- Dependencias: `CheckIn.tsx`, `Settings.tsx`, `vehicle-type.mjs`, `POST /api/vehicles/bulk-upsert`
 - Falha esperada: placa ou tipo inconsistente
-- Resposta esperada: bloquear cadastro incompleto antes da persistencia
+- Resposta esperada: bloquear cadastro incompleto antes da persistencia e consolidar importacoes em lote sem perder o estado apos refresh
 
 ### S05. `scheduling-rules-engine`
 
@@ -173,7 +173,7 @@ Ele complementa o `AGENTS.md`:
 - Tipo: consultiva
 - Objetivo: transformar historico em informacao acionavel por placa
 - Entradas: placa, periodo, escopo de consulta
-- Saidas: cards, metricas e CSV
+- Saidas: cards, metricas e CSV enriquecido com tipo de lavagem, responsaveis, ticket medio e tempos operacionais
 - Dependencias: `VehicleHistory.tsx`, `GET /api/vehicle-history`
 - Falha esperada: historico incompleto ou filtro incorreto
 - Resposta esperada: manter consulta segura e rastreavel
@@ -218,6 +218,16 @@ Ele complementa o `AGENTS.md`:
 - Dependencias: `scripts/update-persistence-docs.mjs`, `scripts/check-persistence-docs.mjs`, `.github/workflows/deploy.yml`
 - Falha esperada: commit sem atualizar docs persistentes
 - Resposta esperada: impedir deploy e forcar sincronizacao documental
+
+### S19. `vehicle-bulk-sync`
+
+- Tipo: operacao critica
+- Objetivo: persistir importacoes grandes da base de veiculos com velocidade e consistencia transacional
+- Entradas: lista normalizada de veiculos, delta de placas alteradas, refresh da tela de configuracoes
+- Saidas: lote persistido, lista estavel apos reload e carregamento visivel enquanto a API responde
+- Dependencias: `src/App.tsx`, `src/components/Settings.tsx`, `src/services/api.ts`, `server/index.mjs`
+- Falha esperada: CSV muito grande, rede oscilando ou usuario atualizar a pagina durante a sincronizacao
+- Resposta esperada: envio em lotes no frontend, `bulk upsert` transacional no backend e feedback claro de carregamento na tela
 
 ### S20. `frontend-build-refresh`
 

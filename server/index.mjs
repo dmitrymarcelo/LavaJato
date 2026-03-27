@@ -407,6 +407,50 @@ function getServiceEventDate(service) {
   );
 }
 
+function getDurationMinutes(startValue, endValue) {
+  if (!startValue || !endValue) {
+    return null;
+  }
+
+  const start = Date.parse(String(startValue));
+  const end = Date.parse(String(endValue));
+  if (!Number.isFinite(start) || !Number.isFinite(end) || end < start) {
+    return null;
+  }
+
+  return Math.round((end - start) / 60000);
+}
+
+function buildVehicleHistoryMetrics(record) {
+  if (!record) {
+    return {
+      waitingMinutes: null,
+      washMinutes: null,
+      paymentMinutes: null,
+      totalMinutes: null,
+    };
+  }
+
+  return {
+    waitingMinutes: getDurationMinutes(
+      record.timeline?.checkInAt || record.timeline?.createdAt,
+      record.timeline?.washStartedAt || record.startTime || record.timeline?.noShowAt
+    ),
+    washMinutes: getDurationMinutes(
+      record.timeline?.washStartedAt || record.startTime,
+      record.timeline?.washCompletedAt || record.endTime
+    ),
+    paymentMinutes: getDurationMinutes(
+      record.timeline?.paymentStartedAt,
+      record.timeline?.paymentCompletedAt
+    ),
+    totalMinutes: getDurationMinutes(
+      record.timeline?.checkInAt || record.timeline?.createdAt || record.timeline?.washStartedAt || record.startTime,
+      record.timeline?.completedAt || record.timeline?.noShowAt || record.timeline?.paymentCompletedAt || record.timeline?.washCompletedAt || record.endTime
+    ),
+  };
+}
+
 function buildVehicleHistoryGroups(services, vehicles) {
   const serviceMap = new Map();
 
@@ -420,30 +464,56 @@ function buildVehicleHistoryGroups(services, vehicles) {
   const groups = [];
   const knownPlates = new Set();
 
-  vehicles.forEach((vehicle) => {
-    const plate = String(vehicle.plate || '').toUpperCase();
-    knownPlates.add(plate);
-    const records = [...(serviceMap.get(plate) || [])].sort((left, right) =>
+  const pushVehicleGroup = (plate, vehicle, records) => {
+    const sortedRecords = [...records].sort((left, right) =>
       getServiceEventDate(right).localeCompare(getServiceEventDate(left))
     );
-    const latestRecord = records[0];
+    const latestRecord = sortedRecords[0];
+    const completedRecords = sortedRecords.filter((item) => item.status === 'completed');
+    const totalRevenue = completedRecords.reduce((total, item) => total + Number(item.price || 0), 0);
+    const averageTicket = completedRecords.length
+      ? Number((totalRevenue / completedRecords.length).toFixed(2))
+      : null;
+    const latestMetrics = buildVehicleHistoryMetrics(latestRecord);
+    const averageWashSamples = completedRecords
+      .map((item) => buildVehicleHistoryMetrics(item).washMinutes)
+      .filter((value) => typeof value === 'number');
+    const averageWashMinutes = averageWashSamples.length
+      ? Math.round(averageWashSamples.reduce((total, value) => total + value, 0) / averageWashSamples.length)
+      : null;
 
     groups.push({
       plate,
-      customer: latestRecord?.customer || vehicle.customer || 'Nao informado',
-      model: latestRecord?.model || vehicle.model || 'Veiculo nao informado',
-      type: latestRecord?.type || vehicle.type,
+      customer: latestRecord?.customer || vehicle?.customer || 'Nao informado',
+      model: latestRecord?.model || vehicle?.model || 'Veiculo nao informado',
+      type: vehicle?.type || null,
       previewImage: latestRecord?.image || null,
-      records,
-      completedCount: records.filter((item) => item.status === 'completed').length,
-      noShowCount: records.filter((item) => item.status === 'no_show').length,
-      activeCount: records.filter((item) => ['pending', 'in_progress', 'waiting_payment'].includes(item.status)).length,
-      totalRevenue: records
-        .filter((item) => item.status === 'completed')
-        .reduce((total, item) => total + Number(item.price || 0), 0),
+      records: sortedRecords,
+      completedCount: completedRecords.length,
+      noShowCount: sortedRecords.filter((item) => item.status === 'no_show').length,
+      activeCount: sortedRecords.filter((item) => ['pending', 'in_progress', 'waiting_payment'].includes(item.status)).length,
+      totalRevenue,
+      averageTicket,
       lastRecordedAt: latestRecord ? getServiceEventDate(latestRecord) : null,
       lastBaseName: latestRecord?.baseName || null,
+      lastServiceType: latestRecord?.type || null,
+      lastStatus: latestRecord?.status || null,
+      lastPrice: latestRecord ? Number(latestRecord.price || 0) : null,
+      lastWashers: Array.isArray(latestRecord?.washers)
+        ? latestRecord.washers.map((value) => String(value).trim()).filter(Boolean)
+        : [],
+      averageWashMinutes,
+      lastWaitingMinutes: latestMetrics.waitingMinutes,
+      lastWashMinutes: latestMetrics.washMinutes,
+      lastPaymentMinutes: latestMetrics.paymentMinutes,
+      lastTotalMinutes: latestMetrics.totalMinutes,
     });
+  };
+
+  vehicles.forEach((vehicle) => {
+    const plate = String(vehicle.plate || '').toUpperCase();
+    knownPlates.add(plate);
+    pushVehicleGroup(plate, vehicle, serviceMap.get(plate) || []);
   });
 
   serviceMap.forEach((records, plate) => {
@@ -451,27 +521,7 @@ function buildVehicleHistoryGroups(services, vehicles) {
       return;
     }
 
-    const sortedRecords = [...records].sort((left, right) =>
-      getServiceEventDate(right).localeCompare(getServiceEventDate(left))
-    );
-    const latestRecord = sortedRecords[0];
-
-    groups.push({
-      plate,
-      customer: latestRecord?.customer || 'Nao informado',
-      model: latestRecord?.model || 'Veiculo nao informado',
-      type: latestRecord?.type || null,
-      previewImage: latestRecord?.image || null,
-      records: sortedRecords,
-      completedCount: sortedRecords.filter((item) => item.status === 'completed').length,
-      noShowCount: sortedRecords.filter((item) => item.status === 'no_show').length,
-      activeCount: sortedRecords.filter((item) => ['pending', 'in_progress', 'waiting_payment'].includes(item.status)).length,
-      totalRevenue: sortedRecords
-        .filter((item) => item.status === 'completed')
-        .reduce((total, item) => total + Number(item.price || 0), 0),
-      lastRecordedAt: latestRecord ? getServiceEventDate(latestRecord) : null,
-      lastBaseName: latestRecord?.baseName || null,
-    });
+    pushVehicleGroup(plate, null, records);
   });
 
   return groups.sort((left, right) => {
@@ -1317,8 +1367,18 @@ app.get('/api/vehicle-history', async (req, res) => {
       noShowCount: group.noShowCount,
       activeCount: group.activeCount,
       totalRevenue: group.totalRevenue,
+      averageTicket: group.averageTicket,
       lastRecordedAt: group.lastRecordedAt,
       lastBaseName: group.lastBaseName,
+      lastServiceType: group.lastServiceType,
+      lastStatus: group.lastStatus,
+      lastPrice: group.lastPrice,
+      lastWashers: group.lastWashers,
+      averageWashMinutes: group.averageWashMinutes,
+      lastWaitingMinutes: group.lastWaitingMinutes,
+      lastWashMinutes: group.lastWashMinutes,
+      lastPaymentMinutes: group.lastPaymentMinutes,
+      lastTotalMinutes: group.lastTotalMinutes,
     }))
   );
 });
@@ -1365,8 +1425,18 @@ app.get('/api/vehicle-history/:plate', async (req, res) => {
     noShowCount: detail.noShowCount,
     activeCount: detail.activeCount,
     totalRevenue: detail.totalRevenue,
+    averageTicket: detail.averageTicket,
     lastRecordedAt: detail.lastRecordedAt,
     lastBaseName: detail.lastBaseName,
+    lastServiceType: detail.lastServiceType,
+    lastStatus: detail.lastStatus,
+    lastPrice: detail.lastPrice,
+    lastWashers: detail.lastWashers,
+    averageWashMinutes: detail.averageWashMinutes,
+    lastWaitingMinutes: detail.lastWaitingMinutes,
+    lastWashMinutes: detail.lastWashMinutes,
+    lastPaymentMinutes: detail.lastPaymentMinutes,
+    lastTotalMinutes: detail.lastTotalMinutes,
     records: detail.records,
   });
 });
@@ -1423,6 +1493,42 @@ app.post('/api/vehicles/upsert', async (req, res) => {
   await upsertVehicleRow(vehicle);
   const result = await query('SELECT * FROM vehicles WHERE plate = $1', [String(vehicle.plate || '').toUpperCase().trim()]);
   res.json(toCamelVehicle(result.rows[0]));
+});
+
+app.post('/api/vehicles/bulk-upsert', async (req, res) => {
+  const vehicles = Array.isArray(req.body)
+    ? req.body
+    : Array.isArray(req.body?.vehicles)
+      ? req.body.vehicles
+      : null;
+
+  if (!vehicles) {
+    return res.status(400).json({ error: 'Informe uma lista valida de veiculos para importacao.' });
+  }
+
+  if (vehicles.length === 0) {
+    return res.json([]);
+  }
+
+  const normalizedPlates = [];
+  await withTransaction(async (client) => {
+    const executor = (text, params = []) => client.query(text, params);
+
+    for (const vehicle of vehicles) {
+      await upsertVehicleRow(vehicle, executor);
+      const normalizedPlate = String(vehicle?.plate || '').toUpperCase().trim();
+      if (normalizedPlate) {
+        normalizedPlates.push(normalizedPlate);
+      }
+    }
+  });
+
+  const uniquePlates = Array.from(new Set(normalizedPlates));
+  const result = await query(
+    'SELECT * FROM vehicles WHERE UPPER(plate) = ANY($1::text[]) ORDER BY plate',
+    [uniquePlates]
+  );
+  res.json(result.rows.map(toCamelVehicle));
 });
 
 app.delete('/api/vehicles/:plate', async (req, res) => {
