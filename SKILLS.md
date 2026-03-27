@@ -197,6 +197,7 @@ Ele complementa o `AGENTS.md`:
 - Dependencias: `server/assistant.mjs`, `src/services/geminiService.ts`
 - Falha esperada: indisponibilidade do modelo ou timeout externo
 - Resposta esperada: fallback deterministico e nunca bloquear o app
+- Exposicao atual: a capacidade segue implementada, mas o botao flutuante do assistente foi removido da UI principal
 
 ### S17. `handoff-sync`
 

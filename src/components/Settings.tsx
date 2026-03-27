@@ -420,7 +420,7 @@ export default function Settings({
         if (cols.length < 14) continue; // Basic validation
 
         // Clean up plate: remove "="" and """
-        let plate = cols[3]?.replace(/[="]/g, '').trim() || '';
+        let plate = cols[3]?.replace(/[="]/g, '').trim().toUpperCase() || '';
         const customer = cols[17]?.replace(/["]/g, '').trim() || cols[13]?.replace(/["]/g, '').trim() || 'Desconhecido';
         const model = cols[27]?.replace(/["]/g, '').trim() || 'Modelo Desconhecido';
         const rawType = normalizeSourceVehicleType(cols[10]?.replace(/["]/g, '').trim());
@@ -446,19 +446,24 @@ export default function Settings({
         // Merge with existing or replace? Usually import adds/updates.
         // Let's replace for now as it seems to be a full base import, or we can append.
         // To be safe and avoid duplicates, we can use a Map.
-        const currentDb = vehicleDb || [];
-        const dbMap = new Map(currentDb.map(v => [v.plate, v]));
-        
-        newVehicles.forEach(v => {
-          dbMap.set(v.plate, v);
-        });
+          const currentDb = vehicleDb || [];
+          const dbMap = new Map(currentDb.map(v => [v.plate, v]));
+          
+          newVehicles.forEach(v => {
+            dbMap.set(v.plate, v);
+          });
 
-        await onUpdateVehicleDb(Array.from(dbMap.values()));
-        alert(`${newVehicles.length} veículos importados com sucesso!`);
-      }
+          const mergedVehicles = Array.from(dbMap.values())
+            .sort((left, right) => left.plate.localeCompare(right.plate));
+
+          setDbSearchQuery('');
+          await onUpdateVehicleDb(mergedVehicles);
+          alert(`${newVehicles.length} veículos importados com sucesso!`);
+        }
+      };
+      reader.readAsText(file);
+      event.target.value = '';
     };
-    reader.readAsText(file);
-  };
 
   const currentRoleRules = rules.find(r => r.role === activeRole);
   const visiblePermissions = activeRole === 'Clientes'

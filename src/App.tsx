@@ -8,9 +8,6 @@ import {
   LayoutDashboard, 
   History,
   Settings as SettingsIcon, 
-  MessageSquare,
-  Sparkles,
-  X,
   Droplets,
   Package
 } from 'lucide-react';
@@ -18,7 +15,6 @@ import { motion, AnimatePresence } from './lib/motion';
 import { Screen, Service, Notification, INITIAL_SERVICE_TYPES, RoleAccessRule, VehicleCategory, VehicleType, VehicleRegistration, Product, TeamMember } from './types';
 
 import Sidebar from './components/Sidebar';
-import ModalSurface from './components/ModalSurface';
 import Notifications from './components/Notifications';
 import Scheduling, { QueueSection } from './components/Scheduling';
 import {
@@ -89,10 +85,6 @@ export default function App() {
   };
 
   const [currentScreen, setCurrentScreen] = useState<Screen>('dashboard');
-  const [isAssistantOpen, setIsAssistantOpen] = useState(false);
-  const [chatInput, setChatInput] = useState('');
-  const [chatHistory, setChatHistory] = useState<{role: 'user' | 'ai', text: string}[]>([]);
-  const [isTyping, setIsTyping] = useState(false);
   const [services, setServices] = useState<Service[]>([]);
   const [serviceTypes, setServiceTypes] = useState<Record<VehicleType, VehicleCategory>>(INITIAL_SERVICE_TYPES);
   const [vehicleDb, setVehicleDb] = useState<VehicleRegistration[]>([]);
@@ -119,6 +111,7 @@ export default function App() {
   const servicesRef = useRef<Service[]>([]);
   const appointmentsRef = useRef<Appointment[]>([]);
   const vehicleDbRef = useRef<VehicleRegistration[]>([]);
+  const vehicleDbMutationVersionRef = useRef(0);
   const productsRef = useRef<Product[]>([]);
   const teamRef = useRef<TeamMember[]>([]);
   const servicesSyncQueueRef = useRef<Promise<void>>(Promise.resolve());
@@ -132,6 +125,16 @@ export default function App() {
   const isClientUser = currentUser?.role === 'Clientes';
 
   const normalizePlateKey = (plate?: string | null) => String(plate || '').trim().toUpperCase();
+
+  const commitVehicleDbState = React.useCallback((next: VehicleRegistration[], options?: { markLoaded?: boolean }) => {
+    vehicleDbMutationVersionRef.current += 1;
+    setVehicleDb(next);
+    vehicleDbRef.current = next;
+
+    if (options?.markLoaded) {
+      setHasLoadedVehicleDbFromApi(true);
+    }
+  }, []);
 
   useEffect(() => {
     const interval = window.setInterval(() => {
@@ -247,24 +250,6 @@ export default function App() {
     } catch (error) {}
   }, []);
 
-  const handleSendMessage = async () => {
-    if (!chatInput.trim()) return;
-    const userMsg = chatInput;
-    setChatInput('');
-    setChatHistory(prev => [...prev, { role: 'user', text: userMsg }]);
-    setIsTyping(true);
-    
-    try {
-      const { getCarCareTips } = await import('./services/geminiService');
-      const aiResponse = await getCarCareTips(userMsg);
-      setChatHistory(prev => [...prev, { role: 'ai', text: aiResponse }]);
-    } catch (error: any) {
-      setChatHistory(prev => [...prev, { role: 'ai', text: error.message || 'Erro ao conectar com o assistente.' }]);
-    } finally {
-      setIsTyping(false);
-    }
-  };
-
   const loadBootstrap = async () => {
     setIsBootstrapping(true);
     setBackendError(null);
@@ -359,6 +344,7 @@ export default function App() {
     let cancelled = false;
 
     const loadVehicles = async () => {
+      const loadVersion = vehicleDbMutationVersionRef.current;
       setIsVehicleDbLoading(true);
       try {
         const vehicles = await api.getVehicles();
@@ -366,9 +352,12 @@ export default function App() {
           return;
         }
 
-        setVehicleDb(vehicles);
-        vehicleDbRef.current = vehicles;
-        setHasLoadedVehicleDbFromApi(true);
+        if (vehicleDbMutationVersionRef.current !== loadVersion) {
+          setHasLoadedVehicleDbFromApi(true);
+          return;
+        }
+
+        commitVehicleDbState(vehicles, { markLoaded: true });
       } catch (error: any) {
         console.error(error);
       } finally {
@@ -383,7 +372,7 @@ export default function App() {
     return () => {
       cancelled = true;
     };
-  }, [isAuthenticated, currentScreen, isVehicleDbLoading, hasLoadedVehicleDbFromApi]);
+  }, [commitVehicleDbState, isAuthenticated, currentScreen, isVehicleDbLoading, hasLoadedVehicleDbFromApi]);
 
   useEffect(() => {
     if (activeServiceId && !services.some((service) => service.id === activeServiceId)) {
@@ -723,13 +712,14 @@ export default function App() {
     setAppointments([]);
     setProducts([]);
     setTeam([]);
+    vehicleDbMutationVersionRef.current += 1;
+    vehicleDbRef.current = [];
     setVehicleDb([]);
     setHasLoadedVehicleDbFromApi(false);
     setNotifications([]);
     setBackendError(null);
     setIsBootstrapping(false);
     setIsActiveServiceLoading(false);
-    setIsAssistantOpen(false);
     setIsNotificationsOpen(false);
     setCurrentScreen('login');
   };
@@ -819,9 +809,7 @@ export default function App() {
         )
       : [];
 
-    setVehicleDb(next);
-    vehicleDbRef.current = next;
-    setHasLoadedVehicleDbFromApi(true);
+    commitVehicleDbState(next, { markLoaded: true });
 
     if (orphanedServices.length) {
       const nextServices = normalizeServicesForPersistence(
@@ -885,6 +873,7 @@ export default function App() {
           ? current.map((item) => item.plate === savedVehicle.plate ? savedVehicle : item)
           : [...current, savedVehicle];
         vehicleDbRef.current = next;
+        vehicleDbMutationVersionRef.current += 1;
         return next;
       });
       setHasLoadedVehicleDbFromApi(true);
@@ -1614,87 +1603,7 @@ export default function App() {
             </nav>
           )}
 
-          {/* Floating AI Assistant Button */}
-          {isAuthenticated && !isClientUser && (
-            <button 
-              onClick={() => setIsAssistantOpen(true)}
-              className="fixed bottom-24 lg:bottom-8 right-6 w-14 h-14 bg-primary text-white rounded-2xl shadow-2xl shadow-primary/40 flex items-center justify-center hover:scale-110 active:scale-95 transition-all z-40 group"
-            >
-              <Sparkles className="w-7 h-7 group-hover:rotate-12 transition-transform" />
-              <div className="absolute right-full mr-4 bg-slate-900 text-white px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none shadow-xl">
-                Assistente IA
-              </div>
-            </button>
-          )}
-
-          {/* AI Assistant Modal */}
-          <AnimatePresence>
-            {isAssistantOpen && (
-              <ModalSurface onClose={() => setIsAssistantOpen(false)} overlayClassName="z-[60] bg-black/20" panelClassName="max-w-[400px] rounded-3xl flex flex-col h-[70vh] overflow-hidden border border-slate-100">
-                  <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-primary text-white">
-                    <div className="flex items-center gap-2">
-                      <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center">
-                        <MessageSquare className="w-4 h-4" />
-                      </div>
-                      <span className="font-bold">Assistente Pro</span>
-                    </div>
-                    <button onClick={() => setIsAssistantOpen(false)} className="p-1 hover:bg-white/10 rounded-full">
-                      <X className="w-6 h-6" />
-                    </button>
-                  </div>
                   
-                  <div className="flex-1 overflow-y-auto p-4 space-y-4">
-                    {chatHistory.length === 0 && (
-                      <div className="text-center py-10 text-slate-400">
-                        <p className="text-sm">Olá! Sou seu assistente especialista em estética automotiva. Como posso ajudar hoje?</p>
-                      </div>
-                    )}
-                    {chatHistory.map((msg, i) => (
-                      <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                        <div className={`max-w-[80%] p-3 rounded-2xl text-sm ${
-                          msg.role === 'user' 
-                            ? 'bg-primary text-white rounded-tr-none' 
-                            : 'bg-slate-100 text-slate-800 rounded-tl-none'
-                        }`}>
-                          {msg.text}
-                        </div>
-                      </div>
-                    ))}
-                    {isTyping && (
-                      <div className="flex justify-start">
-                        <div className="bg-slate-100 p-3 rounded-2xl rounded-tl-none">
-                          <div className="flex gap-1">
-                            <div className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce"></div>
-                            <div className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce [animation-delay:0.2s]"></div>
-                            <div className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce [animation-delay:0.4s]"></div>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="p-4 border-t border-slate-100">
-                    <div className="flex gap-2">
-                      <input 
-                        type="text" 
-                        value={chatInput}
-                        onChange={(e) => setChatInput(e.target.value)}
-                        onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
-                        placeholder="Pergunte sobre limpeza..."
-                        className="flex-1 bg-slate-100 border-none rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary outline-none text-slate-900 placeholder:text-slate-400"
-                      />
-                      <button 
-                        onClick={handleSendMessage}
-                        disabled={isTyping}
-                        className="bg-primary text-white p-3 rounded-xl hover:bg-blue-600 active:scale-95 transition-all"
-                      >
-                        <MessageSquare className="w-5 h-5" />
-                      </button>
-                    </div>
-                  </div>
-              </ModalSurface>
-            )}
-          </AnimatePresence>
         </div>
       </div>
     </div>

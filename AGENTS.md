@@ -197,6 +197,7 @@ Este projeto adota os seguintes principios, alinhados a boas praticas publicadas
 - Entradas: contexto basico do negocio, parametros climaticos e prompts internos
 - Saidas: recomendacoes textuais para apoiar decisao humana
 - Guardrails: o assistente e consultivo, nunca fonte de verdade para status, faturamento, estoque ou autorizacao
+- Estado atual da UI: o CTA flutuante foi removido da casca principal do app; o agente segue disponivel apenas como capacidade de backend e base para usos futuros controlados
 - Owner sugerido: produto + backend
 
 ### A12. Agente de Deploy e Memoria Operacional

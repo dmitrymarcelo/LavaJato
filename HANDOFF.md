@@ -119,6 +119,7 @@ Observacao:
   - a fila exibe aviso de sincronizacao pendente
   - o app reenvia automaticamente quando voltar conexao, foco ou visibilidade
 - Isso reduz o risco de o time reiniciar a mesma lavagem por falta de confirmacao imediata do servidor.
+- A carga da base de veiculos em `Configuracoes` agora ignora respostas antigas da API quando a lista local ja mudou, evitando que um CSV importado suma da tela logo apos a importacao.
 - Endpoints `PUT` em lote deixaram de usar `TRUNCATE` direto e passaram a usar substituicao transacional.
 - Isso vale para:
   - `vehicles`
@@ -211,6 +212,7 @@ Com isso, qualquer alteracao publicada em `main` dispara o deploy via SSM no EC2
 - Este arquivo nao guarda o chat literal. Ele guarda o contexto tecnico consolidado para continuar o trabalho.
 - `AGENTS.md` passa a ser a referencia principal de agentes, skills, ownership, KPIs e guardrails do projeto.
 - `SKILLS.md` passa a ser a referencia persistente de capacidades reutilizaveis e contratos tecnicos do projeto.
+- O botao flutuante do assistente IA foi removido da UI principal; a integracao Bedrock segue existente no backend, mas sem CTA visivel no app.
 - O GitHub e a fonte principal da continuidade.
 - Se mudar de computador, o ideal e continuar a partir do commit `e7acf00` ou posterior.
 - Imagens enviadas ficam em `server/storage/uploads` (persistidas via volume Docker).
