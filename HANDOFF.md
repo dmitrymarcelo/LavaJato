@@ -268,6 +268,7 @@ Com isso, qualquer alteracao publicada em `main` dispara o deploy via SSM no EC2
 - O quarto bloqueio real foi de timing: depois do `docker compose up`, o Nginx ficava de pe antes da API e o `curl /api/health` falhava com `502` por alguns segundos. O deploy agora espera o health check HTTP estabilizar antes de avancar para TLS.
 - O quinto bloqueio real aconteceu ja depois do certificado emitido: a renovacao estava presa a `/etc/cron.d`, mas a EC2 nao tinha essa estrutura pronta. O deploy agora registra a renovacao via `systemd timer`, que e nativo da instancia e nao depende de `crond`.
 - O sexto ajuste foi no proprio GitHub Actions: a etapa `Check SSM command result` trocou `list-command-invocations` por `get-command-invocation` na instancia alvo, separando `Status`, `Stdout` e `Stderr` para o workflow nao cair depois de um deploy que ja terminou funcionalmente.
+- O setimo ajuste fechou o criterio de sucesso do pipeline: a leitura de SSM continua como diagnostico, mas o job agora fica verde quando a URL publica em `HTTPS` estiver servindo o `app-build-sha` do commit publicado e `/api/health` responder corretamente.
 - O handoff sincronizado fica no proprio repo da instancia em `/opt/lavajato/app/HANDOFF.md`.
 - As referencias operacionais adicionais ficam em:
   - `/opt/lavajato/app/AGENTS.md`

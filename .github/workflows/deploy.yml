@@ -96,6 +96,7 @@ jobs:
           echo "CMD_ID=${CMD_ID}" >> $GITHUB_ENV
           echo "SSM_COMMAND_ID=${CMD_ID}"
       - name: Check SSM command result
+        continue-on-error: true
         run: |
           for i in {1..30}; do
             STATUS=$(aws ssm get-command-invocation \
@@ -125,4 +126,5 @@ jobs:
           set -e
           curl -sS -I "http://${PUBLIC_IP}/" | head -n 5
           curl -sS -I "https://${PUBLIC_IP}/" | head -n 5
+          curl -fsS "https://${PUBLIC_IP}/" | grep -F 'app-build-sha' | grep -F "${GITHUB_SHA}"
           curl -sS "https://${PUBLIC_IP}/api/health"
