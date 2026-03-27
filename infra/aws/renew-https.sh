@@ -8,11 +8,18 @@ TOKEN="$(curl -fsS -X PUT 'http://169.254.169.254/latest/api/token' -H 'X-aws-ec
 PUBLIC_IP="$(curl -fsSH "X-aws-ec2-metadata-token: ${TOKEN}" http://169.254.169.254/latest/meta-data/public-ipv4)"
 APP_HOST="${PUBLIC_IP}"
 APP_CERT_NAME="${PUBLIC_IP}"
-HTTPS_CERT_EMAIL="${HTTPS_CERT_EMAIL:-ops@lavajato.local}"
+HTTPS_CERT_EMAIL="${HTTPS_CERT_EMAIL:-}"
 
 mkdir -p .runtime/letsencrypt/conf .runtime/letsencrypt/www
 export APP_HOST
 export APP_CERT_NAME
+
+CERTBOT_CONTACT_ARGS=()
+if printf '%s' "${HTTPS_CERT_EMAIL}" | grep -Eq '^[^[:space:]@]+@[^[:space:]@]+\.[^[:space:]@]+$'; then
+  CERTBOT_CONTACT_ARGS=(--email "${HTTPS_CERT_EMAIL}")
+else
+  CERTBOT_CONTACT_ARGS=(--register-unsafely-without-email)
+fi
 
 docker compose up -d web >/dev/null
 docker compose exec -T web nginx -t
@@ -24,7 +31,7 @@ docker compose run --rm certbot certonly \
   --agree-tos \
   --keep-until-expiring \
   --cert-name "${APP_CERT_NAME}" \
-  --email "${HTTPS_CERT_EMAIL}" \
+  "${CERTBOT_CONTACT_ARGS[@]}" \
   --ip-address "${APP_HOST}"
 
 docker compose exec -T web /usr/local/bin/render-nginx-config.sh

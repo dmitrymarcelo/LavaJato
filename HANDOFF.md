@@ -264,6 +264,7 @@ Com isso, qualquer alteracao publicada em `main` dispara o deploy via SSM no EC2
 - Em falha de deploy, o SSM tambem publica um diagnostico temporario em `http://IP_PUBLICO/deploy-debug.txt` para acelerar depuracao remota sem CLI da AWS.
 - O primeiro bloqueio real encontrado nessa trilha foi documental e nao de infraestrutura: o SSM apagava `AGENTS.md` e `SKILLS.md` antes do `git pull` e depois falhava ao tentar sincroniza-los para a pasta de runtime.
 - O segundo bloqueio real apareceu ja dentro do endurecimento HTTPS: a EC2 ficava sem espaco ao baixar a imagem `certbot`, entao o deploy agora faz limpeza controlada de `containers`, `images` e `builder cache` antes da etapa TLS e publica `docker system df` no diagnostico.
+- O terceiro bloqueio real foi de configuracao: sem `HTTPS_CERT_EMAIL` valido, o `certbot` recusava o cadastro. O deploy e a renovacao agora aceitam email real quando existir e fazem fallback automatico para emissao sem email de contato quando o secret estiver ausente.
 - O handoff sincronizado fica no proprio repo da instancia em `/opt/lavajato/app/HANDOFF.md`.
 - As referencias operacionais adicionais ficam em:
   - `/opt/lavajato/app/AGENTS.md`
