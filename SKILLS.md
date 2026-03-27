@@ -1,7 +1,7 @@
 # SKILLS.md - Lava Jato Norte Tech
 
 Atualizado em: 2026-03-27
-Commit de referencia: `0215545e82d627e8c6022ea39bbb54b2be2965b3`
+Commit de referencia: `87eb0ce2c250d68006a8a253b6515a28bb6a6976`
 
 ## Objetivo
 
@@ -227,7 +227,7 @@ Ele complementa o `AGENTS.md`:
 - Saidas: bundle web recompilado, HTML marcado com o SHA da build, runtime docs copiados do checkout atualizado e deploy reprovado se a EC2 continuar servindo frontend antigo
 - Dependencias: `index.html`, `package.json`, `Dockerfile.web`, `docker-compose.yml`, `.github/workflows/deploy.yml`, `scripts/build-ssm-deploy-command.mjs`, `scripts/run-vite-build.mjs`
 - Falha esperada: deploy verde com HTML ainda apontando para assets antigos
-- Resposta esperada: invalidar cache de build do frontend, restaurar o checkout da EC2 quando necessario, reduzir o payload SSM ao minimo necessario e falhar o workflow se o SHA servido nao bater com o commit publicado
+- Resposta esperada: invalidar cache de build do frontend, limpar arquivos legados que travam o `git pull`, reduzir o payload SSM ao minimo necessario e falhar o workflow se o SHA servido nao bater com o commit publicado
 
 ### S19. `settings-in-app-feedback`
 

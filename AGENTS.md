@@ -1,7 +1,7 @@
 # AGENTS.md - Lava Jato Norte Tech
 
 Atualizado em: 2026-03-27
-Commit de referencia: `0215545e82d627e8c6022ea39bbb54b2be2965b3`
+Commit de referencia: `87eb0ce2c250d68006a8a253b6515a28bb6a6976`
 
 ## Objetivo
 
@@ -208,7 +208,7 @@ Este projeto adota os seguintes principios, alinhados a boas praticas publicadas
 - Missao: publicar em AWS, validar handoff e preservar continuidade entre maquinas, pessoas e deploys
 - Entradas: push em `main`, segredos AWS, estado do repositorio e `HANDOFF.md`
 - Saidas: deploy automatico, handoff sincronizado na EC2 e trilha historica recente
-- Guardrails: `handoff:check` antes do deploy, health check da API, sincronizacao documental, restauracao controlada dos docs no checkout da EC2 com fallback compativel, `APP_BUILD_SHA` no HTML, rebuild `web` sem cache, `--force-recreate` e validacao por `curl localhost` para impedir deploy verde com frontend velho
+- Guardrails: `handoff:check` antes do deploy, health check da API, sincronizacao documental, limpeza controlada dos docs legados no checkout da EC2, `APP_BUILD_SHA` no HTML, rebuild `web` sem cache, `--force-recreate` e validacao por `curl localhost` para impedir deploy verde com frontend velho
 - Owner sugerido: plataforma + engenharia
 
 ## Catalogo de SKILLS do projeto
