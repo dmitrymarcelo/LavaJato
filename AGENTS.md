@@ -208,7 +208,7 @@ Este projeto adota os seguintes principios, alinhados a boas praticas publicadas
 - Missao: publicar em AWS, validar handoff e preservar continuidade entre maquinas, pessoas e deploys
 - Entradas: push em `main`, segredos AWS, estado do repositorio e `HANDOFF.md`
 - Saidas: deploy automatico, handoff sincronizado na EC2 e trilha historica recente
-- Guardrails: `handoff:check` antes do deploy, health check da API, sincronizacao documental e `APP_BUILD_SHA` com `--force-recreate` para evitar frontend desatualizado na EC2
+- Guardrails: `handoff:check` antes do deploy, health check da API, sincronizacao documental, `APP_BUILD_SHA`, rebuild `web` sem cache e `--force-recreate` para evitar frontend desatualizado na EC2
 - Owner sugerido: plataforma + engenharia
 
 ## Catalogo de SKILLS do projeto

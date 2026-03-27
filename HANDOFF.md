@@ -198,7 +198,7 @@ Com isso, qualquer alteracao publicada em `main` dispara o deploy via SSM no EC2
 - Durante cada deploy em `main`, o GitHub Actions gera um handoff atualizado para o commit publicado.
 - Em seguida, o workflow envia essa copia pronta para a EC2 via SSM.
 - O mesmo fluxo agora sincroniza tambem `AGENTS.md` e `SKILLS.md` com metadados do commit implantado.
-- O deploy do frontend agora injeta `APP_BUILD_SHA` no build e usa `docker compose up -d --build --force-recreate` para evitar que a web continue servindo bundles antigos apos publicacoes novas.
+- O deploy do frontend agora injeta `APP_BUILD_SHA`, remove o container `web`, recompila `web` com `--no-cache` e sobe tudo com `docker compose up -d --build --force-recreate` para evitar que a web continue servindo bundles antigos apos publicacoes novas.
 - O handoff sincronizado fica no proprio repo da instancia em `/opt/lavajato/app/HANDOFF.md`.
 - As referencias operacionais adicionais ficam em:
   - `/opt/lavajato/app/AGENTS.md`

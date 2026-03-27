@@ -223,7 +223,7 @@ Ele complementa o `AGENTS.md`:
 
 - Tipo: governanca
 - Objetivo: garantir que o frontend publicado na AWS reflita o commit mais recente
-- Entradas: `APP_BUILD_SHA`, `docker compose up -d --build --force-recreate`, arquivos do frontend
+- Entradas: `APP_BUILD_SHA`, `docker compose rm -sf web`, `docker compose build --no-cache web`, `docker compose up -d --build --force-recreate`, arquivos do frontend
 - Saidas: bundle web recompilado e container web recriado no deploy
 - Dependencias: `Dockerfile.web`, `docker-compose.yml`, `.github/workflows/deploy.yml`
 - Falha esperada: deploy verde com HTML ainda apontando para assets antigos
