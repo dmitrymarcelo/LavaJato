@@ -6,7 +6,7 @@ Atualizado em: 2026-03-27
 
 - Repositorio: `https://github.com/dmitrymarcelo/LavaJato`
 - Branch principal: `main`
-- Commit atual: `2efa06954360cf01b1e342dfc1ba0b580b17fa31`
+- Commit atual: `06a42e7c6b79efff2ea8019b7cba3b1e2acc9b77`
 - Producao AWS atual: `http://3.145.153.19/`
 - Regiao AWS: `us-east-2`
 - Instancia usada no deploy: `i-0ba1477cbbe3d986d`
@@ -147,14 +147,14 @@ Observacao:
 
 ## Commits recentes relevantes
 
+- `06a42e7` `fix: prevent vehicle settings loading deadlock`
+- `07c8475` `feat: speed up vehicle sync and history exports`
 - `2efa069` `ci: clean legacy docs before aws deploy`
 - `87eb0ce` `ci: simplify aws deploy payload`
 - `0215545` `ci: verify deployed frontend build sha`
 - `7b0b602` `docs: refresh persistence after web rebuild hardening`
 - `c7056d8` `ci: rebuild web container without cache on aws`
 - `1a461dd` `docs: refresh persistence after deploy hardening`
-- `16697dc` `ci: force fresh frontend rebuild on aws`
-- `b7d644c` `docs: refresh persistence after settings feedback update`
 
 ## Arquivos centrais
 
@@ -242,7 +242,7 @@ Com isso, qualquer alteracao publicada em `main` dispara o deploy via SSM no EC2
 - O botao flutuante do assistente IA foi removido da UI principal; a integracao Bedrock segue existente no backend, mas sem CTA visivel no app.
 - A tela `Configuracoes > Cadastros de Clientes` trocou `alert/confirm` por feedback visual interno, leve e mais amigavel para smartphone, sem adicionar polling ou dependencias pesadas.
 - O GitHub e a fonte principal da continuidade.
-- Se mudar de computador, o ideal e continuar a partir do commit `2efa069` ou posterior.
+- Se mudar de computador, o ideal e continuar a partir do commit `06a42e7` ou posterior.
 - Imagens enviadas ficam em `server/storage/uploads` (persistidas via volume Docker).
 - Em producao, altere a senha do administrador imediatamente.
 
