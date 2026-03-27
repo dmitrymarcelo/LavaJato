@@ -24,6 +24,7 @@ Deploy automatico do `LavaJato` em uma unica EC2 com persistencia real:
 - AMI Amazon Linux 2023
 - Security Group com:
   - `80/tcp` liberado
+  - `443/tcp` liberado
   - `22/tcp` opcional
 - IAM Role com `AmazonSSMManagedInstanceCore`
 
@@ -34,7 +35,7 @@ Deploy automatico do `LavaJato` em uma unica EC2 com persistencia real:
 3. clona `https://github.com/dmitrymarcelo/LavaJato.git`
 4. faz checkout do branch `main`
 5. executa `docker compose up -d --build`
-6. publica a aplicacao em `http://IP_PUBLICO/`
+6. publica a aplicacao em `https://IP-PUBLICO.sslip.io/`
 
 ## Banco de dados
 
@@ -47,6 +48,14 @@ password: postgres
 ```
 
 O volume Docker `postgres_data` garante persistencia entre reinicios da EC2.
+
+## HTTPS automatico
+
+- O deploy resolve automaticamente o dominio `IP-PUBLICO.sslip.io`
+- O Nginx sobe primeiro em HTTP para responder ao desafio ACME
+- O Certbot emite ou renova o certificado Let's Encrypt
+- O proxy troca automaticamente para HTTPS com redirecionamento de `http://IP_PUBLICO` para o dominio seguro
+- A renovacao roda via cron no host
 
 ## Credencial inicial
 

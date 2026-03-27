@@ -34,10 +34,24 @@ services:
         VITE_API_URL: /api
         APP_BUILD_SHA: ${APP_BUILD_SHA:-local}
     restart: unless-stopped
+    environment:
+      APP_DOMAIN: ${APP_DOMAIN:-localhost}
     depends_on:
       - api
     ports:
       - "80:80"
+      - "443:443"
+    volumes:
+      - ./.runtime/letsencrypt/conf:/etc/letsencrypt:ro
+      - ./.runtime/letsencrypt/www:/var/www/certbot:ro
+
+  certbot:
+    image: certbot/certbot:latest
+    profiles:
+      - ops
+    volumes:
+      - ./.runtime/letsencrypt/conf:/etc/letsencrypt
+      - ./.runtime/letsencrypt/www:/var/www/certbot
 
 volumes:
   postgres_data:

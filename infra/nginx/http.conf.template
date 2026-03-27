@@ -1,5 +1,5 @@
 server {
-    listen 80;
+    listen 80 default_server;
     server_name _;
     client_max_body_size 80m;
     gzip on;
@@ -8,6 +8,12 @@ server {
 
     root /usr/share/nginx/html;
     index index.html;
+
+    location /.well-known/acme-challenge/ {
+        root /var/www/certbot;
+        default_type "text/plain";
+        try_files $uri =404;
+    }
 
     location /api/ {
         client_max_body_size 80m;
