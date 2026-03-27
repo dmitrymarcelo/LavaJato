@@ -178,6 +178,7 @@ Este projeto adota os seguintes principios, alinhados a boas praticas publicadas
 - Guardrails: sessoes persistidas em `auth_sessions`, filtro por base para clientes, validacoes de senha e email no frontend
 - UX atual: a tela de configuracoes usa feedback visual proprio para erro, sucesso e confirmacao, evitando dialogos nativos do navegador
 - Persistencia atual: importacao de CSV da base de veiculos usa `bulk upsert` transacional no backend e lotes no frontend, com estado de carregamento explicito apos refresh
+- Correcao recente: o carregamento da base de veiculos em `Configuracoes` nao pode mais se autocancelar por mudanca da propria flag de loading; esse ciclo foi removido em `src/App.tsx`
 - Risco atual: a autorizacao administrativa ainda precisa ser endurecida no backend e a senha padrao do seed deve ser removida em producao
 - Owner sugerido: backend + seguranca + administracao
 

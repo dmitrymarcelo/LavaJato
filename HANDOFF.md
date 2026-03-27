@@ -123,6 +123,9 @@ Observacao:
 - A importacao da base de veiculos agora usa `bulk upsert` transacional no backend e envio em lotes no frontend.
 - Isso reduz drasticamente o tempo para importar CSVs grandes e evita perder parte da base quando a rede oscila no meio da sincronizacao.
 - A tela `Cadastros de Clientes` passou a mostrar `Carregando base de veiculos...` enquanto busca a lista remota, evitando o falso estado de vazio logo apos refresh.
+- A causa raiz da lista presa em `Carregando base de veiculos...` era um efeito do React em `src/App.tsx` dependente da propria flag `isVehicleDbLoading`.
+- Quando a busca comecava, a mudanca dessa flag disparava o cleanup do proprio efeito, cancelava a resposta valida de `/api/vehicles` e deixava a tela travada em loading infinito.
+- A correcao foi remover essa dependencia ciclica do efeito de carga da base.
 - A tela `Configuracoes` passou a usar feedback visual nativo do app para sucesso, erro e confirmacoes, evitando `alert` e `confirm` do navegador nessa area.
 - `Historico de Veiculos > Exportar CSV` agora leva mais contexto operacional:
   - tipo de veiculo

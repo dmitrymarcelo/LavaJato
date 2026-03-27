@@ -227,7 +227,7 @@ Ele complementa o `AGENTS.md`:
 - Saidas: lote persistido, lista estavel apos reload e carregamento visivel enquanto a API responde
 - Dependencias: `src/App.tsx`, `src/components/Settings.tsx`, `src/services/api.ts`, `server/index.mjs`
 - Falha esperada: CSV muito grande, rede oscilando ou usuario atualizar a pagina durante a sincronizacao
-- Resposta esperada: envio em lotes no frontend, `bulk upsert` transacional no backend e feedback claro de carregamento na tela
+- Resposta esperada: envio em lotes no frontend, `bulk upsert` transacional no backend, feedback claro de carregamento na tela e nenhum efeito do React que recancele a propria busca por depender da flag de loading
 
 ### S20. `frontend-build-refresh`
 

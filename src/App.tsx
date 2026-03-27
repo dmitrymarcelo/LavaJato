@@ -372,7 +372,7 @@ export default function App() {
     return () => {
       cancelled = true;
     };
-  }, [commitVehicleDbState, isAuthenticated, currentScreen, isVehicleDbLoading, hasLoadedVehicleDbFromApi]);
+  }, [commitVehicleDbState, isAuthenticated, currentScreen, hasLoadedVehicleDbFromApi]);
 
   useEffect(() => {
     if (activeServiceId && !services.some((service) => service.id === activeServiceId)) {
