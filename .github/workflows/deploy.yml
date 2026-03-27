@@ -98,24 +98,24 @@ jobs:
       - name: Check SSM command result
         run: |
           for i in {1..30}; do
-            STATUS=$(aws ssm list-command-invocations \
+            STATUS=$(aws ssm get-command-invocation \
               --region us-east-2 \
               --command-id "${CMD_ID}" \
-              --details \
-              --query 'CommandInvocations[0].Status' \
-              --output text || echo "Unknown")
+              --instance-id i-0ba1477cbbe3d986d \
+              --query 'Status' \
+              --output text 2>/dev/null || echo "Pending")
             echo "SSM status: ${STATUS}"
             if [ "${STATUS}" = "Success" ] || [ "${STATUS}" = "Failed" ] || [ "${STATUS}" = "Cancelled" ]; then
               break
             fi
             sleep 10
           done
-          aws ssm list-command-invocations \
+          aws ssm get-command-invocation \
             --region us-east-2 \
             --command-id "${CMD_ID}" \
-            --details \
-            --query 'CommandInvocations[].{Status:Status,Output:CommandPlugins[0].Output}' \
-            --output json
+            --instance-id i-0ba1477cbbe3d986d \
+            --query '{Status:Status,Stdout:StandardOutputContent,Stderr:StandardErrorContent}' \
+            --output json || true
           if [ "${STATUS}" != "Success" ]; then
             echo "SSM command did not succeed: ${STATUS}"
             exit 1
