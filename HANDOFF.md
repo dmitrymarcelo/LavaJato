@@ -6,8 +6,8 @@ Atualizado em: 2026-03-27
 
 - Repositorio: `https://github.com/dmitrymarcelo/LavaJato`
 - Branch principal: `main`
-- Commit atual: `130459806cc79435c89fdac2ba1f2e050f265877`
-- Producao AWS atual: `http://3.145.153.19/`
+- Commit atual: `4f01aeba267988258178eff126aca508b59b3af4`
+- Producao AWS atual: `http://3.145.153.19/` (HTTPS em endurecimento via `sslip.io` + Let's Encrypt)
 - Regiao AWS: `us-east-2`
 - Instancia usada no deploy: `i-0ba1477cbbe3d986d`
 
@@ -37,7 +37,7 @@ docker compose up -d --build
 - Backend: Express
 - Banco: PostgreSQL
 - Infra local: `docker-compose.yml`
-- Proxy web: Nginx em `infra/nginx/default.conf`
+- Proxy web: Nginx com templates em `infra/nginx/*.template` e renderizacao dinamica via `infra/nginx/render-config.sh`
 - Assistente: AWS Bedrock via backend
 
 ## Variaveis principais
@@ -145,8 +145,31 @@ Observacao:
   - `products`
   - `team-members`
 
+### HTTPS e acesso mobile
+
+- O acesso mobile ainda dependia de HTTP puro, o que prejudicava camera, upload e armazenamento em navegadores de smartphone.
+- A producao passou a ser endurecida para publicar em um dominio canonico derivado do IP publico:
+  - `https://<ip-publico-com-tracos>.sslip.io/`
+- O deploy agora prepara:
+  - porta `443` no `docker-compose.yml`
+  - emissao automatica de certificado Let's Encrypt via `certbot`
+  - renovacao automatica por cron na EC2
+  - headers basicos de seguranca no Nginx
+- A causa raiz da primeira queda do ambiente HTTPS foi estrutural:
+  - a imagem oficial do Nginx processava automaticamente todos os arquivos em `/etc/nginx/templates`
+  - isso fazia os templates HTTP e HTTPS serem carregados juntos
+  - o container tentava subir configuracao TLS mesmo sem certificado emitido
+  - resultado: queda total do `web`, inclusive em HTTP
+- A correcao aplicada foi:
+  - mover os templates para `/opt/lavajato/nginx`
+  - gerar apenas `1` arquivo final em `/etc/nginx/conf.d/default.conf`
+  - validar HTTP antes de pedir certificado
+  - validar `nginx -t` antes do reload final
+  - despejar `docker compose ps` e logs de `web/api` automaticamente se o SSM falhar
+
 ## Commits recentes relevantes
 
+- `4f01aeb` `feat: enable automatic https for mobile access`
 - `1304598` `fix: preserve inspection photos across mobile sync`
 - `37862b8` `docs: refresh persistence after vehicle loading fix`
 - `06a42e7` `fix: prevent vehicle settings loading deadlock`
@@ -154,7 +177,6 @@ Observacao:
 - `2efa069` `ci: clean legacy docs before aws deploy`
 - `87eb0ce` `ci: simplify aws deploy payload`
 - `0215545` `ci: verify deployed frontend build sha`
-- `7b0b602` `docs: refresh persistence after web rebuild hardening`
 
 ## Arquivos centrais
 
@@ -174,7 +196,12 @@ Observacao:
 - `server/schema.sql`
 - `server/seed.mjs`
 - `docker-compose.yml`
-- `infra/nginx/default.conf`
+- `Dockerfile.web`
+- `infra/nginx/http.conf.template`
+- `infra/nginx/https.conf.template`
+- `infra/nginx/render-config.sh`
+- `infra/aws/renew-https.sh`
+- `scripts/build-ssm-deploy-command.mjs`
 
 ## Deploy AWS
 
@@ -223,6 +250,13 @@ Com isso, qualquer alteracao publicada em `main` dispara o deploy via SSM no EC2
   - sobe com `docker compose up -d --force-recreate api web`
   - continua validando o SHA real servido em `http://localhost/`
 - Isso acelerou o deploy sem abrir mao da confirmacao de versao publicada.
+- O deploy HTTPS agora:
+  - calcula `APP_DOMAIN` a partir do IP publico da EC2 usando `sslip.io`
+  - sobe primeiro em HTTP
+  - valida que o frontend e a API estao servindo corretamente em `localhost`
+  - emite ou renova o certificado
+  - renderiza o config HTTPS definitivo e recarrega o Nginx
+- Se algo falhar nesse caminho, o payload SSM agora imprime diagnostico automatico de containers e logs.
 - O handoff sincronizado fica no proprio repo da instancia em `/opt/lavajato/app/HANDOFF.md`.
 - As referencias operacionais adicionais ficam em:
   - `/opt/lavajato/app/AGENTS.md`
@@ -242,14 +276,14 @@ Com isso, qualquer alteracao publicada em `main` dispara o deploy via SSM no EC2
 - O botao flutuante do assistente IA foi removido da UI principal; a integracao Bedrock segue existente no backend, mas sem CTA visivel no app.
 - A tela `Configuracoes > Cadastros de Clientes` trocou `alert/confirm` por feedback visual interno, leve e mais amigavel para smartphone, sem adicionar polling ou dependencias pesadas.
 - O GitHub e a fonte principal da continuidade.
-- Se mudar de computador, o ideal e continuar a partir do commit `1304598` ou posterior.
+- Se mudar de computador, o ideal e continuar a partir do commit `4f01aeb` ou posterior.
 - Imagens enviadas ficam em `server/storage/uploads` (persistidas via volume Docker).
 - Em producao, altere a senha do administrador imediatamente.
 
 ## Proximo ponto de investigacao sugerido
 
 - Prioridade recomendada agora:
-  - habilitar HTTPS na producao para melhorar confiabilidade de camera/upload no celular
+  - concluir a validacao publica do HTTPS em `sslip.io` e migrar o acesso mobile para o link seguro
   - endurecer autorizacao de backend nos endpoints administrativos
   - remover a senha padrao previsivel na criacao de usuarios
 - Se ainda houver lentidao percebida, medir:

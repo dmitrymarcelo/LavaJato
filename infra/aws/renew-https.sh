@@ -13,6 +13,7 @@ mkdir -p .runtime/letsencrypt/conf .runtime/letsencrypt/www
 export APP_DOMAIN
 
 docker compose up -d web >/dev/null
+docker compose exec -T web nginx -t
 docker compose run --rm certbot certonly \
   --webroot \
   --webroot-path /var/www/certbot \
@@ -24,4 +25,5 @@ docker compose run --rm certbot certonly \
   -d "${APP_DOMAIN}"
 
 docker compose exec -T web /usr/local/bin/render-nginx-config.sh
+docker compose exec -T web nginx -t
 docker compose exec -T web nginx -s reload

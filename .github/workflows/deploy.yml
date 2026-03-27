@@ -99,7 +99,7 @@ jobs:
           echo "SSM_COMMAND_ID=${CMD_ID}"
       - name: Check SSM command result
         run: |
-          for i in {1..20}; do
+          for i in {1..30}; do
             STATUS=$(aws ssm list-command-invocations \
               --region us-east-2 \
               --command-id "${CMD_ID}" \

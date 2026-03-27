@@ -1,7 +1,7 @@
 # AGENTS.md - Lava Jato Norte Tech
 
 Atualizado em: 2026-03-27
-Commit de referencia: `130459806cc79435c89fdac2ba1f2e050f265877`
+Commit de referencia: `4f01aeba267988258178eff126aca508b59b3af4`
 
 ## Objetivo
 
@@ -211,7 +211,7 @@ Este projeto adota os seguintes principios, alinhados a boas praticas publicadas
 - Missao: publicar em AWS, validar handoff e preservar continuidade entre maquinas, pessoas e deploys
 - Entradas: push em `main`, segredos AWS, estado do repositorio e `HANDOFF.md`
 - Saidas: deploy automatico, handoff sincronizado na EC2 e trilha historica recente
-- Guardrails: `handoff:check` antes do deploy, health check da API, sincronizacao documental, limpeza controlada dos docs legados no checkout da EC2, `APP_BUILD_SHA` no HTML, build cacheado de `api` e `web`, `--force-recreate` e validacao por `curl localhost` para impedir deploy verde com frontend velho
+- Guardrails: `handoff:check` antes do deploy, health check da API, sincronizacao documental, limpeza controlada dos docs legados no checkout da EC2, `APP_BUILD_SHA` no HTML, build cacheado de `api` e `web`, `--force-recreate`, validacao por `curl localhost` para impedir deploy verde com frontend velho, emissao/renovacao HTTPS via `sslip.io` + `certbot`, `nginx -t` antes de recarregar o proxy e despejo automatico de logs quando o SSM falhar
 - Owner sugerido: plataforma + engenharia
 
 ## Catalogo de SKILLS do projeto
@@ -237,7 +237,7 @@ Definicao adotada neste documento: `SKILL` e uma capacidade reutilizavel, docume
 | `dashboard-analytics` | Gera KPIs de volume, faturamento, tempo medio e ranking | gestao diaria e analise de produtividade | `Dashboard.tsx` | ver melhor lavador e base mais demandada |
 | `bedrock-advisory` | Gera dicas consultivas de clima e operacao | apoio a decisao, leitura do painel | `server/assistant.mjs` | sugerir reforco de equipe por chuva |
 | `handoff-sync` | Atualiza memoria operacional com data, commit e historico | qualquer entrega relevante | `scripts/update-handoff.mjs` | registrar contexto para outro computador |
-| `deploy-aws-ssm` | Publica build, sincroniza docs e valida o SHA real servido pela EC2 | push em `main` | `.github/workflows/deploy.yml`, `scripts/build-ssm-deploy-command.mjs`, `scripts/run-vite-build.mjs` | deploy automatico apos merge |
+| `deploy-aws-ssm` | Publica build, sincroniza docs, provisiona HTTPS e valida o SHA real servido pela EC2 | push em `main` | `.github/workflows/deploy.yml`, `scripts/build-ssm-deploy-command.mjs`, `scripts/run-vite-build.mjs`, `infra/aws/renew-https.sh` | deploy automatico apos merge com dominio seguro para mobile |
 
 ## Diretrizes de consistencia e alinhamento com objetivos de negocio
 
