@@ -1,7 +1,7 @@
 # SKILLS.md - Lava Jato Norte Tech
 
 Atualizado em: 2026-03-27
-Commit de referencia: `7b0b602b0ce626d04925355fc5d474e2fa7c46e0`
+Commit de referencia: `0215545e82d627e8c6022ea39bbb54b2be2965b3`
 
 ## Objetivo
 
@@ -224,10 +224,10 @@ Ele complementa o `AGENTS.md`:
 - Tipo: governanca
 - Objetivo: garantir que o frontend publicado na AWS reflita o commit mais recente
 - Entradas: `APP_BUILD_SHA`, meta `app-build-sha`, `docker compose rm -sf web`, `docker compose build --no-cache web`, `docker compose up -d --build --force-recreate`, verificador SSM e arquivos do frontend
-- Saidas: bundle web recompilado, HTML marcado com o SHA da build e deploy reprovado se a EC2 continuar servindo frontend antigo
+- Saidas: bundle web recompilado, HTML marcado com o SHA da build, runtime docs copiados do checkout atualizado e deploy reprovado se a EC2 continuar servindo frontend antigo
 - Dependencias: `index.html`, `package.json`, `Dockerfile.web`, `docker-compose.yml`, `.github/workflows/deploy.yml`, `scripts/build-ssm-deploy-command.mjs`, `scripts/run-vite-build.mjs`
 - Falha esperada: deploy verde com HTML ainda apontando para assets antigos
-- Resposta esperada: invalidar cache de build do frontend, restaurar o checkout da EC2 quando necessario e falhar o workflow se o SHA servido nao bater com o commit publicado
+- Resposta esperada: invalidar cache de build do frontend, restaurar o checkout da EC2 quando necessario, reduzir o payload SSM ao minimo necessario e falhar o workflow se o SHA servido nao bater com o commit publicado
 
 ### S19. `settings-in-app-feedback`
 

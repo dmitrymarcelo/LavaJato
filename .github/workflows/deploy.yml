@@ -32,14 +32,6 @@ jobs:
         run: pnpm run lint
       - name: Check persistence docs freshness
         run: pnpm run docs:check
-      - name: Generate deployed persistence docs
-        run: |
-          cp HANDOFF.md HANDOFF_AWS.md
-          cp AGENTS.md AGENTS_AWS.md
-          cp SKILLS.md SKILLS_AWS.md
-          node scripts/update-handoff.mjs --deployed-sha "${GITHUB_SHA}" --output HANDOFF_AWS.md
-          node scripts/update-doc-metadata.mjs --deployed-sha "${GITHUB_SHA}" --file AGENTS_AWS.md
-          node scripts/update-doc-metadata.mjs --deployed-sha "${GITHUB_SHA}" --file SKILLS_AWS.md
       - name: Configure AWS credentials (OIDC)
         if: ${{ env.AWS_ROLE_ARN_VALUE != '' }}
         uses: aws-actions/configure-aws-credentials@v4
@@ -83,16 +75,16 @@ jobs:
             fi
             sleep 10
           done
-          if [ "${STATUS}" != "Success" ]; then
-            echo "SSM command did not succeed: ${STATUS}"
-            exit 1
-          fi
           aws ssm list-command-invocations \
             --region us-east-2 \
             --command-id "${CMD_ID}" \
             --details \
             --query 'CommandInvocations[].{Status:Status,Output:CommandPlugins[0].Output}' \
             --output json
+          if [ "${STATUS}" != "Success" ]; then
+            echo "SSM command did not succeed: ${STATUS}"
+            exit 1
+          fi
       - name: Post-deploy health check
         run: |
           set -e

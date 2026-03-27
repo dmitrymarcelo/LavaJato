@@ -6,7 +6,7 @@ Atualizado em: 2026-03-27
 
 - Repositorio: `https://github.com/dmitrymarcelo/LavaJato`
 - Branch principal: `main`
-- Commit atual: `7b0b602b0ce626d04925355fc5d474e2fa7c46e0`
+- Commit atual: `0215545e82d627e8c6022ea39bbb54b2be2965b3`
 - Producao AWS atual: `http://3.145.153.19/`
 - Regiao AWS: `us-east-2`
 - Instancia usada no deploy: `i-0ba1477cbbe3d986d`
@@ -131,6 +131,7 @@ Observacao:
 
 ## Commits recentes relevantes
 
+- `0215545` `ci: verify deployed frontend build sha`
 - `7b0b602` `docs: refresh persistence after web rebuild hardening`
 - `c7056d8` `ci: rebuild web container without cache on aws`
 - `1a461dd` `docs: refresh persistence after deploy hardening`
@@ -138,7 +139,6 @@ Observacao:
 - `b7d644c` `docs: refresh persistence after settings feedback update`
 - `305e31a` `feat: replace settings dialogs with in-app feedback`
 - `b6634e9` `docs: refresh persistence after vehicle import fix`
-- `8369a9a` `fix: preserve imported vehicles and remove ai button`
 
 ## Arquivos centrais
 
@@ -200,17 +200,18 @@ Com isso, qualquer alteracao publicada em `main` dispara o deploy via SSM no EC2
 - O mesmo fluxo agora sincroniza tambem `AGENTS.md` e `SKILLS.md` com metadados do commit implantado.
 - O deploy agora gera o payload SSM via `scripts/build-ssm-deploy-command.mjs` para reduzir erro de quoting e garantir que o SHA do GitHub seja enviado corretamente para a EC2.
 - O build local e o build do container agora passam por `scripts/run-vite-build.mjs`, garantindo `VITE_APP_BUILD_SHA` padrao mesmo fora da AWS.
-- Antes do `git pull`, a EC2 restaura apenas `HANDOFF.md`, `AGENTS.md` e `SKILLS.md` no checkout local para evitar que a memoria sincronizada deixe o repositorio remoto preso em working tree suja.
+- Antes do `git pull`, a EC2 tenta restaurar apenas `HANDOFF.md`, `AGENTS.md` e `SKILLS.md` no checkout local, com fallback para `git checkout --`, evitando que a memoria sincronizada deixe o repositorio remoto preso em working tree suja por diferencas antigas.
 - O frontend continua recebendo `APP_BUILD_SHA`, mas agora o `index.html` publica tambem a meta `app-build-sha` para validacao objetiva da build em producao.
 - O deploy do frontend remove o container `web`, recompila `web` com `--no-cache`, sobe tudo com `docker compose up -d --build --force-recreate` e so termina com sucesso se `http://localhost/` responder com o SHA exato do commit implantado.
 - O handoff sincronizado fica no proprio repo da instancia em `/opt/lavajato/app/HANDOFF.md`.
 - As referencias operacionais adicionais ficam em:
   - `/opt/lavajato/app/AGENTS.md`
   - `/opt/lavajato/app/SKILLS.md`
-- Uma copia operacional tambem e salva em `/opt/lavajato/runtime/HANDOFF_AWS.md`.
-- Copias operacionais adicionais tambem sao salvas em:
+- Copias operacionais tambem sao salvas em:
+  - `/opt/lavajato/runtime/HANDOFF_AWS.md`
   - `/opt/lavajato/runtime/AGENTS_AWS.md`
   - `/opt/lavajato/runtime/SKILLS_AWS.md`
+- Essas copias agora sao geradas diretamente a partir do checkout atualizado da EC2, sem reenviar os tres arquivos inteiros pelo payload SSM.
 - Isso garante que a memoria persistente acompanhe o commit realmente implantado.
 
 ## Observacoes importantes
@@ -221,7 +222,7 @@ Com isso, qualquer alteracao publicada em `main` dispara o deploy via SSM no EC2
 - O botao flutuante do assistente IA foi removido da UI principal; a integracao Bedrock segue existente no backend, mas sem CTA visivel no app.
 - A tela `Configuracoes > Cadastros de Clientes` trocou `alert/confirm` por feedback visual interno, leve e mais amigavel para smartphone, sem adicionar polling ou dependencias pesadas.
 - O GitHub e a fonte principal da continuidade.
-- Se mudar de computador, o ideal e continuar a partir do commit `7b0b602` ou posterior.
+- Se mudar de computador, o ideal e continuar a partir do commit `0215545` ou posterior.
 - Imagens enviadas ficam em `server/storage/uploads` (persistidas via volume Docker).
 - Em producao, altere a senha do administrador imediatamente.
 
