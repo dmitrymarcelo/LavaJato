@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { ChevronLeft, Clock, CreditCard, User, Car, MapPin, CheckCircle2 } from 'lucide-react';
 import { Screen, Service } from '../types';
-import { formatElapsedMinutes, getDurationMinutes, getElapsedMinutes } from '../utils/app';
+import { formatElapsedMinutes, getDurationMinutes, getElapsedMinutes, getServicePreviewImage } from '../utils/app';
 
 const formatDateTime = (value?: string) =>
   value ? new Date(value).toLocaleString('pt-BR') : 'Nao registrado';
@@ -163,8 +163,18 @@ export default function ServiceHistory({
           </div>
         </div>
 
-        <PhotoSection title="Fotos da inspecao pre" photos={service.preInspectionPhotos} />
-        <PhotoSection title="Fotos da inspecao pos" photos={service.postInspectionPhotos} />
+        <PhotoSection
+          title="Fotos da inspecao pre"
+          photos={service.preInspectionPhotos}
+          fallbackImage={getServicePreviewImage(service)}
+          allowFallback={!service.postInspectionPhotos || Object.keys(service.postInspectionPhotos).length === 0}
+        />
+        <PhotoSection
+          title="Fotos da inspecao pos"
+          photos={service.postInspectionPhotos}
+          fallbackImage={getServicePreviewImage(service)}
+          allowFallback={['waiting_payment', 'completed'].includes(service.status)}
+        />
       </section>
     </div>
   );
@@ -182,10 +192,23 @@ function InfoCard({ icon, label, value }: { icon: React.ReactNode; label: string
   );
 }
 
-function PhotoSection({ title, photos }: { title: string; photos?: Record<string, string> }) {
+function PhotoSection({
+  title,
+  photos,
+  fallbackImage,
+  allowFallback = false,
+}: {
+  title: string;
+  photos?: Record<string, string>;
+  fallbackImage?: string;
+  allowFallback?: boolean;
+}) {
   const entries = Object.entries(photos || {}).filter(([, value]) => !!value);
+  const resolvedEntries = entries.length || !allowFallback || !fallbackImage
+    ? entries
+    : [['front', fallbackImage] as const];
 
-  if (!entries.length) {
+  if (!resolvedEntries.length) {
     return (
       <div className="bg-white rounded-2xl border border-dashed border-slate-200 p-4 text-sm text-slate-400">
         {title}: nenhuma foto registrada.
@@ -199,7 +222,7 @@ function PhotoSection({ title, photos }: { title: string; photos?: Record<string
         <h3 className="text-lg font-black text-slate-900">{title}</h3>
       </div>
       <div className="grid grid-cols-2 gap-3 p-4">
-        {entries.map(([key, value]) => (
+        {resolvedEntries.map(([key, value]) => (
           <div key={key} className="space-y-2">
             <div className="aspect-square rounded-2xl overflow-hidden border border-slate-100 bg-slate-100">
               <img src={value} alt={key} className="w-full h-full object-cover" />

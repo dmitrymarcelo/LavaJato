@@ -538,6 +538,7 @@ async function runSchema() {
   const schema = fs.readFileSync(path.join(__dirname, 'schema.sql'), 'utf8');
   await pool.query(schema);
   await migrateInlineImages();
+  await backfillMissingServicePhotoMaps();
   await seedDatabase();
 }
 
@@ -610,6 +611,68 @@ async function migrateInlineImages() {
     if (nextPhoto !== row.photo) {
       await query('UPDATE appointments SET photo = $2, updated_at = NOW() WHERE id = $1', [row.id, nextPhoto]);
     }
+  }
+}
+
+function isEmptyPhotoMap(value) {
+  return !value || typeof value !== 'object' || Object.keys(value).length === 0;
+}
+
+function inferBackfillPhotoStage(row) {
+  const image = String(row?.image || '');
+  if (image.includes('/checklists/pre/')) {
+    return 'pre';
+  }
+
+  if (image.includes('/checklists/post/')) {
+    return 'post';
+  }
+
+  const timeline = row?.timeline && typeof row.timeline === 'object' ? row.timeline : {};
+  if (
+    ['waiting_payment', 'completed'].includes(String(row?.status || ''))
+    || timeline.postInspectionStartedAt
+    || timeline.postInspectionCompletedAt
+    || timeline.washCompletedAt
+  ) {
+    return 'post';
+  }
+
+  return 'pre';
+}
+
+async function backfillMissingServicePhotoMaps() {
+  const result = await query(
+    `
+    SELECT id, status, timeline, image, pre_inspection_photos, post_inspection_photos
+    FROM services
+    WHERE COALESCE(image, '') <> ''
+    `
+  );
+
+  for (const row of result.rows) {
+    const prePhotos = row.pre_inspection_photos || {};
+    const postPhotos = row.post_inspection_photos || {};
+
+    if (!isEmptyPhotoMap(prePhotos) || !isEmptyPhotoMap(postPhotos)) {
+      continue;
+    }
+
+    const stage = inferBackfillPhotoStage(row);
+    await query(
+      `
+      UPDATE services
+      SET pre_inspection_photos = $2::jsonb,
+          post_inspection_photos = $3::jsonb,
+          updated_at = NOW()
+      WHERE id = $1
+      `,
+      [
+        row.id,
+        JSON.stringify(stage === 'pre' ? { front: row.image } : {}),
+        JSON.stringify(stage === 'post' ? { front: row.image } : {}),
+      ]
+    );
   }
 }
 
@@ -727,11 +790,17 @@ async function upsertServiceRow(service, executor = query) {
       washer = EXCLUDED.washer,
       washers = EXCLUDED.washers,
       timeline = EXCLUDED.timeline,
-      pre_inspection_photos = EXCLUDED.pre_inspection_photos,
-      post_inspection_photos = EXCLUDED.post_inspection_photos,
+      pre_inspection_photos = CASE
+        WHEN EXCLUDED.pre_inspection_photos = '{}'::jsonb THEN services.pre_inspection_photos
+        ELSE services.pre_inspection_photos || EXCLUDED.pre_inspection_photos
+      END,
+      post_inspection_photos = CASE
+        WHEN EXCLUDED.post_inspection_photos = '{}'::jsonb THEN services.post_inspection_photos
+        ELSE services.post_inspection_photos || EXCLUDED.post_inspection_photos
+      END,
       start_time = EXCLUDED.start_time,
       end_time = EXCLUDED.end_time,
-      image = EXCLUDED.image,
+      image = COALESCE(NULLIF(EXCLUDED.image, ''), services.image),
       updated_at = NOW()
     `,
     [

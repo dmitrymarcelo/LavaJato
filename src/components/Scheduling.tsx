@@ -96,6 +96,32 @@ const extractPhotoImages = (photos?: Record<string, string>) =>
 const mergePhotoImages = (primary: string[], secondary: string[]) =>
   Array.from(new Set([...primary, ...secondary].filter((url) => Boolean(url))));
 
+const extractPhotoImagesWithPreviewFallback = (service?: Service | null, stage?: 'pre' | 'post') => {
+  const ownImages = stage === 'pre'
+    ? extractPhotoImages(service?.preInspectionPhotos)
+    : extractPhotoImages(service?.postInspectionPhotos);
+
+  if (ownImages.length > 0) {
+    return ownImages;
+  }
+
+  const previewImage = getServicePreviewImage(service);
+  if (!previewImage) {
+    return [];
+  }
+
+  const preferredStage: 'pre' | 'post' = (
+    ['waiting_payment', 'completed'].includes(service?.status || '')
+    || Boolean(service?.timeline?.postInspectionStartedAt)
+    || Boolean(service?.timeline?.postInspectionCompletedAt)
+    || Boolean(service?.timeline?.washCompletedAt)
+  )
+    ? 'post'
+    : 'pre';
+
+  return preferredStage === stage ? [previewImage] : [];
+};
+
 const isTruckType = (type?: VehicleType) => type === 'truck';
 const isTarumaBase = (baseId?: string | null) => baseId === 'taruma';
 const getTarumaZoneLabel = (zoneId?: WashingZoneId | null) => TARUMA_ZONE_RULES.find((rule) => rule.id === zoneId)?.label || 'Nao definido';
@@ -1564,8 +1590,8 @@ export function QueueSection({
   const [photosModalPendingCount, setPhotosModalPendingCount] = useState(0);
 
   const openServicePhotos = async (service: Service) => {
-    const localPreImages = extractPhotoImages(service.preInspectionPhotos);
-    const localPostImages = extractPhotoImages(service.postInspectionPhotos);
+    const localPreImages = extractPhotoImagesWithPreviewFallback(service, 'pre');
+    const localPostImages = extractPhotoImagesWithPreviewFallback(service, 'post');
     const pendingCount = listPendingPhotoIds(service.id, 'pre').length + listPendingPhotoIds(service.id, 'post').length;
     const preferPost = service.status === 'completed' || service.status === 'waiting_payment';
     const resolveStage = (preImages: string[], postImages: string[]): 'pre' | 'post' =>
@@ -1588,8 +1614,8 @@ export function QueueSection({
       setPhotosModalOpen(true);
       setPhotosModalStage(resolveStage(localPreImages, localPostImages));
       const full = await api.getService(service.id);
-      const preImages = mergePhotoImages(extractPhotoImages(full.preInspectionPhotos), localPreImages);
-      const postImages = mergePhotoImages(extractPhotoImages(full.postInspectionPhotos), localPostImages);
+      const preImages = mergePhotoImages(extractPhotoImagesWithPreviewFallback(full, 'pre'), localPreImages);
+      const postImages = mergePhotoImages(extractPhotoImagesWithPreviewFallback(full, 'post'), localPostImages);
       setPhotosModalPreImages(preImages);
       setPhotosModalPostImages(postImages);
       setPhotosModalStage(resolveStage(preImages, postImages));
