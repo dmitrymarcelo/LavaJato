@@ -96,7 +96,6 @@ jobs:
           echo "CMD_ID=${CMD_ID}" >> $GITHUB_ENV
           echo "SSM_COMMAND_ID=${CMD_ID}"
       - name: Check SSM command result
-        continue-on-error: true
         run: |
           for i in {1..30}; do
             STATUS=$(aws ssm get-command-invocation \
@@ -118,8 +117,7 @@ jobs:
             --query '{Status:Status,Stdout:StandardOutputContent,Stderr:StandardErrorContent}' \
             --output json || true
           if [ "${STATUS}" != "Success" ]; then
-            echo "SSM command did not succeed: ${STATUS}"
-            exit 1
+            echo "::warning::SSM command terminou com status ${STATUS}. O gate definitivo segue sendo o health check HTTPS publico."
           fi
       - name: Post-deploy health check
         run: |
