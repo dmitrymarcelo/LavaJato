@@ -11,8 +11,10 @@ COPY . .
 
 ARG VITE_API_URL=/api
 ENV VITE_API_URL=${VITE_API_URL}
+ARG APP_BUILD_SHA=local
+ENV APP_BUILD_SHA=${APP_BUILD_SHA}
 
-RUN pnpm build
+RUN printf '%s' "${APP_BUILD_SHA}" > /app/.build-sha && pnpm build
 
 FROM nginx:1.27-alpine
 

@@ -219,6 +219,16 @@ Ele complementa o `AGENTS.md`:
 - Falha esperada: commit sem atualizar docs persistentes
 - Resposta esperada: impedir deploy e forcar sincronizacao documental
 
+### S20. `frontend-build-refresh`
+
+- Tipo: governanca
+- Objetivo: garantir que o frontend publicado na AWS reflita o commit mais recente
+- Entradas: `APP_BUILD_SHA`, `docker compose up -d --build --force-recreate`, arquivos do frontend
+- Saidas: bundle web recompilado e container web recriado no deploy
+- Dependencias: `Dockerfile.web`, `docker-compose.yml`, `.github/workflows/deploy.yml`
+- Falha esperada: deploy verde com HTML ainda apontando para assets antigos
+- Resposta esperada: invalidar cache de build do frontend e forcar substituicao do container web
+
 ### S19. `settings-in-app-feedback`
 
 - Tipo: governanca

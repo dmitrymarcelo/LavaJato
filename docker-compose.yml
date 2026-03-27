@@ -32,6 +32,7 @@ services:
       dockerfile: Dockerfile.web
       args:
         VITE_API_URL: /api
+        APP_BUILD_SHA: ${APP_BUILD_SHA:-local}
     restart: unless-stopped
     depends_on:
       - api
