@@ -1,12 +1,12 @@
 # Handoff Lava Jato - Norte Tech
 
-Atualizado em: 2026-03-26
+Atualizado em: 2026-03-27
 
 ## Estado atual
 
 - Repositorio: `https://github.com/dmitrymarcelo/LavaJato`
 - Branch principal: `main`
-- Commit atual: `e7acf008ca262cfbd24637aef5b693ded317272d`
+- Commit atual: `8369a9a03b2c8818ce4499aa61ef8b5c59949ba2`
 - Producao AWS atual: `http://3.145.153.19/`
 - Regiao AWS: `us-east-2`
 - Instancia usada no deploy: `i-0ba1477cbbe3d986d`
@@ -130,14 +130,14 @@ Observacao:
 
 ## Commits recentes relevantes
 
+- `8369a9a` `fix: preserve imported vehicles and remove ai button`
+- `83c4cc9` `docs: refresh persistence files after sync automation`
 - `e7acf00` `ci: sync persistence docs across aws`
 - `80b404b` `docs: refresh HANDOFF after AGENTS guide`
 - `a5a3cfe` `docs: add AGENTS operating guide`
 - `5d8d776` `docs: refresh HANDOFF after wash persistence fix`
 - `1fd8dd0` `Fix mobile wash stage persistence`
 - `11c1717` `docs: enforce handoff updates`
-- `c13e451` `Improve mobile photo autosave resilience`
-- `d43746d` `Fix mobile inspection photo persistence`
 
 ## Arquivos centrais
 
@@ -214,7 +214,7 @@ Com isso, qualquer alteracao publicada em `main` dispara o deploy via SSM no EC2
 - `SKILLS.md` passa a ser a referencia persistente de capacidades reutilizaveis e contratos tecnicos do projeto.
 - O botao flutuante do assistente IA foi removido da UI principal; a integracao Bedrock segue existente no backend, mas sem CTA visivel no app.
 - O GitHub e a fonte principal da continuidade.
-- Se mudar de computador, o ideal e continuar a partir do commit `e7acf00` ou posterior.
+- Se mudar de computador, o ideal e continuar a partir do commit `8369a9a` ou posterior.
 - Imagens enviadas ficam em `server/storage/uploads` (persistidas via volume Docker).
 - Em producao, altere a senha do administrador imediatamente.
 
