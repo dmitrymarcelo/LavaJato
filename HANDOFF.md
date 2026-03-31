@@ -6,7 +6,7 @@ Atualizado em: 2026-03-31
 
 - Repositorio: `https://github.com/dmitrymarcelo/LavaJato`
 - Branch principal: `main`
-- Commit atual: `6525bffe0fc794811d1900cbdcaf8a8f0dd35e23`
+- Commit atual: `18149a70d2aca55fd89a12bfe4cd6776fd748636`
 - Producao AWS atual: `https://3.145.153.19/` (HTTPS ativo direto no IP publico)
 - Regiao AWS: `us-east-2`
 - Instancia usada no deploy: `i-0ba1477cbbe3d986d`
@@ -178,6 +178,7 @@ Observacao:
 
 ## Commits recentes relevantes
 
+- `18149a7` `feat: improve operational notifications flow`
 - `6525bff` `chore: keep ssm status as deploy diagnostic`
 - `acc0f09` `fix: validate public https build in deploy workflow`
 - `bb60ea9` `fix: poll ssm command status directly`
@@ -185,7 +186,6 @@ Observacao:
 - `137c2a0` `fix: wait for api health before tls step`
 - `3604381` `fix: allow tls deploy without cert email secret`
 - `0ecd880` `fix: free docker space before tls deploy`
-- `08f7e9b` `fix: preserve persistence docs during aws deploy`
 
 ## Arquivos centrais
 
@@ -293,7 +293,7 @@ Com isso, qualquer alteracao publicada em `main` dispara o deploy via SSM no EC2
 - O botao flutuante do assistente IA foi removido da UI principal; a integracao Bedrock segue existente no backend, mas sem CTA visivel no app.
 - A tela `Configuracoes > Cadastros de Clientes` trocou `alert/confirm` por feedback visual interno, leve e mais amigavel para smartphone, sem adicionar polling ou dependencias pesadas.
 - O GitHub e a fonte principal da continuidade.
-- Se mudar de computador, o ideal e continuar a partir do commit `6525bff` ou posterior.
+- Se mudar de computador, o ideal e continuar a partir do commit `18149a7` ou posterior.
 - Imagens enviadas ficam em `server/storage/uploads` (persistidas via volume Docker).
 - Em producao, altere a senha do administrador imediatamente.
 
