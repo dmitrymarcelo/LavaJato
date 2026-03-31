@@ -68,6 +68,12 @@ const normalizeServicesForPersistence = (next: Service[]) => {
   });
 };
 
+const formatNotificationTime = (date = new Date()) =>
+  new Intl.DateTimeFormat('pt-BR', {
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(date);
+
 export default function App() {
   const normalizeScreen = (screen: Screen): Screen => screen === 'queue' ? 'scheduling' : screen;
   const mergeServiceTypes = (next?: Partial<Record<VehicleType, VehicleCategory>> | null): Record<VehicleType, VehicleCategory> => {
@@ -100,6 +106,11 @@ export default function App() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
+  const [completionPopup, setCompletionPopup] = useState<{
+    title: string;
+    message: string;
+    synced: boolean;
+  } | null>(null);
   const [clockNow, setClockNow] = useState(() => Date.now());
   const [currentDateKey, setCurrentDateKey] = useState(() => getTodayDate());
   const [isBootstrapping, setIsBootstrapping] = useState(false);
@@ -121,6 +132,7 @@ export default function App() {
   const teamSyncQueueRef = useRef<Promise<void>>(Promise.resolve());
   const isIntentionalLogoutRef = useRef(false);
   const isRecoveringSessionRef = useRef(false);
+  const completionPopupTimerRef = useRef<number | null>(null);
   const isAuthenticated = Boolean(authToken);
   const isClientUser = currentUser?.role === 'Clientes';
 
@@ -193,6 +205,129 @@ export default function App() {
   const handleClearNotifications = () => {
     setNotifications([]);
   };
+
+  const handleToggleNotifications = React.useCallback(() => {
+    setIsNotificationsOpen((current) => !current);
+  }, []);
+
+  const handleCloseNotifications = React.useCallback(() => {
+    setIsNotificationsOpen(false);
+  }, []);
+
+  const pushNotification = React.useCallback((entry: {
+    id?: string;
+    title: string;
+    message: string;
+    type: Notification['type'];
+  }) => {
+    const nextNotification: Notification = {
+      id: entry.id || `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+      title: entry.title,
+      message: entry.message,
+      type: entry.type,
+      read: false,
+      time: formatNotificationTime(),
+    };
+
+    setNotifications((current) => {
+      const deduped = current.filter((notification) => notification.id !== nextNotification.id);
+      return [nextNotification, ...deduped].slice(0, 25);
+    });
+  }, []);
+
+  const clearCompletionPopupTimer = React.useCallback(() => {
+    if (completionPopupTimerRef.current !== null) {
+      window.clearTimeout(completionPopupTimerRef.current);
+      completionPopupTimerRef.current = null;
+    }
+  }, []);
+
+  const showCompletionPopup = React.useCallback((service: Service, persisted: boolean) => {
+    clearCompletionPopupTimer();
+    setCompletionPopup({
+      title: 'Concluido',
+      message: persisted
+        ? `Lavagem da placa ${service.plate} concluida com sucesso.`
+        : `Lavagem da placa ${service.plate} concluida neste aparelho. A sincronizacao sera retomada automaticamente.`,
+      synced: persisted,
+    });
+    completionPopupTimerRef.current = window.setTimeout(() => {
+      setCompletionPopup(null);
+      completionPopupTimerRef.current = null;
+    }, 3200);
+  }, [clearCompletionPopupTimer]);
+
+  const notifyWashStarted = React.useCallback((service: Service, persisted: boolean) => {
+    pushNotification({
+      id: `wash-started-${service.id}-${service.timeline?.washStartedAt || service.startTime || Date.now()}`,
+      title: 'Lavagem iniciada',
+      message: persisted
+        ? `A placa ${service.plate} entrou em lavagem.`
+        : `A placa ${service.plate} entrou em lavagem e sera sincronizada automaticamente.`,
+      type: persisted ? 'info' : 'warning',
+    });
+  }, [pushNotification]);
+
+  const notifyWashCompleted = React.useCallback((service: Service, persisted: boolean) => {
+    pushNotification({
+      id: `wash-completed-${service.id}-${service.timeline?.washCompletedAt || service.endTime || Date.now()}`,
+      title: 'Lavagem concluida',
+      message: persisted
+        ? `A placa ${service.plate} foi concluida e liberada para pagamento.`
+        : `A placa ${service.plate} foi concluida neste aparelho e aguardara sincronizacao automatica.`,
+      type: persisted ? 'success' : 'warning',
+    });
+    showCompletionPopup(service, persisted);
+  }, [pushNotification, showCompletionPopup]);
+
+  const notifyPaymentCompleted = React.useCallback((service: Service) => {
+    pushNotification({
+      id: `payment-completed-${service.id}-${service.timeline?.paymentCompletedAt || Date.now()}`,
+      title: 'Pagamento concluido',
+      message: `O atendimento da placa ${service.plate} foi encerrado com pagamento confirmado.`,
+      type: 'success',
+    });
+  }, [pushNotification]);
+
+  const notifyBackgroundSync = React.useCallback((options: {
+    syncedActions: number;
+    syncedPhotos: number;
+  }) => {
+    const parts: string[] = [];
+
+    if (options.syncedActions > 0) {
+      parts.push(
+        options.syncedActions === 1
+          ? '1 etapa operacional'
+          : `${options.syncedActions} etapas operacionais`
+      );
+    }
+
+    if (options.syncedPhotos > 0) {
+      parts.push(
+        options.syncedPhotos === 1
+          ? '1 foto'
+          : `${options.syncedPhotos} fotos`
+      );
+    }
+
+    if (!parts.length) {
+      return;
+    }
+
+    pushNotification({
+      id: `background-sync-${Date.now()}`,
+      title: 'Sincronizacao retomada',
+      message: `${parts.join(' e ')} foram sincronizadas com o servidor.`,
+      type: 'success',
+    });
+  }, [pushNotification]);
+
+  useEffect(() => {
+    return () => {
+      clearCompletionPopupTimer();
+    };
+  }, [clearCompletionPopupTimer]);
 
   useEffect(() => {
     api.setAuthToken(authToken);
@@ -563,7 +698,7 @@ export default function App() {
         return;
       }
       try {
-        await flushPendingOperationalActions<ServiceStageTransitionPayload>({
+        const operationalResult = await flushPendingOperationalActions<ServiceStageTransitionPayload>({
           startWash: (serviceId, payload) => api.startWash(serviceId, {
             washers: Array.isArray(payload.washers) ? payload.washers : [],
             observations: payload.observations,
@@ -600,6 +735,13 @@ export default function App() {
           .forEach((service) => {
             mergeServiceIntoState(service);
           });
+
+        if (operationalResult.savedCount || result.savedCount) {
+          notifyBackgroundSync({
+            syncedActions: operationalResult.savedCount,
+            syncedPhotos: result.savedCount,
+          });
+        }
       } catch (error) {}
     };
 
@@ -624,7 +766,7 @@ export default function App() {
       document.removeEventListener('visibilitychange', visibilityHandler);
       window.clearInterval(intervalId);
     };
-  }, [isAuthenticated, mergeServiceIntoState, mergeServiceTransitionIntoState]);
+  }, [isAuthenticated, mergeServiceIntoState, mergeServiceTransitionIntoState, notifyBackgroundSync]);
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -717,6 +859,8 @@ export default function App() {
     setVehicleDb([]);
     setHasLoadedVehicleDbFromApi(false);
     setNotifications([]);
+    clearCompletionPopupTimer();
+    setCompletionPopup(null);
     setBackendError(null);
     setIsBootstrapping(false);
     setIsActiveServiceLoading(false);
@@ -1150,6 +1294,8 @@ export default function App() {
         setAppointments(nextAppointments);
         appointmentsRef.current = nextAppointments;
       }
+
+      notifyPaymentCompleted(completed.service);
     } catch (error) {
       await handlePersistenceError(error, 'Nao foi possivel finalizar o pagamento.');
       throw error;
@@ -1174,6 +1320,7 @@ export default function App() {
         payload,
       });
       mergeServiceTransitionIntoState(fallbackTransition);
+      notifyWashStarted(fallbackTransition.service, false);
       return {
         persisted: false,
         transition: fallbackTransition,
@@ -1185,6 +1332,7 @@ export default function App() {
       try {
         const response = await api.startWash(serviceId, payload);
         mergeServiceTransitionIntoState(response);
+        notifyWashStarted(response.service, true);
         return {
           persisted: true,
           transition: response,
@@ -1205,6 +1353,7 @@ export default function App() {
         payload,
       });
       mergeServiceTransitionIntoState(fallbackTransition);
+      notifyWashStarted(fallbackTransition.service, false);
       return {
         persisted: false,
         transition: fallbackTransition,
@@ -1232,6 +1381,7 @@ export default function App() {
         payload,
       });
       mergeServiceTransitionIntoState(fallbackTransition);
+      notifyWashCompleted(fallbackTransition.service, false);
       return {
         persisted: false,
         transition: fallbackTransition,
@@ -1243,6 +1393,7 @@ export default function App() {
       try {
         const response = await api.completeWash(serviceId, payload);
         mergeServiceTransitionIntoState(response);
+        notifyWashCompleted(response.service, true);
         return {
           persisted: true,
           transition: response,
@@ -1263,6 +1414,7 @@ export default function App() {
         payload,
       });
       mergeServiceTransitionIntoState(fallbackTransition);
+      notifyWashCompleted(fallbackTransition.service, false);
       return {
         persisted: false,
         transition: fallbackTransition,
@@ -1548,7 +1700,8 @@ export default function App() {
                 {!isClientUser && (
                   <Notifications 
                     isOpen={isNotificationsOpen}
-                    onClose={() => setIsNotificationsOpen(!isNotificationsOpen)}
+                    onToggle={handleToggleNotifications}
+                    onClose={handleCloseNotifications}
                     notifications={notifications}
                     onMarkAsRead={handleMarkAsRead}
                     onClearAll={handleClearNotifications}
@@ -1576,6 +1729,50 @@ export default function App() {
               </AnimatePresence>
             </div>
           </main>
+
+          <AnimatePresence>
+            {completionPopup && (
+              <motion.div
+                initial={{ opacity: 0, y: -12, scale: 0.96 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: -12, scale: 0.96 }}
+                transition={{ duration: 0.18 }}
+                className="pointer-events-none fixed left-1/2 top-20 z-[120] w-[min(92vw,360px)] -translate-x-1/2 px-2"
+              >
+                <div className="pointer-events-auto rounded-3xl border border-emerald-100 bg-white px-5 py-4 shadow-2xl shadow-slate-900/10">
+                  <div className="flex items-start gap-3">
+                    <div className={`mt-0.5 flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl ${completionPopup.synced ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'}`}>
+                      <svg viewBox="0 0 24 24" className="h-6 w-6 fill-none stroke-current" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                        <path d="M20 6 9 17l-5-5" />
+                      </svg>
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-xs font-black uppercase tracking-[0.18em] text-emerald-600">
+                        {completionPopup.title}
+                      </p>
+                      <p className="mt-1 text-sm font-bold text-slate-900">
+                        {completionPopup.message}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        clearCompletionPopupTimer();
+                        setCompletionPopup(null);
+                      }}
+                      className="rounded-xl p-1.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600"
+                      aria-label="Fechar aviso de conclusao"
+                    >
+                      <svg viewBox="0 0 24 24" className="h-4 w-4 fill-none stroke-current" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                        <path d="M18 6 6 18" />
+                        <path d="m6 6 12 12" />
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
 
           {/* Bottom Navigation (Mobile Only) */}
           {isAuthenticated && !isClientUser && !['checkin', 'inspection-pre', 'inspection-post', 'payment'].includes(currentScreen) && (

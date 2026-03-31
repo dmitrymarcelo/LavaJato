@@ -5,13 +5,14 @@ import { Notification } from '../types';
 
 interface NotificationsProps {
   isOpen: boolean;
+  onToggle: () => void;
   onClose: () => void;
   notifications: Notification[];
   onMarkAsRead: (id: string) => void;
   onClearAll: () => void;
 }
 
-export default function Notifications({ isOpen, onClose, notifications, onMarkAsRead, onClearAll }: NotificationsProps) {
+export default function Notifications({ isOpen, onToggle, onClose, notifications, onMarkAsRead, onClearAll }: NotificationsProps) {
   const unreadCount = notifications.filter(n => !n.read).length;
 
   const getIcon = (type: Notification['type']) => {
@@ -26,7 +27,7 @@ export default function Notifications({ isOpen, onClose, notifications, onMarkAs
   return (
     <div className="relative">
       <button 
-        onClick={onClose}
+        onClick={onToggle}
         className={`p-2.5 rounded-xl transition-all active:scale-95 border shadow-sm relative ${
           isOpen ? 'bg-primary text-white border-primary shadow-primary/20' : 'bg-white text-slate-500 border-slate-100 hover:text-primary'
         }`}
@@ -86,6 +87,19 @@ export default function Notifications({ isOpen, onClose, notifications, onMarkAs
                         layout
                         key={notification.id}
                         className={`p-4 hover:bg-slate-50 transition-colors relative group ${!notification.read ? 'bg-blue-50/30' : ''}`}
+                        role={!notification.read ? 'button' : undefined}
+                        tabIndex={!notification.read ? 0 : -1}
+                        onClick={() => {
+                          if (!notification.read) {
+                            onMarkAsRead(notification.id);
+                          }
+                        }}
+                        onKeyDown={(event) => {
+                          if (!notification.read && (event.key === 'Enter' || event.key === ' ')) {
+                            event.preventDefault();
+                            onMarkAsRead(notification.id);
+                          }
+                        }}
                       >
                         <div className="flex gap-3">
                           <div className={`mt-1 w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${

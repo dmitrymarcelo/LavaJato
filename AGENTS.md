@@ -1,7 +1,7 @@
 # AGENTS.md - Lava Jato Norte Tech
 
-Atualizado em: 2026-03-27
-Commit de referencia: `0be500ae2807a443d9b02fe74481cd79c92bc6d5`
+Atualizado em: 2026-03-31
+Commit de referencia: `6525bffe0fc794811d1900cbdcaf8a8f0dd35e23`
 
 ## Objetivo
 
@@ -48,6 +48,7 @@ O sistema precisa garantir cinco resultados de negocio sem ambiguidade:
 
 - frontend orientado a componentes funcionais com `useState`, `useEffect` e `useRef`
 - `src/App.tsx` atua como orquestrador principal de sessao, bootstrap, sincronizacao e navegacao
+- o mesmo `src/App.tsx` tambem orquestra feedback operacional leve via notificacoes e popup de conclusao, sem depender de polling extra
 - componentes grandes concentram regras de negocio locais, com destaque para `Scheduling.tsx`, `Settings.tsx`, `InspectionPre.tsx` e `InspectionPost.tsx`
 - backend monolitico em `server/index.mjs`, com rotas REST e helpers internos de persistencia/transacao
 - modelo de dados relacional com campos `JSONB` para estruturas flexiveis como timeline, fotos, movimentos e configuracoes
@@ -94,7 +95,7 @@ Este projeto adota os seguintes principios, alinhados a boas praticas publicadas
 - Arquivos principais: `src/App.tsx`, `src/services/api.ts`, `src/utils/app.ts`
 - Missao: iniciar a sessao, carregar bootstrap, manter estado global e coordenar sincronizacao local/remota
 - Entradas: token, bootstrap da API, eventos de rede, foco/visibilidade, acoes do usuario
-- Saidas: estado hidratado do app, reconciliacao de filas pendentes, navegacao consistente
+- Saidas: estado hidratado do app, reconciliacao de filas pendentes, navegacao consistente e feedback operacional em tempo real
 - Guardrails: fallback local quando a API falha, recuperacao de sessao e eventos de nao autorizado
 - Owner sugerido: frontend + plataforma
 
@@ -134,7 +135,7 @@ Este projeto adota os seguintes principios, alinhados a boas praticas publicadas
 - Arquivos principais: `src/utils/app.ts`, `src/App.tsx`, `src/services/api.ts`, `server/index.mjs`
 - Missao: iniciar e finalizar etapas de lavagem sem depender do `upsert` completo do servico
 - Entradas: acao `start-wash` ou `complete-wash`, horario, responsavel, id do servico
-- Saidas: status atomico no backend e espelho local imediato no smartphone
+- Saidas: status atomico no backend, espelho local imediato no smartphone e notificacao de progresso/conclusao para o operador
 - Guardrails: endpoints dedicados, reenvio automatico, protecao contra clique duplicado, recuperacao pos-offline
 - Owner sugerido: backend + operacoes mobile
 
@@ -235,6 +236,7 @@ Definicao adotada neste documento: `SKILL` e uma capacidade reutilizavel, docume
 | `inventory-movement-ledger` | Registra entradas, saidas e minimo de estoque | controle de quimicos e insumos | `Inventory.tsx`, `server/index.mjs` | baixa manual atualiza saldo e historico |
 | `vehicle-history-export` | Consolida historico por placa e exporta CSV | atendimento, auditoria, comercial | `VehicleHistory.tsx`, `GET /api/vehicle-history` | exportar lavagens de um cliente |
 | `dashboard-analytics` | Gera KPIs de volume, faturamento, tempo medio e ranking | gestao diaria e analise de produtividade | `Dashboard.tsx` | ver melhor lavador e base mais demandada |
+| `operational-notification-feedback` | Traduz eventos de lavagem, pagamento e sincronizacao em notificacoes leves e popup de conclusao | operacao diaria, retomada offline, fechamento de lavagem | `src/App.tsx`, `src/components/Notifications.tsx` | operador finaliza a lavagem e recebe `Concluido` sem interromper o fluxo |
 | `bedrock-advisory` | Gera dicas consultivas de clima e operacao | apoio a decisao, leitura do painel | `server/assistant.mjs` | sugerir reforco de equipe por chuva |
 | `handoff-sync` | Atualiza memoria operacional com data, commit e historico | qualquer entrega relevante | `scripts/update-handoff.mjs` | registrar contexto para outro computador |
 | `deploy-aws-ssm` | Publica build, sincroniza docs, provisiona HTTPS e valida o SHA real servido pela EC2 | push em `main` | `.github/workflows/deploy.yml`, `scripts/build-ssm-deploy-command.mjs`, `scripts/run-vite-build.mjs`, `infra/aws/renew-https.sh` | deploy automatico apos merge com dominio seguro para mobile |

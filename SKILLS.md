@@ -1,7 +1,7 @@
 # SKILLS.md - Lava Jato Norte Tech
 
-Atualizado em: 2026-03-27
-Commit de referencia: `0be500ae2807a443d9b02fe74481cd79c92bc6d5`
+Atualizado em: 2026-03-31
+Commit de referencia: `6525bffe0fc794811d1900cbdcaf8a8f0dd35e23`
 
 ## Objetivo
 
@@ -239,7 +239,7 @@ Ele complementa o `AGENTS.md`:
 - Falha esperada: deploy verde com HTML ainda apontando para assets antigos, proxy tentando subir TLS sem certificado ou HTTPS nao publicado para smartphone
 - Resposta esperada: validar HTTP antes do `certbot`, esperar a API sair do `502` inicial com retentativa controlada, restaurar `HANDOFF.md`, `AGENTS.md` e `SKILLS.md` pelo Git antes do `git pull`, liberar espaco do Docker antes da etapa TLS, aceitar `HTTPS_CERT_EMAIL` valido quando existir e fazer fallback sem email quando nao existir, emitir certificado diretamente para o IP publico com perfil short-lived, registrar a renovacao por `systemd timer`, consultar o resultado do SSM com `get-command-invocation` apenas como diagnostico, renderizar apenas `1` config final do Nginx por vez, executar `nginx -t` antes do reload e exigir no workflow que o `app-build-sha` em HTTPS e o `/api/health` correspondam ao commit publicado
 
-### S19. `settings-in-app-feedback`
+### S21. `settings-in-app-feedback`
 
 - Tipo: governanca
 - Objetivo: substituir dialogos nativos por feedback visual leve e consistente na tela de configuracoes
@@ -248,6 +248,16 @@ Ele complementa o `AGENTS.md`:
 - Dependencias: `src/components/Settings.tsx`, `ModalSurface`, `AnimatePresence`
 - Falha esperada: acao sensivel sem confirmacao explicita ou erro silencioso
 - Resposta esperada: mensagem clara, sem bloquear o app inteiro e sem custo perceptivel de performance
+
+### S22. `operational-notification-feedback`
+
+- Tipo: operacao
+- Objetivo: avisar o operador sobre marcos criticos sem atrasar a execucao do servico
+- Entradas: inicio de lavagem, conclusao de lavagem, pagamento concluido e sincronizacao offline retomada
+- Saidas: central de notificacoes coerente e popup nao bloqueante de `Concluido`
+- Dependencias: `src/App.tsx`, `src/components/Notifications.tsx`
+- Falha esperada: evento repetido por retentativa, clique ambiguuo no sino ou sincronizacao silenciosa demais
+- Resposta esperada: deduplicar por `id`, usar toggle explicito no botao de notificacoes e exibir feedback leve no topo sem interromper o redirecionamento para `Pagamento`
 
 ## Procedimento operacional
 
