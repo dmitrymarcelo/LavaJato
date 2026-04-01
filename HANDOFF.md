@@ -1,12 +1,12 @@
 # Handoff Lava Jato - Norte Tech
 
-Atualizado em: 2026-03-31
+Atualizado em: 2026-04-01
 
 ## Estado atual
 
 - Repositorio: `https://github.com/dmitrymarcelo/LavaJato`
 - Branch principal: `main`
-- Commit atual: `18149a70d2aca55fd89a12bfe4cd6776fd748636`
+- Commit atual: `bb1cca723f24925af45dbb7b4f3262bc75a69171`
 - Producao AWS atual: `https://3.145.153.19/` (HTTPS ativo direto no IP publico)
 - Regiao AWS: `us-east-2`
 - Instancia usada no deploy: `i-0ba1477cbbe3d986d`
@@ -150,6 +150,29 @@ Observacao:
   - `products`
   - `team-members`
 
+### Seguranca
+
+- O backend deixou de aceitar `CORS` totalmente aberto.
+- A API agora aceita somente mesmo-origem ou origens explicitamente listadas em `CORS_ALLOWED_ORIGINS`.
+- Rotas administrativas sensiveis agora fazem autorizacao real de servidor via `assertUserIsAdmin`, reduzindo o risco de bypass da UI.
+- A UI tambem passou a esconder `Configuracoes` para perfis nao administrativos, alinhando navegacao e backend.
+- Isso vale para:
+  - `access-rules`
+  - `service-types`
+  - `vehicles` administrativos
+  - `products` de escrita
+  - `team-members`
+- O login passou a ter rate limit no backend por IP + identificador, com janela configuravel e `Retry-After`.
+- O backend agora valida senha forte e email no `upsert` de usuarios, em vez de confiar apenas no frontend.
+- O fallback de senha previsivel em `team-members/upsert` foi removido.
+- O seed administrativo passou a aceitar `ADMIN_INITIAL_PASSWORD`.
+- Se `NODE_ENV=production` e `ADMIN_INITIAL_PASSWORD` nao estiver definido, a API emite warning explicito no startup.
+- `persistUploadedImage` nao aceita mais URL remota arbitraria; agora so hosts da allowlist `ALLOWED_REMOTE_IMAGE_HOSTS`.
+- Placeholders remotos de logo, avatar e imagens padrao foram trocados por SVGs locais no frontend, e o seed deixou de gravar avatares/produtos apontando para Unsplash ou Pravatar.
+- O login nao bloqueia mais senhas validas antigas por uma regra de senha forte aplicada indevidamente na tela de autenticacao.
+- `pnpm audit --prod` ficou sem vulnerabilidades ativas apos atualizar o SDK Bedrock e forcar `path-to-regexp` seguro.
+- Foi criado um relatorio dedicado em `security_best_practices_report.md` com riscos corrigidos e riscos residuais.
+
 ### HTTPS e acesso mobile
 
 - O acesso mobile ainda dependia de HTTP puro, o que prejudicava camera, upload e armazenamento em navegadores de smartphone.
@@ -178,6 +201,7 @@ Observacao:
 
 ## Commits recentes relevantes
 
+- `bb1cca7` `docs: refresh persistence after notifications flow`
 - `18149a7` `feat: improve operational notifications flow`
 - `6525bff` `chore: keep ssm status as deploy diagnostic`
 - `acc0f09` `fix: validate public https build in deploy workflow`
@@ -185,7 +209,6 @@ Observacao:
 - `5770c87` `fix: manage https renewal with systemd timer`
 - `137c2a0` `fix: wait for api health before tls step`
 - `3604381` `fix: allow tls deploy without cert email secret`
-- `0ecd880` `fix: free docker space before tls deploy`
 
 ## Arquivos centrais
 
@@ -293,7 +316,7 @@ Com isso, qualquer alteracao publicada em `main` dispara o deploy via SSM no EC2
 - O botao flutuante do assistente IA foi removido da UI principal; a integracao Bedrock segue existente no backend, mas sem CTA visivel no app.
 - A tela `Configuracoes > Cadastros de Clientes` trocou `alert/confirm` por feedback visual interno, leve e mais amigavel para smartphone, sem adicionar polling ou dependencias pesadas.
 - O GitHub e a fonte principal da continuidade.
-- Se mudar de computador, o ideal e continuar a partir do commit `18149a7` ou posterior.
+- Se mudar de computador, o ideal e continuar a partir do commit `bb1cca7` ou posterior.
 - Imagens enviadas ficam em `server/storage/uploads` (persistidas via volume Docker).
 - Em producao, altere a senha do administrador imediatamente.
 

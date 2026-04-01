@@ -19,6 +19,7 @@ import {
 } from '../utils/app';
 import ModalSurface from './ModalSurface';
 import { api } from '../services/api';
+import { getSafeAvatarImage } from '../lib/placeholders';
 
 type InspectionPreProps = {
   onNavigate: (screen: Screen) => void;
@@ -395,7 +396,7 @@ export default function InspectionPre({
                   }`}
                 >
                   <div className="relative">
-                    <img src={member.avatar} alt={member.name} className="w-10 h-10 rounded-full bg-slate-100 object-cover" />
+                    <img src={getSafeAvatarImage(member.avatar, member.name)} alt={member.name} className="w-10 h-10 rounded-full bg-slate-100 object-cover" />
                     {selectedWashers.includes(member.id) && (
                       <div className="absolute -bottom-1 -right-1 bg-primary text-white rounded-full p-0.5 border-2 border-white">
                         <CheckCircle2 className="w-3 h-3" />

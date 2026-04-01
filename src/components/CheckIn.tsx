@@ -8,6 +8,7 @@ import { Search, Info, Car, PlayCircle, Zap, Truck, Bike, Ship } from 'lucide-re
 import { Screen, Service, VehicleCategory, VehicleType, VehicleRegistration } from '../types';
 import { formatCpf, generateId, isValidCpf } from '../utils/app';
 import { api, ApiError } from '../services/api';
+import { DEFAULT_SERVICE_IMAGE_SRC } from '../lib/placeholders';
 
 const normalizePlate = (value: string) => value.toUpperCase().replace(/[^A-Z0-9]/g, '');
 
@@ -168,7 +169,7 @@ export default function CheckIn({
       thirdPartyName: isThirdParty ? thirdPartyName : undefined,
       thirdPartyCpf: isThirdParty ? thirdPartyCpf.replace(/\D/g, '') : undefined,
       observations,
-      image: 'https://images.unsplash.com/photo-1550355291-bbee04a92027?auto=format&fit=crop&q=80&w=400',
+      image: DEFAULT_SERVICE_IMAGE_SRC,
       timeline: {
         createdAt: nowIso,
         checkInAt: nowIso,

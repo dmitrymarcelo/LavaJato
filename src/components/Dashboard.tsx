@@ -23,6 +23,7 @@ import { addDays, getElapsedMinutes, getTodayDate } from '../utils/app';
 import { getWeatherRecommendation } from '../services/geminiService';
 import { BASES } from '../data/bases';
 import { Appointment } from '../services/api';
+import { getSafeAvatarImage, getSafeServiceImage } from '../lib/placeholders';
 
 const currencyFormatter = new Intl.NumberFormat('pt-BR', {
   style: 'currency',
@@ -169,7 +170,7 @@ export default function Dashboard({
         name: member?.name || washerName,
         efficiency: member?.efficiency || '0%',
         washes,
-        imageUrl: member?.avatar || `https://i.pravatar.cc/150?u=${encodeURIComponent(washerName)}`,
+        imageUrl: getSafeAvatarImage(member?.avatar, member?.name || washerName),
       };
     })
     .sort((left, right) => right.washes - left.washes)
@@ -369,7 +370,7 @@ export default function Dashboard({
                   <div className="flex items-center gap-4">
                     <div className="w-12 h-12 bg-slate-100 rounded-xl flex items-center justify-center text-slate-400 overflow-hidden border border-slate-200">
                       {service.image ? (
-                        <img className="w-full h-full object-cover" src={service.image} alt={service.model} />
+                        <img className="w-full h-full object-cover" src={getSafeServiceImage(service.image, service.plate || service.model)} alt={service.model} />
                       ) : (
                         <Car className="w-6 h-6" />
                       )}

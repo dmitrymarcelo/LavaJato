@@ -1,4 +1,5 @@
 import type { Service } from '../types';
+import { getSafeServiceImage } from '../lib/placeholders';
 
 export function generateId() {
   if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
@@ -192,12 +193,14 @@ export function formatElapsedMinutes(minutes: number) {
 }
 
 export function getServicePreviewImage(service?: Service | null) {
-  return (
+  const preview = (
     service?.postInspectionPhotos?.front
     || service?.preInspectionPhotos?.front
     || service?.image
     || ''
   );
+
+  return preview ? getSafeServiceImage(preview, service?.plate || service?.model || 'Lavagem') : '';
 }
 
 export async function optimizeImageFile(

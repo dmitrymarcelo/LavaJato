@@ -135,6 +135,7 @@ export default function App() {
   const completionPopupTimerRef = useRef<number | null>(null);
   const isAuthenticated = Boolean(authToken);
   const isClientUser = currentUser?.role === 'Clientes';
+  const isAdminUser = currentUser?.role === 'Administrador';
 
   const normalizePlateKey = (plate?: string | null) => String(plate || '').trim().toUpperCase();
 
@@ -1689,7 +1690,7 @@ export default function App() {
               </div>
 
               <div className="flex items-center gap-2">
-                {!isClientUser && (
+                {isAdminUser && (
                   <button 
                     onClick={() => navigateTo('settings')}
                     className="p-2.5 rounded-xl bg-white text-slate-500 hover:text-primary transition-all active:scale-95 border border-slate-100 shadow-sm"

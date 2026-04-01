@@ -17,6 +17,7 @@ import { motion, AnimatePresence } from '../lib/motion';
 import { Screen, Product, ProductMovement } from '../types';
 import { generateId, getTodayDate, optimizeImageFile } from '../utils/app';
 import ModalSurface from './ModalSurface';
+import { DEFAULT_PRODUCT_IMAGE_SRC, getSafeProductImage } from '../lib/placeholders';
 
 type InventoryMovementEntry = ProductMovement & {
   kind: 'entry' | 'output';
@@ -156,10 +157,10 @@ export default function Inventory({
       price: Number(formData.get('price')),
       lastRestock: editingProduct?.lastRestock || new Date().toISOString().split('T')[0],
       status: getProductStatus(quantity, minQuantity),
-      image:
-        productImage ||
-        editingProduct?.image ||
-        `https://images.unsplash.com/photo-1600456548090-7d1b3f0bbea5?q=80&w=200&auto=format&fit=crop&seed=${Math.random()}`,
+      image: getSafeProductImage(
+        productImage || editingProduct?.image || DEFAULT_PRODUCT_IMAGE_SRC,
+        String(formData.get('name') || editingProduct?.name || 'Produto')
+      ),
       manualEntries: editingProduct?.manualEntries || [],
       manualOutputs: editingProduct?.manualOutputs || [],
     };
@@ -496,7 +497,7 @@ export default function Inventory({
               >
                 <div className="flex items-center gap-4">
                   <div className="w-16 h-16 rounded-xl bg-slate-50 border border-slate-100 overflow-hidden shrink-0">
-                    <img src={product.image} alt={product.name} className="w-full h-full object-cover" />
+                    <img src={getSafeProductImage(product.image, product.name)} alt={product.name} className="w-full h-full object-cover" />
                   </div>
 
                   <div className="flex-1 min-w-0">

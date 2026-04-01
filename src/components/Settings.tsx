@@ -6,6 +6,7 @@ import { digitsOnly, formatCpf, generateId, isValidCpf, isValidEmail, optimizeIm
 import { getSourceVehicleTypeLabel, mapSourceVehicleTypeToCategory, normalizeSourceVehicleType } from '../utils/vehicleType';
 import { BASES } from '../data/bases';
 import ModalSurface from './ModalSurface';
+import { DEFAULT_AVATAR_IMAGE_SRC, getSafeAvatarImage } from '../lib/placeholders';
 
 interface Permission {
   id: string;
@@ -256,7 +257,7 @@ export default function Settings({
       rating: existingMember?.rating || 5.0,
       servicesCount: existingMember?.servicesCount || 0,
       status: existingMember?.status || 'active',
-      avatar: newMemberAvatar || existingMember?.avatar || `https://i.pravatar.cc/150?u=${generateId()}`,
+      avatar: getSafeAvatarImage(newMemberAvatar || existingMember?.avatar, newMemberName || existingMember?.name || 'Equipe'),
       efficiency: existingMember?.efficiency || '100%'
     };
 
@@ -762,7 +763,7 @@ export default function Settings({
                         className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex items-center gap-4 group"
                       >
                         <div className="relative">
-                          <img src={member.avatar} alt={member.name} className="w-10 h-10 rounded-full border-2 border-white shadow-sm" />
+                          <img src={getSafeAvatarImage(member.avatar, member.name)} alt={member.name} className="w-10 h-10 rounded-full border-2 border-white shadow-sm" />
                           <div className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-white ${
                             member.status === 'active' ? 'bg-emerald-500' :
                             member.status === 'break' ? 'bg-amber-500' : 'bg-slate-300'
@@ -1093,7 +1094,7 @@ export default function Settings({
                   <div className="flex items-center gap-4 rounded-2xl border border-slate-100 bg-slate-50 p-4">
                     <div className="w-16 h-16 rounded-2xl overflow-hidden border border-slate-200 bg-white shadow-sm shrink-0">
                       <img
-                        src={newMemberAvatar || 'https://i.pravatar.cc/150?u=preview-member'}
+                        src={getSafeAvatarImage(newMemberAvatar || DEFAULT_AVATAR_IMAGE_SRC, newMemberName || 'Equipe')}
                         alt="Preview do colaborador"
                         className="w-full h-full object-cover"
                       />

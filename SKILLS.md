@@ -1,7 +1,7 @@
 # SKILLS.md - Lava Jato Norte Tech
 
-Atualizado em: 2026-03-31
-Commit de referencia: `18149a70d2aca55fd89a12bfe4cd6776fd748636`
+Atualizado em: 2026-04-01
+Commit de referencia: `bb1cca723f24925af45dbb7b4f3262bc75a69171`
 
 ## Objetivo
 
@@ -239,7 +239,17 @@ Ele complementa o `AGENTS.md`:
 - Falha esperada: deploy verde com HTML ainda apontando para assets antigos, proxy tentando subir TLS sem certificado ou HTTPS nao publicado para smartphone
 - Resposta esperada: validar HTTP antes do `certbot`, esperar a API sair do `502` inicial com retentativa controlada, restaurar `HANDOFF.md`, `AGENTS.md` e `SKILLS.md` pelo Git antes do `git pull`, liberar espaco do Docker antes da etapa TLS, aceitar `HTTPS_CERT_EMAIL` valido quando existir e fazer fallback sem email quando nao existir, emitir certificado diretamente para o IP publico com perfil short-lived, registrar a renovacao por `systemd timer`, consultar o resultado do SSM com `get-command-invocation` apenas como diagnostico, renderizar apenas `1` config final do Nginx por vez, executar `nginx -t` antes do reload e exigir no workflow que o `app-build-sha` em HTTPS e o `/api/health` correspondam ao commit publicado
 
-### S21. `settings-in-app-feedback`
+### S21. `security-hardening-baseline`
+
+- Tipo: governanca
+- Objetivo: reduzir a diferenca entre app funcional e app resiliente contra abuso real
+- Entradas: credenciais, role do usuario, origem da requisicao, payload administrativo e URL/imagem enviada
+- Saidas: login com rate limit, backend com headers/CORS defensivos, rotas sensiveis protegidas e validacao server-side de usuario
+- Dependencias: `server/index.mjs`, `server/seed.mjs`, `src/components/Login.tsx`, `package.json`, `.env.example`
+- Falha esperada: brute force, bypass de UI para rotas admin, senha previsivel, URL remota arbitraria em imagem ou dependencia com advisory ativo
+- Resposta esperada: limitar tentativas, exigir `Administrador` nas rotas sensiveis, eliminar fallback de senha padrao, recusar host remoto fora da allowlist e manter `pnpm audit --prod` limpo
+
+### S22. `settings-in-app-feedback`
 
 - Tipo: governanca
 - Objetivo: substituir dialogos nativos por feedback visual leve e consistente na tela de configuracoes
@@ -249,7 +259,7 @@ Ele complementa o `AGENTS.md`:
 - Falha esperada: acao sensivel sem confirmacao explicita ou erro silencioso
 - Resposta esperada: mensagem clara, sem bloquear o app inteiro e sem custo perceptivel de performance
 
-### S22. `operational-notification-feedback`
+### S23. `operational-notification-feedback`
 
 - Tipo: operacao
 - Objetivo: avisar o operador sobre marcos criticos sem atrasar a execucao do servico

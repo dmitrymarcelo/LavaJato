@@ -1,7 +1,7 @@
 # AGENTS.md - Lava Jato Norte Tech
 
-Atualizado em: 2026-03-31
-Commit de referencia: `18149a70d2aca55fd89a12bfe4cd6776fd748636`
+Atualizado em: 2026-04-01
+Commit de referencia: `bb1cca723f24925af45dbb7b4f3262bc75a69171`
 
 ## Objetivo
 
@@ -53,6 +53,7 @@ O sistema precisa garantir cinco resultados de negocio sem ambiguidade:
 - backend monolitico em `server/index.mjs`, com rotas REST e helpers internos de persistencia/transacao
 - modelo de dados relacional com campos `JSONB` para estruturas flexiveis como timeline, fotos, movimentos e configuracoes
 - persistencia mobile resiliente usando fila local para fotos e transicoes operacionais
+- endurecimento recente de seguranca no backend com rate limit de login, CORS restritivo por mesmo-origem/allowlist, headers defensivos leves e autorizacao administrativa real nas rotas mais sensiveis
 - deploy automatico em `main`, com memoria operacional sincronizada em `HANDOFF.md` e validacao de SHA real do frontend servido pela EC2
 
 ### Hotspots tecnicos
@@ -176,11 +177,12 @@ Este projeto adota os seguintes principios, alinhados a boas praticas publicadas
 - Missao: autenticar usuarios, gerenciar equipe, permissoes, tipos de servico e base de veiculos
 - Entradas: credenciais, perfis, base autorizada, regras de acesso e dados mestres
 - Saidas: sessao autenticada, usuarios atualizados, configuracoes persistidas
-- Guardrails: sessoes persistidas em `auth_sessions`, filtro por base para clientes, validacoes de senha e email no frontend
+- Guardrails: sessoes persistidas em `auth_sessions`, filtro por base para clientes, validacoes de senha e email no frontend e no backend, rate limit de login por IP + identificador, seed administrativo configuravel por `ADMIN_INITIAL_PASSWORD` e bloqueio de URL remota arbitraria em imagens persistidas
+- Alinhamento de UX recente: `Configuracoes` deixou de aparecer para perfis nao administrativos na navegacao principal
 - UX atual: a tela de configuracoes usa feedback visual proprio para erro, sucesso e confirmacao, evitando dialogos nativos do navegador
 - Persistencia atual: importacao de CSV da base de veiculos usa `bulk upsert` transacional no backend e lotes no frontend, com estado de carregamento explicito apos refresh
 - Correcao recente: o carregamento da base de veiculos em `Configuracoes` nao pode mais se autocancelar por mudanca da propria flag de loading; esse ciclo foi removido em `src/App.tsx`
-- Risco atual: a autorizacao administrativa ainda precisa ser endurecida no backend e a senha padrao do seed deve ser removida em producao
+- Estado atual de seguranca: as rotas administrativas principais agora exigem `Administrador` no servidor; o risco remanescente e evoluir isso para RBAC fino alinhado a `access_rules` e mover sessao do browser para cookie `HttpOnly` quando o projeto estiver pronto para CSRF server-side
 - Owner sugerido: backend + seguranca + administracao
 
 ### A10. Agente de Historico, Analytics e Visibilidade
@@ -237,6 +239,7 @@ Definicao adotada neste documento: `SKILL` e uma capacidade reutilizavel, docume
 | `vehicle-history-export` | Consolida historico por placa e exporta CSV | atendimento, auditoria, comercial | `VehicleHistory.tsx`, `GET /api/vehicle-history` | exportar lavagens de um cliente |
 | `dashboard-analytics` | Gera KPIs de volume, faturamento, tempo medio e ranking | gestao diaria e analise de produtividade | `Dashboard.tsx` | ver melhor lavador e base mais demandada |
 | `operational-notification-feedback` | Traduz eventos de lavagem, pagamento e sincronizacao em notificacoes leves e popup de conclusao | operacao diaria, retomada offline, fechamento de lavagem | `src/App.tsx`, `src/components/Notifications.tsx` | operador finaliza a lavagem e recebe `Concluido` sem interromper o fluxo |
+| `security-hardening-baseline` | Endurece autenticacao, autorizacao, CORS, uploads e hygiene de dependencias | producao, revisao de seguranca, correcoes inspiradas em abuse cases reais | `server/index.mjs`, `src/components/Login.tsx`, `package.json`, `.env.example` | bloquear brute force, impedir bypass admin e recusar imagem remota arbitraria |
 | `bedrock-advisory` | Gera dicas consultivas de clima e operacao | apoio a decisao, leitura do painel | `server/assistant.mjs` | sugerir reforco de equipe por chuva |
 | `handoff-sync` | Atualiza memoria operacional com data, commit e historico | qualquer entrega relevante | `scripts/update-handoff.mjs` | registrar contexto para outro computador |
 | `deploy-aws-ssm` | Publica build, sincroniza docs, provisiona HTTPS e valida o SHA real servido pela EC2 | push em `main` | `.github/workflows/deploy.yml`, `scripts/build-ssm-deploy-command.mjs`, `scripts/run-vite-build.mjs`, `infra/aws/renew-https.sh` | deploy automatico apos merge com dominio seguro para mobile |

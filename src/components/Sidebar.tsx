@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { motion } from '../lib/motion';
 import { Screen, TeamMember } from '../types';
+import { getSafeLogoSrc } from '../lib/placeholders';
 
 interface SidebarProps {
   currentScreen: Screen;
@@ -32,7 +33,7 @@ export default function Sidebar({ currentScreen, onNavigate, onLogout, isOpen, o
 
   const visibleMenuItems = currentUser?.role === 'Clientes'
     ? menuItems.filter((item) => item.id === 'scheduling')
-    : menuItems;
+    : menuItems.filter((item) => item.id !== 'settings' || currentUser?.role === 'Administrador');
 
   return (
     <div className="hidden lg:flex relative h-screen sticky top-0 z-50">
@@ -44,7 +45,7 @@ export default function Sidebar({ currentScreen, onNavigate, onLogout, isOpen, o
       >
         <div className={`p-6 xl:p-8 flex items-center gap-3 transition-all duration-300 ${isOpen ? 'min-w-[288px]' : 'min-w-[88px] justify-center px-0'}`}>
           <img
-            src="https://teslaeventos.com.br/assets/logos/NORTETECH-CIRCLE.png"
+            src={getSafeLogoSrc()}
             alt="Norte Tech Logo"
             className="w-10 h-10 object-contain shrink-0"
             referrerPolicy="no-referrer"

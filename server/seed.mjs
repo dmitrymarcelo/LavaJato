@@ -7,6 +7,7 @@ import { mapSourceVehicleTypeToCategory, normalizeSourceVehicleType } from './ve
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+const defaultAdminPassword = process.env.ADMIN_INITIAL_PASSWORD || 'Admin@123456!';
 
 const serviceTypes = {
   car: {
@@ -54,7 +55,7 @@ const defaultProducts = [
     price: 45.9,
     last_restock: '2024-02-28',
     status: 'ok',
-    image: 'https://images.unsplash.com/photo-1600456548090-7d1b3f0bbea5?q=80&w=200&auto=format&fit=crop',
+    image: '',
     manual_entries: [],
     manual_outputs: [],
   },
@@ -68,7 +69,7 @@ const defaultProducts = [
     price: 89.9,
     last_restock: '2024-01-15',
     status: 'critical',
-    image: 'https://images.unsplash.com/photo-1626806819282-2c1dc01a5e0c?q=80&w=200&auto=format&fit=crop',
+    image: '',
     manual_entries: [],
     manual_outputs: [],
   },
@@ -80,12 +81,12 @@ const defaultTeam = [
     name: 'Administrador Norte Tech',
     registration: '1001',
     email: null,
-    password: 'Admin@123456!',
+    password: defaultAdminPassword,
     role: 'Administrador',
     rating: 5,
     services_count: 0,
     status: 'active',
-    avatar: 'https://i.pravatar.cc/150?u=admin',
+    avatar: '',
     efficiency: '100%',
   },
 ];

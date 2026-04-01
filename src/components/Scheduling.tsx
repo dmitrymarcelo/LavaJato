@@ -31,6 +31,7 @@ import { addDays, digitsOnly, formatCpf, generateId, getElapsedMinutes, getServi
 import { getSourceVehicleTypeLabel } from '../utils/vehicleType';
 import { BASES, BaseInfo, getBaseById } from '../data/bases';
 import ModalSurface from './ModalSurface';
+import { DEFAULT_SERVICE_IMAGE_SRC } from '../lib/placeholders';
 
 const TIME_SLOTS = ['07:00', '09:00', '11:00', '13:00', '15:00', '17:00'];
 const ACTIVE_APPOINTMENT_STATUSES: Appointment['status'][] = ['confirmed', 'pending'];
@@ -64,7 +65,7 @@ const TARUMA_ZONE_RULES: Array<{
     accepts: () => true,
   },
 ];
-const DEFAULT_SERVICE_IMAGE = 'https://images.unsplash.com/photo-1549317661-bd32c8ce0db2?q=80&w=400&auto=format&fit=crop';
+const DEFAULT_SERVICE_IMAGE = DEFAULT_SERVICE_IMAGE_SRC;
 
 const normalizePlate = (value: string) => value.toUpperCase().replace(/[^A-Z0-9]/g, '');
 const isActiveAppointment = (appointment: Appointment) => ACTIVE_APPOINTMENT_STATUSES.includes(appointment.status);

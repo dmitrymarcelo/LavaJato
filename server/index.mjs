@@ -29,6 +29,21 @@ const IMAGE_EXTENSION_BY_MIME = {
 const app = express();
 const port = Number(process.env.API_PORT || 4000);
 const authSessionDays = Number(process.env.AUTH_SESSION_DAYS || 7);
+const trustProxyHops = Math.max(1, Number(process.env.TRUST_PROXY_HOPS || 1));
+const loginRateLimitWindowMs = Math.max(60_000, Number(process.env.LOGIN_RATE_LIMIT_WINDOW_MS || 15 * 60 * 1000));
+const loginRateLimitMaxAttempts = Math.max(3, Number(process.env.LOGIN_RATE_LIMIT_MAX_ATTEMPTS || 6));
+const allowedRemoteImageHosts = new Set(
+  String(process.env.ALLOWED_REMOTE_IMAGE_HOSTS || 'teslaeventos.com.br,images.unsplash.com,i.pravatar.cc')
+    .split(',')
+    .map((value) => value.trim().toLowerCase())
+    .filter(Boolean)
+);
+const explicitCorsAllowedOrigins = new Set(
+  String(process.env.CORS_ALLOWED_ORIGINS || 'http://localhost:3000,http://127.0.0.1:3000,http://localhost,http://127.0.0.1')
+    .split(',')
+    .map((value) => value.trim())
+    .filter(Boolean)
+);
 const ALL_BASE_IDS = ['flores', 'sao-jose', 'cidade-nova', 'ponta-negra', 'taruma'];
 const TARUMA_ZONE_NAMES = {
   dique_leve: 'Dique Leve',
@@ -36,6 +51,11 @@ const TARUMA_ZONE_NAMES = {
   estacionamento: 'Estacionamentos',
 };
 const OPERATIONAL_SERVICE_STATUSES = ['pending', 'in_progress', 'waiting_payment'];
+const ADMIN_ROLES = new Set(['Administrador']);
+const loginAttemptBuckets = new Map();
+
+app.disable('x-powered-by');
+app.set('trust proxy', trustProxyHops);
 
 function inferTarumaZoneId(vehicleType) {
   return vehicleType === 'truck' ? 'dique_pesada' : 'dique_leve';
@@ -127,10 +147,146 @@ async function syncAppointmentStatuses(executor = query) {
 
 fs.mkdirSync(UPLOADS_DIR, { recursive: true });
 
-app.use(cors());
+function normalizeOrigin(value) {
+  if (!value) {
+    return '';
+  }
+
+  try {
+    return new URL(String(value)).origin;
+  } catch {
+    return '';
+  }
+}
+
+function resolveRequestOrigin(req) {
+  const forwardedHost = String(req.headers['x-forwarded-host'] || req.headers.host || '')
+    .split(',')[0]
+    .trim();
+  const forwardedProto = String(req.headers['x-forwarded-proto'] || req.protocol || 'http')
+    .split(',')[0]
+    .trim()
+    .toLowerCase();
+
+  if (!forwardedHost) {
+    return '';
+  }
+
+  return normalizeOrigin(`${forwardedProto}://${forwardedHost}`);
+}
+
+function resolveCorsOptions(req) {
+  const incomingOrigin = normalizeOrigin(req.headers.origin);
+  const requestOrigin = resolveRequestOrigin(req);
+  const isSameOrigin = Boolean(incomingOrigin && requestOrigin && incomingOrigin === requestOrigin);
+  const isExplicitlyAllowed = Boolean(incomingOrigin && explicitCorsAllowedOrigins.has(incomingOrigin));
+
+  return {
+    origin: !incomingOrigin || isSameOrigin || isExplicitlyAllowed,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+  };
+}
+
+app.use((req, res, next) => {
+  cors(resolveCorsOptions(req))(req, res, next);
+});
 app.use(compression());
 app.use(express.json({ limit: '50mb' }));
 app.use('/uploads', express.static(UPLOADS_DIR, { maxAge: '30d' }));
+app.use('/api', (req, res, next) => {
+  res.setHeader('Cache-Control', 'no-store');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  next();
+});
+
+function sanitizeLoginAttemptBuckets() {
+  const now = Date.now();
+  for (const [key, bucket] of loginAttemptBuckets.entries()) {
+    if ((bucket.blockedUntil || 0) <= now && (bucket.expiresAt || 0) <= now) {
+      loginAttemptBuckets.delete(key);
+    }
+  }
+}
+
+function getLoginAttemptBucket(key) {
+  sanitizeLoginAttemptBuckets();
+  const now = Date.now();
+  const existing = loginAttemptBuckets.get(key);
+  if (existing && existing.expiresAt > now) {
+    return existing;
+  }
+
+  const bucket = {
+    count: 0,
+    expiresAt: now + loginRateLimitWindowMs,
+    blockedUntil: 0,
+  };
+  loginAttemptBuckets.set(key, bucket);
+  return bucket;
+}
+
+function registerLoginFailure(key) {
+  const bucket = getLoginAttemptBucket(key);
+  const now = Date.now();
+  if (bucket.expiresAt <= now) {
+    bucket.count = 0;
+    bucket.expiresAt = now + loginRateLimitWindowMs;
+    bucket.blockedUntil = 0;
+  }
+
+  bucket.count += 1;
+  if (bucket.count >= loginRateLimitMaxAttempts) {
+    bucket.blockedUntil = now + loginRateLimitWindowMs;
+  }
+
+  loginAttemptBuckets.set(key, bucket);
+  return bucket;
+}
+
+function clearLoginFailures(key) {
+  loginAttemptBuckets.delete(key);
+}
+
+function buildLoginRateLimitKey(req, identifier) {
+  const clientIp = String(req.ip || req.headers['x-forwarded-for'] || 'unknown')
+    .split(',')[0]
+    .trim()
+    .toLowerCase();
+  return `${clientIp}:${normalizeEmail(identifier) || String(identifier || '').trim().toLowerCase()}`;
+}
+
+function isStrongPassword(value) {
+  const password = String(value || '');
+  return password.length >= 12
+    && /[a-z]/.test(password)
+    && /[A-Z]/.test(password)
+    && /\d/.test(password)
+    && /[^A-Za-z0-9]/.test(password);
+}
+
+function getStrongPasswordError(value) {
+  return isStrongPassword(value)
+    ? null
+    : 'A senha precisa ter 12+ caracteres com maiuscula, minuscula, numero e simbolo.';
+}
+
+function isValidEmailAddress(value) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value || '').trim());
+}
+
+function isAllowedRemoteImageUrl(value) {
+  try {
+    const parsed = new URL(String(value));
+    return /^https?:$/i.test(parsed.protocol)
+      && allowedRemoteImageHosts.has(parsed.hostname.toLowerCase());
+  } catch {
+    return false;
+  }
+}
 
 function sanitizeUploadScope(scope = 'general') {
   return String(scope || 'general')
@@ -151,7 +307,16 @@ async function persistUploadedImage(value, scope = 'general') {
     return null;
   }
 
-  if (normalized.startsWith('/uploads/') || /^https?:\/\//i.test(normalized)) {
+  if (normalized.startsWith('/uploads/')) {
+    return normalized;
+  }
+
+  if (/^https?:\/\//i.test(normalized)) {
+    if (!isAllowedRemoteImageUrl(normalized)) {
+      const error = new Error('URL externa de imagem nao permitida.');
+      error.statusCode = 400;
+      throw error;
+    }
     return normalized;
   }
 
@@ -241,6 +406,14 @@ function assertUserCanAccessBase(user, baseId) {
   const allowedBaseIds = getAllowedBaseIdsForMember(user);
   if (!baseId || !allowedBaseIds.includes(baseId)) {
     const error = new Error('Voce nao tem acesso a esta base.');
+    error.statusCode = 403;
+    throw error;
+  }
+}
+
+function assertUserIsAdmin(user) {
+  if (!user || !ADMIN_ROLES.has(String(user.role || '').trim())) {
+    const error = new Error('Voce nao tem permissao para executar esta acao.');
     error.statusCode = 403;
     throw error;
   }
@@ -540,6 +713,10 @@ async function runSchema() {
   await migrateInlineImages();
   await backfillMissingServicePhotoMaps();
   await seedDatabase();
+
+  if (process.env.NODE_ENV === 'production' && !process.env.ADMIN_INITIAL_PASSWORD) {
+    console.warn('ADMIN_INITIAL_PASSWORD nao foi definido. Troque a senha do administrador seeded imediatamente.');
+  }
 }
 
 function hasInlineImage(value) {
@@ -1059,9 +1236,16 @@ async function upsertProductRow(product, executor = query) {
 async function upsertTeamMemberRow(member, executor = query) {
   const normalizedEmail = normalizeEmail(member.email);
   const isClientRole = member.role === 'Clientes';
+  const normalizedName = String(member.name || '').trim();
   const registration = isClientRole
     ? String(member.registration || '').trim() || `CLI-${Date.now()}-${randomBytes(3).toString('hex')}`
     : String(member.registration || '').trim();
+
+  if (!normalizedName) {
+    const error = new Error('Nome do colaborador e obrigatorio.');
+    error.statusCode = 400;
+    throw error;
+  }
 
   if (!isClientRole && !registration) {
     const error = new Error('Matricula do colaborador e obrigatoria.');
@@ -1073,6 +1257,21 @@ async function upsertTeamMemberRow(member, executor = query) {
     const error = new Error('Email do cliente e obrigatorio.');
     error.statusCode = 400;
     throw error;
+  }
+
+  if (normalizedEmail && !isValidEmailAddress(normalizedEmail)) {
+    const error = new Error('Email invalido.');
+    error.statusCode = 400;
+    throw error;
+  }
+
+  if (member.password) {
+    const passwordError = getStrongPasswordError(member.password);
+    if (passwordError) {
+      const error = new Error(passwordError);
+      error.statusCode = 400;
+      throw error;
+    }
   }
 
   const duplicate = await executor(
@@ -1112,9 +1311,15 @@ async function upsertTeamMemberRow(member, executor = query) {
   }
 
   const currentMember = await executor('SELECT password_hash, avatar FROM team_members WHERE id = $1', [member.id]);
+  const existingPasswordHash = currentMember.rows[0]?.password_hash || null;
+  if (!existingPasswordHash && !member.passwordHash && !member.password) {
+    const error = new Error('Informe uma senha forte para criar este usuario.');
+    error.statusCode = 400;
+    throw error;
+  }
+
   const passwordHash = member.passwordHash
-    || (member.password ? await bcrypt.hash(member.password, 10) : currentMember.rows[0]?.password_hash)
-    || await bcrypt.hash('Admin@123456!', 10);
+    || (member.password ? await bcrypt.hash(member.password, 10) : existingPasswordHash);
   const allowedBaseIds = isClientRole
     ? getAllowedBaseIdsForMember(member)
     : [];
@@ -1141,7 +1346,7 @@ async function upsertTeamMemberRow(member, executor = query) {
     `,
     [
       member.id,
-      member.name,
+      normalizedName,
       registration,
       normalizedEmail || null,
       passwordHash,
@@ -1312,6 +1517,15 @@ app.get('/api/health', async (_req, res) => {
 app.post('/api/auth/login', async (req, res) => {
   const identifier = String(req.body?.identifier || req.body?.registration || '').trim();
   const password = req.body?.password;
+  const rateLimitKey = buildLoginRateLimitKey(req, identifier);
+  const currentBucket = getLoginAttemptBucket(rateLimitKey);
+  const now = Date.now();
+
+  if (currentBucket.blockedUntil && currentBucket.blockedUntil > now) {
+    const retryAfterSeconds = Math.max(1, Math.ceil((currentBucket.blockedUntil - now) / 1000));
+    res.setHeader('Retry-After', String(retryAfterSeconds));
+    return res.status(429).json({ error: 'Muitas tentativas de login. Aguarde alguns minutos e tente novamente.' });
+  }
 
   if (!identifier || !password) {
     return res.status(400).json({ error: 'Matrícula ou email e senha sao obrigatorios.' });
@@ -1329,12 +1543,23 @@ app.post('/api/auth/login', async (req, res) => {
   );
   const member = result.rows[0];
   if (!member) {
+    const failedBucket = registerLoginFailure(rateLimitKey);
+    if (failedBucket.blockedUntil > Date.now()) {
+      res.setHeader('Retry-After', String(Math.max(1, Math.ceil((failedBucket.blockedUntil - Date.now()) / 1000))));
+      return res.status(429).json({ error: 'Muitas tentativas de login. Aguarde alguns minutos e tente novamente.' });
+    }
     return res.status(401).json({ error: 'Credenciais invalidas.' });
   }
   const isValid = await bcrypt.compare(password, member.password_hash);
   if (!isValid) {
+    const failedBucket = registerLoginFailure(rateLimitKey);
+    if (failedBucket.blockedUntil > Date.now()) {
+      res.setHeader('Retry-After', String(Math.max(1, Math.ceil((failedBucket.blockedUntil - Date.now()) / 1000))));
+      return res.status(429).json({ error: 'Muitas tentativas de login. Aguarde alguns minutos e tente novamente.' });
+    }
     return res.status(401).json({ error: 'Credenciais invalidas.' });
   }
+  clearLoginFailures(rateLimitKey);
   const session = await createAuthSession(member.id);
   res.json({ user: toCamelTeam(member), token: session.token, expiresAt: session.expiresAt });
 });
@@ -1511,6 +1736,7 @@ app.get('/api/vehicle-history/:plate', async (req, res) => {
 });
 
 app.put('/api/access-rules', async (req, res) => {
+  assertUserIsAdmin(req.user);
   const value = Array.isArray(req.body) ? req.body : [];
   await query(
     `
@@ -1524,6 +1750,7 @@ app.put('/api/access-rules', async (req, res) => {
 });
 
 app.put('/api/service-types', async (req, res) => {
+  assertUserIsAdmin(req.user);
   const value = req.body;
   await query(
     `
@@ -1536,7 +1763,8 @@ app.put('/api/service-types', async (req, res) => {
   res.json(value);
 });
 
-app.get('/api/vehicles', async (_req, res) => {
+app.get('/api/vehicles', async (req, res) => {
+  assertUserIsAdmin(req.user);
   const result = await query('SELECT * FROM vehicles ORDER BY plate');
   res.json(result.rows.map(toCamelVehicle));
 });
@@ -1558,6 +1786,7 @@ app.get('/api/vehicles/lookup', async (req, res) => {
 });
 
 app.post('/api/vehicles/upsert', async (req, res) => {
+  assertUserIsAdmin(req.user);
   const vehicle = req.body || {};
   await upsertVehicleRow(vehicle);
   const result = await query('SELECT * FROM vehicles WHERE plate = $1', [String(vehicle.plate || '').toUpperCase().trim()]);
@@ -1565,6 +1794,7 @@ app.post('/api/vehicles/upsert', async (req, res) => {
 });
 
 app.post('/api/vehicles/bulk-upsert', async (req, res) => {
+  assertUserIsAdmin(req.user);
   const vehicles = Array.isArray(req.body)
     ? req.body
     : Array.isArray(req.body?.vehicles)
@@ -1601,6 +1831,7 @@ app.post('/api/vehicles/bulk-upsert', async (req, res) => {
 });
 
 app.delete('/api/vehicles/:plate', async (req, res) => {
+  assertUserIsAdmin(req.user);
   await query('DELETE FROM vehicles WHERE plate = $1', [String(req.params.plate || '').toUpperCase().trim()]);
   res.status(204).end();
 });
@@ -1907,6 +2138,7 @@ app.get('/api/products', async (_req, res) => {
 });
 
 app.post('/api/products/upsert', async (req, res) => {
+  assertUserIsAdmin(req.user);
   const product = req.body || {};
   if (!product.id) {
     return res.status(400).json({ error: 'Id do produto e obrigatorio.' });
@@ -1918,16 +2150,19 @@ app.post('/api/products/upsert', async (req, res) => {
 });
 
 app.delete('/api/products/:id', async (req, res) => {
+  assertUserIsAdmin(req.user);
   await query('DELETE FROM products WHERE id = $1', [req.params.id]);
   res.status(204).end();
 });
 
-app.get('/api/team-members', async (_req, res) => {
+app.get('/api/team-members', async (req, res) => {
+  assertUserIsAdmin(req.user);
   const result = await query('SELECT * FROM team_members ORDER BY name');
   res.json(result.rows.map(toCamelTeam));
 });
 
 app.post('/api/team-members/upsert', async (req, res) => {
+  assertUserIsAdmin(req.user);
   const member = req.body || {};
   if (!member.id) {
     return res.status(400).json({ error: 'Id do colaborador e obrigatorio.' });
@@ -1939,6 +2174,7 @@ app.post('/api/team-members/upsert', async (req, res) => {
 });
 
 app.delete('/api/team-members/:id', async (req, res) => {
+  assertUserIsAdmin(req.user);
   await query('DELETE FROM team_members WHERE id = $1', [req.params.id]);
   res.status(204).end();
 });
