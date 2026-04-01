@@ -59,12 +59,14 @@ export default function Dashboard({
   appointments = [],
   currentDateKey,
   team = [],
+  canManageSettings = false,
 }: {
   onNavigate: (screen: Screen, serviceId?: string) => void;
   services: Service[];
   appointments?: Appointment[];
   currentDateKey: string;
   team?: TeamMember[];
+  canManageSettings?: boolean;
 }) {
   const [weatherAdvice, setWeatherAdvice] = useState<string>('Carregando recomendacao...');
   const [timeframe, setTimeframe] = useState<'today' | 'week' | 'month'>('today');
@@ -304,12 +306,14 @@ export default function Dashboard({
         <section className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
           <div className="flex justify-between items-center mb-6">
             <h3 className="text-slate-900 font-black text-lg tracking-tight">Top lavadores</h3>
-            <button
-              onClick={() => onNavigate('settings')}
-              className="text-primary text-xs font-black uppercase tracking-widest active:scale-95 transition-transform"
-            >
-              Equipe
-            </button>
+            {canManageSettings && (
+              <button
+                onClick={() => onNavigate('settings')}
+                className="text-primary text-xs font-black uppercase tracking-widest active:scale-95 transition-transform"
+              >
+                Equipe
+              </button>
+            )}
           </div>
           <div className="space-y-3">
             {topWashersList.length === 0 ? (

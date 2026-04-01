@@ -110,6 +110,7 @@ export interface TeamMember {
   password?: string;
   passwordHash?: string;
   role: string;
+  permissions?: string[];
   allowedBaseIds?: string[];
   rating: number;
   servicesCount: number;

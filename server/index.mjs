@@ -32,6 +32,11 @@ const authSessionDays = Number(process.env.AUTH_SESSION_DAYS || 7);
 const trustProxyHops = Math.max(1, Number(process.env.TRUST_PROXY_HOPS || 1));
 const loginRateLimitWindowMs = Math.max(60_000, Number(process.env.LOGIN_RATE_LIMIT_WINDOW_MS || 15 * 60 * 1000));
 const loginRateLimitMaxAttempts = Math.max(3, Number(process.env.LOGIN_RATE_LIMIT_MAX_ATTEMPTS || 6));
+const sessionCookieName = String(process.env.SESSION_COOKIE_NAME || 'lavajato_session').trim() || 'lavajato_session';
+const sessionCookieSameSite = ['strict', 'lax', 'none'].includes(String(process.env.SESSION_COOKIE_SAME_SITE || 'lax').trim().toLowerCase())
+  ? String(process.env.SESSION_COOKIE_SAME_SITE || 'lax').trim().toLowerCase()
+  : 'lax';
+const sessionCookieSecureMode = String(process.env.SESSION_COOKIE_SECURE || 'auto').trim().toLowerCase();
 const allowedRemoteImageHosts = new Set(
   String(process.env.ALLOWED_REMOTE_IMAGE_HOSTS || 'teslaeventos.com.br,images.unsplash.com,i.pravatar.cc')
     .split(',')
@@ -52,7 +57,19 @@ const TARUMA_ZONE_NAMES = {
 };
 const OPERATIONAL_SERVICE_STATUSES = ['pending', 'in_progress', 'waiting_payment'];
 const ADMIN_ROLES = new Set(['Administrador']);
+const APP_PERMISSION_IDS = [
+  'view_analytics',
+  'manage_team',
+  'edit_services',
+  'delete_services',
+  'bypass_inspection',
+  'manage_b2b',
+  'manage_inventory',
+  'manage_access',
+];
+const APP_PERMISSION_SET = new Set(APP_PERMISSION_IDS);
 const loginAttemptBuckets = new Map();
+let accessRulesCache = [];
 
 app.disable('x-powered-by');
 app.set('trust proxy', trustProxyHops);
@@ -175,6 +192,158 @@ function resolveRequestOrigin(req) {
   return normalizeOrigin(`${forwardedProto}://${forwardedHost}`);
 }
 
+function appendSetCookie(res, value) {
+  const current = res.getHeader('Set-Cookie');
+  if (!current) {
+    res.setHeader('Set-Cookie', value);
+    return;
+  }
+
+  const nextValues = Array.isArray(current) ? [...current, value] : [String(current), value];
+  res.setHeader('Set-Cookie', nextValues);
+}
+
+function serializeCookie(name, value, options = {}) {
+  const segments = [
+    `${encodeURIComponent(name)}=${encodeURIComponent(value)}`,
+    `Path=${options.path || '/'}`,
+  ];
+
+  if (options.httpOnly !== false) {
+    segments.push('HttpOnly');
+  }
+
+  if (options.secure) {
+    segments.push('Secure');
+  }
+
+  if (typeof options.maxAge === 'number') {
+    segments.push(`Max-Age=${Math.max(0, Math.floor(options.maxAge))}`);
+  }
+
+  if (options.expires instanceof Date) {
+    segments.push(`Expires=${options.expires.toUTCString()}`);
+  }
+
+  if (options.sameSite) {
+    const sameSiteValue = String(options.sameSite).trim().toLowerCase();
+    segments.push(`SameSite=${sameSiteValue.charAt(0).toUpperCase()}${sameSiteValue.slice(1)}`);
+  }
+
+  return segments.join('; ');
+}
+
+function parseCookies(header) {
+  if (!header) {
+    return {};
+  }
+
+  return String(header)
+    .split(';')
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .reduce((accumulator, part) => {
+      const separatorIndex = part.indexOf('=');
+      if (separatorIndex <= 0) {
+        return accumulator;
+      }
+
+      const key = decodeURIComponent(part.slice(0, separatorIndex).trim());
+      const value = decodeURIComponent(part.slice(separatorIndex + 1).trim());
+      accumulator[key] = value;
+      return accumulator;
+    }, {});
+}
+
+function shouldUseSecureCookie(req) {
+  if (sessionCookieSecureMode === 'true' || sessionCookieSecureMode === 'always') {
+    return true;
+  }
+
+  if (sessionCookieSecureMode === 'false' || sessionCookieSecureMode === 'never') {
+    return false;
+  }
+
+  const forwardedProto = String(req.headers['x-forwarded-proto'] || req.protocol || '')
+    .split(',')[0]
+    .trim()
+    .toLowerCase();
+
+  return forwardedProto === 'https' || req.secure === true;
+}
+
+function setSessionCookie(res, token, expiresAt, req) {
+  const expiresDate = expiresAt instanceof Date ? expiresAt : new Date(expiresAt);
+  const maxAgeSeconds = Math.max(0, Math.floor((expiresDate.getTime() - Date.now()) / 1000));
+
+  appendSetCookie(res, serializeCookie(sessionCookieName, token, {
+    httpOnly: true,
+    secure: shouldUseSecureCookie(req),
+    sameSite: sessionCookieSameSite,
+    path: '/',
+    expires: expiresDate,
+    maxAge: maxAgeSeconds,
+  }));
+}
+
+function clearSessionCookie(res, req) {
+  appendSetCookie(res, serializeCookie(sessionCookieName, '', {
+    httpOnly: true,
+    secure: shouldUseSecureCookie(req),
+    sameSite: sessionCookieSameSite,
+    path: '/',
+    expires: new Date(0),
+    maxAge: 0,
+  }));
+}
+
+function getRequestSessionToken(req) {
+  const cookies = parseCookies(req.headers.cookie);
+  const cookieToken = String(cookies[sessionCookieName] || '').trim();
+  if (cookieToken) {
+    return cookieToken;
+  }
+
+  const authHeader = String(req.headers.authorization || '');
+  return authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : '';
+}
+
+function isTrustedOrigin(req, candidate) {
+  const normalizedCandidate = normalizeOrigin(candidate);
+  if (!normalizedCandidate) {
+    return true;
+  }
+
+  const requestOrigin = resolveRequestOrigin(req);
+  if (requestOrigin && normalizedCandidate === requestOrigin) {
+    return true;
+  }
+
+  return explicitCorsAllowedOrigins.has(normalizedCandidate);
+}
+
+function assertTrustedMutationOrigin(req) {
+  const method = String(req.method || '').toUpperCase();
+  if (!['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)) {
+    return;
+  }
+
+  const originHeader = req.headers.origin;
+  const refererHeader = req.headers.referer;
+
+  if (originHeader && !isTrustedOrigin(req, originHeader)) {
+    const error = new Error('Origem da requisicao nao permitida.');
+    error.statusCode = 403;
+    throw error;
+  }
+
+  if (!originHeader && refererHeader && !isTrustedOrigin(req, refererHeader)) {
+    const error = new Error('Origem da requisicao nao permitida.');
+    error.statusCode = 403;
+    throw error;
+  }
+}
+
 function resolveCorsOptions(req) {
   const incomingOrigin = normalizeOrigin(req.headers.origin);
   const requestOrigin = resolveRequestOrigin(req);
@@ -183,6 +352,7 @@ function resolveCorsOptions(req) {
 
   return {
     origin: !incomingOrigin || isSameOrigin || isExplicitlyAllowed,
+    credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
   };
@@ -201,6 +371,14 @@ app.use('/api', (req, res, next) => {
   res.setHeader('X-Frame-Options', 'DENY');
   res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
   next();
+});
+app.use('/api', (req, _res, next) => {
+  try {
+    assertTrustedMutationOrigin(req);
+    next();
+  } catch (error) {
+    next(error);
+  }
 });
 
 function sanitizeLoginAttemptBuckets() {
@@ -371,6 +549,109 @@ function normalizeEmail(value) {
   return String(value || '').trim().toLowerCase();
 }
 
+function normalizePermissionList(value) {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return Array.from(
+    new Set(
+      value
+        .map((item) => String(item || '').trim())
+        .filter((item) => APP_PERMISSION_SET.has(item))
+    )
+  );
+}
+
+function buildDefaultAccessRules() {
+  return [
+    { role: 'Administrador', permissions: [...APP_PERMISSION_IDS] },
+    { role: 'Lavador', permissions: [] },
+    { role: 'Clientes', permissions: ['manage_b2b'] },
+  ];
+}
+
+function normalizeAccessRules(value) {
+  const providedRules = Array.isArray(value)
+    ? value
+        .map((rule) => ({
+          role: String(rule?.role || '').trim(),
+          permissions: normalizePermissionList(rule?.permissions),
+        }))
+        .filter((rule) => rule.role)
+    : [];
+  const rulesByRole = new Map(providedRules.map((rule) => [rule.role, rule.permissions]));
+
+  const normalizedDefaults = buildDefaultAccessRules().map((rule) => {
+    if (rule.role === 'Administrador') {
+      return { role: rule.role, permissions: [...APP_PERMISSION_IDS] };
+    }
+
+    const overridePermissions = rulesByRole.has(rule.role)
+      ? rulesByRole.get(rule.role)
+      : rule.permissions;
+    return {
+      role: rule.role,
+      permissions: normalizePermissionList(overridePermissions),
+    };
+  });
+
+  const extraRules = providedRules
+    .filter((rule) => !normalizedDefaults.some((item) => item.role === rule.role))
+    .map((rule) => ({
+      role: rule.role,
+      permissions: normalizePermissionList(rule.permissions),
+    }));
+
+  return [...normalizedDefaults, ...extraRules];
+}
+
+async function loadAccessRulesCache(executor = query) {
+  const result = await executor("SELECT value FROM app_settings WHERE key = 'access_rules' LIMIT 1");
+  accessRulesCache = normalizeAccessRules(result.rows[0]?.value || buildDefaultAccessRules());
+  return accessRulesCache;
+}
+
+function getPermissionsForRole(role) {
+  const normalizedRole = String(role || '').trim();
+  if (!normalizedRole) {
+    return [];
+  }
+
+  if (ADMIN_ROLES.has(normalizedRole)) {
+    return [...APP_PERMISSION_IDS];
+  }
+
+  const matchingRule = accessRulesCache.find((rule) => rule.role === normalizedRole);
+  return matchingRule ? normalizePermissionList(matchingRule.permissions) : [];
+}
+
+function getUserPermissions(user) {
+  if (!user) {
+    return [];
+  }
+
+  if (Array.isArray(user.permissions) && user.permissions.length > 0) {
+    return normalizePermissionList(user.permissions);
+  }
+
+  return getPermissionsForRole(user.role);
+}
+
+function userHasPermission(user, permission) {
+  return getUserPermissions(user).includes(permission);
+}
+
+function assertUserHasPermission(user, permission, message = 'Voce nao tem permissao para executar esta acao.') {
+  if (userHasPermission(user, permission)) {
+    return;
+  }
+
+  const error = new Error(message);
+  error.statusCode = 403;
+  throw error;
+}
+
 function getAllowedBaseIdsForMember(member) {
   if (!member) {
     return [];
@@ -538,6 +819,7 @@ function toCamelTeam(row) {
     registration: row.registration,
     email: row.email || '',
     role: row.role,
+    permissions: getPermissionsForRole(row.role),
     allowedBaseIds: getAllowedBaseIdsForMember(row),
     rating: Number(row.rating),
     servicesCount: row.services_count,
@@ -713,6 +995,7 @@ async function runSchema() {
   await migrateInlineImages();
   await backfillMissingServicePhotoMaps();
   await seedDatabase();
+  await loadAccessRulesCache();
 
   if (process.env.NODE_ENV === 'production' && !process.env.ADMIN_INITIAL_PASSWORD) {
     console.warn('ADMIN_INITIAL_PASSWORD nao foi definido. Troque a senha do administrador seeded imediatamente.');
@@ -1052,7 +1335,15 @@ async function saveInspectionPhoto(serviceId, stage, photoId, imageData) {
   });
 }
 
-async function transitionServiceStage(serviceId, action, payload = {}) {
+function countPersistedPhotoEntries(photos) {
+  if (!photos || typeof photos !== 'object') {
+    return 0;
+  }
+
+  return Object.values(photos).filter((value) => Boolean(String(value || '').trim())).length;
+}
+
+async function transitionServiceStage(serviceId, action, payload = {}, user = null) {
   return withTransaction(async (client) => {
     const executor = (text, params = []) => client.query(text, params);
     const serviceResult = await executor('SELECT * FROM services WHERE id = $1 FOR UPDATE', [serviceId]);
@@ -1078,6 +1369,12 @@ async function transitionServiceStage(serviceId, action, payload = {}) {
         : (currentService.washers || []);
       const nextObservations = String(payload.observations || '').trim() || currentService.observations || '';
 
+      if (countPersistedPhotoEntries(nextPrePhotos) === 0 && !userHasPermission(user, 'bypass_inspection')) {
+        const error = new Error('Adicione ao menos uma foto da pre-inspecao antes de iniciar a lavagem.');
+        error.statusCode = 400;
+        throw error;
+      }
+
       nextService = {
         ...currentService,
         washers: nextWashers,
@@ -1100,6 +1397,12 @@ async function transitionServiceStage(serviceId, action, payload = {}) {
         ...(currentService.postInspectionPhotos || {}),
         ...((payload.postInspectionPhotos && typeof payload.postInspectionPhotos === 'object') ? payload.postInspectionPhotos : {}),
       };
+
+      if (countPersistedPhotoEntries(nextPostPhotos) === 0 && !userHasPermission(user, 'bypass_inspection')) {
+        const error = new Error('Adicione ao menos uma foto da pos-inspecao antes de concluir a lavagem.');
+        error.statusCode = 400;
+        throw error;
+      }
 
       nextService = {
         ...currentService,
@@ -1494,15 +1797,15 @@ app.use(async (req, res, next) => {
     return next();
   }
 
-  if (req.path === '/api/health' || req.path === '/api/auth/login') {
+  if (req.path === '/api/health' || req.path === '/api/auth/login' || req.path === '/api/auth/logout') {
     return next();
   }
 
-  const authHeader = req.headers.authorization || '';
-  const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : '';
+  const token = getRequestSessionToken(req);
   const sessionUser = await getSessionUser(token);
 
   if (!sessionUser) {
+    clearSessionCookie(res, req);
     return res.status(401).json({ error: 'Sua sessao expirou. Faca login novamente.' });
   }
 
@@ -1561,17 +1864,18 @@ app.post('/api/auth/login', async (req, res) => {
   }
   clearLoginFailures(rateLimitKey);
   const session = await createAuthSession(member.id);
-  res.json({ user: toCamelTeam(member), token: session.token, expiresAt: session.expiresAt });
+  setSessionCookie(res, session.token, session.expiresAt, req);
+  res.json({ user: toCamelTeam(member), expiresAt: session.expiresAt });
 });
 
 app.post('/api/auth/logout', async (req, res) => {
-  const authHeader = req.headers.authorization || '';
-  const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : '';
+  const token = getRequestSessionToken(req);
 
   if (token) {
     await query('DELETE FROM auth_sessions WHERE token = $1', [token]);
   }
 
+  clearSessionCookie(res, req);
   res.status(204).end();
 });
 
@@ -1595,9 +1899,8 @@ app.get('/api/bootstrap', async (req, res) => {
   await syncAppointmentStatuses();
   await cleanupOrphanActiveAppointments();
   const baseFilter = getBaseFilterForUser(req.user);
-  const [serviceTypesResult, accessRulesResult, servicesResult, appointmentsResult, productsResult, teamResult] = await Promise.all([
+  const [serviceTypesResult, servicesResult, appointmentsResult, productsResult, teamResult] = await Promise.all([
     query("SELECT value FROM app_settings WHERE key = 'service_types'"),
-    query("SELECT value FROM app_settings WHERE key = 'access_rules'"),
     query(
       `
       SELECT *
@@ -1623,15 +1926,16 @@ app.get('/api/bootstrap', async (req, res) => {
   res.json({
     currentUser: toCamelTeam(req.user),
     serviceTypes: serviceTypesResult.rows[0]?.value || {},
-    accessRules: accessRulesResult.rows[0]?.value || [],
+    accessRules: accessRulesCache,
     services,
     appointments,
-    products: req.user?.role === 'Clientes' ? [] : productsResult.rows.map(toCamelProduct),
-    team: req.user?.role === 'Clientes' ? [] : teamResult.rows.map(toCamelTeam),
+    products: userHasPermission(req.user, 'manage_inventory') ? productsResult.rows.map(toCamelProduct) : [],
+    team: userHasPermission(req.user, 'manage_team') ? teamResult.rows.map(toCamelTeam) : [],
   });
 });
 
 app.get('/api/vehicle-history', async (req, res) => {
+  assertUserHasPermission(req.user, 'view_analytics', 'Voce nao tem permissao para visualizar o historico de veiculos.');
   const baseFilter = getBaseFilterForUser(req.user);
   const [vehiclesResult, servicesResult] = await Promise.all([
     query('SELECT * FROM vehicles ORDER BY plate'),
@@ -1678,6 +1982,7 @@ app.get('/api/vehicle-history', async (req, res) => {
 });
 
 app.get('/api/vehicle-history/:plate', async (req, res) => {
+  assertUserHasPermission(req.user, 'view_analytics', 'Voce nao tem permissao para visualizar o historico de veiculos.');
   const plate = String(req.params.plate || '').toUpperCase().trim();
   if (!plate) {
     return res.status(400).json({ error: 'Informe a placa do veiculo.' });
@@ -1736,8 +2041,8 @@ app.get('/api/vehicle-history/:plate', async (req, res) => {
 });
 
 app.put('/api/access-rules', async (req, res) => {
-  assertUserIsAdmin(req.user);
-  const value = Array.isArray(req.body) ? req.body : [];
+  assertUserHasPermission(req.user, 'manage_access');
+  const value = normalizeAccessRules(Array.isArray(req.body) ? req.body : []);
   await query(
     `
     INSERT INTO app_settings (key, value, updated_at)
@@ -1746,11 +2051,12 @@ app.put('/api/access-rules', async (req, res) => {
     `,
     [JSON.stringify(value)]
   );
+  accessRulesCache = value;
   res.json(value);
 });
 
 app.put('/api/service-types', async (req, res) => {
-  assertUserIsAdmin(req.user);
+  assertUserHasPermission(req.user, 'edit_services');
   const value = req.body;
   await query(
     `
@@ -1764,7 +2070,7 @@ app.put('/api/service-types', async (req, res) => {
 });
 
 app.get('/api/vehicles', async (req, res) => {
-  assertUserIsAdmin(req.user);
+  assertUserHasPermission(req.user, 'edit_services');
   const result = await query('SELECT * FROM vehicles ORDER BY plate');
   res.json(result.rows.map(toCamelVehicle));
 });
@@ -1786,7 +2092,7 @@ app.get('/api/vehicles/lookup', async (req, res) => {
 });
 
 app.post('/api/vehicles/upsert', async (req, res) => {
-  assertUserIsAdmin(req.user);
+  assertUserHasPermission(req.user, 'edit_services');
   const vehicle = req.body || {};
   await upsertVehicleRow(vehicle);
   const result = await query('SELECT * FROM vehicles WHERE plate = $1', [String(vehicle.plate || '').toUpperCase().trim()]);
@@ -1794,7 +2100,7 @@ app.post('/api/vehicles/upsert', async (req, res) => {
 });
 
 app.post('/api/vehicles/bulk-upsert', async (req, res) => {
-  assertUserIsAdmin(req.user);
+  assertUserHasPermission(req.user, 'edit_services');
   const vehicles = Array.isArray(req.body)
     ? req.body
     : Array.isArray(req.body?.vehicles)
@@ -1831,7 +2137,7 @@ app.post('/api/vehicles/bulk-upsert', async (req, res) => {
 });
 
 app.delete('/api/vehicles/:plate', async (req, res) => {
-  assertUserIsAdmin(req.user);
+  assertUserHasPermission(req.user, 'edit_services');
   await query('DELETE FROM vehicles WHERE plate = $1', [String(req.params.plate || '').toUpperCase().trim()]);
   res.status(204).end();
 });
@@ -1895,7 +2201,7 @@ app.post('/api/services/:id/start-wash', async (req, res) => {
 
   assertUserCanAccessBase(req.user, serviceRow.base_id);
 
-  const payload = await transitionServiceStage(req.params.id, 'start_wash', req.body || {});
+  const payload = await transitionServiceStage(req.params.id, 'start_wash', req.body || {}, req.user);
   res.json(payload);
 });
 
@@ -1909,7 +2215,7 @@ app.post('/api/services/:id/complete-wash', async (req, res) => {
 
   assertUserCanAccessBase(req.user, serviceRow.base_id);
 
-  const payload = await transitionServiceStage(req.params.id, 'complete_wash', req.body || {});
+  const payload = await transitionServiceStage(req.params.id, 'complete_wash', req.body || {}, req.user);
   res.json(payload);
 });
 
@@ -2008,6 +2314,7 @@ app.post('/api/scheduling/book', async (req, res) => {
 });
 
 app.delete('/api/scheduling/:id', async (req, res) => {
+  assertUserHasPermission(req.user, 'delete_services');
   const payload = await withTransaction(async (client) => {
     const executor = (text, params = []) => client.query(text, params);
     const appointmentResult = await executor('SELECT * FROM appointments WHERE id = $1 FOR UPDATE', [req.params.id]);
@@ -2092,6 +2399,7 @@ app.delete('/api/scheduling/:id', async (req, res) => {
 });
 
 app.delete('/api/services/:id', async (req, res) => {
+  assertUserHasPermission(req.user, 'delete_services');
   const existing = await query('SELECT base_id FROM services WHERE id = $1', [req.params.id]);
   const row = existing.rows[0];
   if (row) {
@@ -2123,6 +2431,7 @@ app.post('/api/appointments/upsert', async (req, res) => {
 });
 
 app.delete('/api/appointments/:id', async (req, res) => {
+  assertUserHasPermission(req.user, 'delete_services');
   const existing = await query('SELECT base_id FROM appointments WHERE id = $1', [req.params.id]);
   const row = existing.rows[0];
   if (row) {
@@ -2132,13 +2441,14 @@ app.delete('/api/appointments/:id', async (req, res) => {
   res.status(204).end();
 });
 
-app.get('/api/products', async (_req, res) => {
+app.get('/api/products', async (req, res) => {
+  assertUserHasPermission(req.user, 'manage_inventory');
   const result = await query('SELECT * FROM products ORDER BY name');
   res.json(result.rows.map(toCamelProduct));
 });
 
 app.post('/api/products/upsert', async (req, res) => {
-  assertUserIsAdmin(req.user);
+  assertUserHasPermission(req.user, 'manage_inventory');
   const product = req.body || {};
   if (!product.id) {
     return res.status(400).json({ error: 'Id do produto e obrigatorio.' });
@@ -2150,19 +2460,19 @@ app.post('/api/products/upsert', async (req, res) => {
 });
 
 app.delete('/api/products/:id', async (req, res) => {
-  assertUserIsAdmin(req.user);
+  assertUserHasPermission(req.user, 'manage_inventory');
   await query('DELETE FROM products WHERE id = $1', [req.params.id]);
   res.status(204).end();
 });
 
 app.get('/api/team-members', async (req, res) => {
-  assertUserIsAdmin(req.user);
+  assertUserHasPermission(req.user, 'manage_team');
   const result = await query('SELECT * FROM team_members ORDER BY name');
   res.json(result.rows.map(toCamelTeam));
 });
 
 app.post('/api/team-members/upsert', async (req, res) => {
-  assertUserIsAdmin(req.user);
+  assertUserHasPermission(req.user, 'manage_team');
   const member = req.body || {};
   if (!member.id) {
     return res.status(400).json({ error: 'Id do colaborador e obrigatorio.' });
@@ -2174,7 +2484,7 @@ app.post('/api/team-members/upsert', async (req, res) => {
 });
 
 app.delete('/api/team-members/:id', async (req, res) => {
-  assertUserIsAdmin(req.user);
+  assertUserHasPermission(req.user, 'manage_team');
   await query('DELETE FROM team_members WHERE id = $1', [req.params.id]);
   res.status(204).end();
 });

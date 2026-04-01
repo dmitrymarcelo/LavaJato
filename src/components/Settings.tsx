@@ -1,5 +1,5 @@
 ﻿import React, { useState } from 'react';
-import { Shield, UserCog, CheckCircle2, XCircle, Save, Info, Lock, Eye, Edit3, Trash2, BarChart3, Users, UserPlus, Star, Clock, MoreVertical, Search, Filter, ShieldCheck, Car, Bike, Truck, Ship, Plus, Upload, FileSpreadsheet, Download } from 'lucide-react';
+import { Shield, UserCog, CheckCircle2, XCircle, Save, Info, Lock, Eye, Edit3, Trash2, BarChart3, Users, UserPlus, Star, Clock, MoreVertical, Search, Filter, ShieldCheck, Car, Bike, Truck, Ship, Plus, Upload, FileSpreadsheet, Download, Package } from 'lucide-react';
 import { RoleAccessRule, Screen, TeamMember, VehicleCategory, VehicleType, ServiceTypeOption, VehicleRegistration } from '../types';
 import { motion, AnimatePresence } from '../lib/motion';
 import { digitsOnly, formatCpf, generateId, isValidCpf, isValidEmail, optimizeImageFile, validateStrongPassword } from '../utils/app';
@@ -7,6 +7,7 @@ import { getSourceVehicleTypeLabel, mapSourceVehicleTypeToCategory, normalizeSou
 import { BASES } from '../data/bases';
 import ModalSurface from './ModalSurface';
 import { DEFAULT_AVATAR_IMAGE_SRC, getSafeAvatarImage } from '../lib/placeholders';
+import { getUserPermissions } from '../lib/access';
 
 interface Permission {
   id: string;
@@ -36,6 +37,8 @@ const PERMISSIONS: Permission[] = [
   { id: 'delete_services', label: 'Excluir Serviços', description: 'Remover registros de serviços do sistema.', icon: <Trash2 className="w-4 h-4" /> },
   { id: 'bypass_inspection', label: 'Pular Inspeção', description: 'Permitir iniciar lavagem sem fotos obrigatórias.', icon: <Eye className="w-4 h-4" /> },
   { id: 'manage_b2b', label: 'Base', description: 'Controlar a base que o cliente pode acompanhar na agenda e fila.', icon: <Shield className="w-4 h-4" /> },
+  { id: 'manage_inventory', label: 'Gerenciar Estoque', description: 'Cadastrar produtos, ajustar saldos e remover itens do estoque.', icon: <Package className="w-4 h-4" /> },
+  { id: 'manage_access', label: 'Gerenciar Permissões', description: 'Alterar níveis de acesso e permissões de outros perfis.', icon: <Lock className="w-4 h-4" /> },
 ];
 
 const INITIAL_RULES: RoleAccessRule[] = [
@@ -46,6 +49,7 @@ const INITIAL_RULES: RoleAccessRule[] = [
 
 export default function Settings({ 
   onNavigate, 
+  currentUser,
   serviceTypes, 
   onUpdateServiceTypes,
   vehicleDb,
@@ -57,6 +61,7 @@ export default function Settings({
   onUpdateAccessRules,
 }: { 
   onNavigate: (screen: Screen) => void, 
+  currentUser?: TeamMember | null,
   serviceTypes?: Record<VehicleType, VehicleCategory>, 
   onUpdateServiceTypes?: (types: Record<VehicleType, VehicleCategory>) => Promise<void> | void,
   vehicleDb?: VehicleRegistration[],
@@ -86,6 +91,20 @@ export default function Settings({
   const [confirmation, setConfirmation] = useState<ConfirmationState | null>(null);
   const [isConfirmingAction, setIsConfirmingAction] = useState(false);
   const newVehicleCpfError = newVehicle.thirdPartyCpf ? (!isValidCpf(newVehicle.thirdPartyCpf) ? 'CPF invalido.' : null) : null;
+  const currentPermissions = React.useMemo(() => getUserPermissions(currentUser, accessRules), [currentUser, accessRules]);
+  const canManageAccess = currentPermissions.includes('manage_access');
+  const canManageTeam = currentPermissions.includes('manage_team');
+  const canEditServices = currentPermissions.includes('edit_services');
+  const availableTabs = React.useMemo(() => {
+    const tabs: Array<'access' | 'services' | 'database'> = [];
+    if (canManageAccess || canManageTeam) {
+      tabs.push('access');
+    }
+    if (canEditServices) {
+      tabs.push('services', 'database');
+    }
+    return tabs;
+  }, [canEditServices, canManageAccess, canManageTeam]);
 
   const filteredTeam = team.filter(member => 
     member.role === activeRole && (
@@ -102,6 +121,10 @@ export default function Settings({
   ) || [];
 
   const togglePermission = (roleName: string, permissionId: string) => {
+    if (!canManageAccess || roleName === 'Administrador') {
+      return;
+    }
+
     setRules(prev => prev.map(r => {
       if (r.role === roleName) {
         const hasPermission = r.permissions.includes(permissionId);
@@ -133,6 +156,18 @@ export default function Settings({
     setRules(accessRules?.length ? accessRules : INITIAL_RULES);
     setTeam(teamProp ?? []);
   }, [accessRules, teamProp]);
+
+  React.useEffect(() => {
+    if (!availableTabs.includes(activeTab)) {
+      setActiveTab(availableTabs[0] || 'access');
+    }
+  }, [activeTab, availableTabs]);
+
+  React.useEffect(() => {
+    if (!rules.some((rule) => rule.role === activeRole)) {
+      setActiveRole(rules[0]?.role || 'Administrador');
+    }
+  }, [activeRole, rules]);
 
   React.useEffect(() => {
     if (!feedback) {
@@ -215,6 +250,11 @@ export default function Settings({
   };
 
   const handleAddMember = async () => {
+    if (!canManageTeam) {
+      showFeedback('Voce nao tem permissao para gerenciar a equipe.');
+      return;
+    }
+
     const existingMember = editingMemberId ? team.find((member) => member.id === editingMemberId) : null;
     const requiresRegistration = activeRole !== 'Clientes';
     const normalizedEmail = newMemberEmail.trim().toLowerCase();
@@ -272,6 +312,11 @@ export default function Settings({
   };
 
   const handleDeleteMember = async (id: string) => {
+    if (!canManageTeam) {
+      showFeedback('Voce nao tem permissao para remover colaboradores.');
+      return;
+    }
+
     requestConfirmation({
       title: 'Remover colaborador',
       message: 'Tem certeza que deseja remover este colaborador? Essa acao nao podera ser desfeita.',
@@ -288,6 +333,11 @@ export default function Settings({
   };
 
   const handleEditMember = (member: TeamMember) => {
+    if (!canManageTeam) {
+      showFeedback('Voce nao tem permissao para editar colaboradores.');
+      return;
+    }
+
     setEditingMemberId(member.id);
     setNewMemberName(member.name);
     setNewMemberRegistration(member.registration);
@@ -308,6 +358,11 @@ export default function Settings({
   };
 
   const handleSave = () => {
+    if (!canManageAccess) {
+      showFeedback('Voce nao tem permissao para alterar os niveis de acesso.');
+      return;
+    }
+
     setIsSaving(true);
     Promise.resolve(onUpdateAccessRules?.(rules))
       .then(() => {
@@ -322,6 +377,11 @@ export default function Settings({
   };
 
   const handleUpdateService = (vehicle: VehicleType, serviceId: string, field: keyof ServiceTypeOption, value: string | number) => {
+    if (!canEditServices) {
+      showFeedback('Voce nao tem permissao para editar servicos.');
+      return;
+    }
+
     if (!serviceTypes || !onUpdateServiceTypes) return;
 
     const updatedTypes = { ...serviceTypes };
@@ -358,6 +418,11 @@ export default function Settings({
   };
 
   const openNewServiceModal = (vehicle?: VehicleType) => {
+    if (!canEditServices) {
+      showFeedback('Voce nao tem permissao para cadastrar servicos.');
+      return;
+    }
+
     setEditingService(null);
     setServiceFormVehicle(vehicle || 'car');
     setServiceFormLabel('');
@@ -366,6 +431,11 @@ export default function Settings({
   };
 
   const openEditServiceModal = (vehicle: VehicleType, service: ServiceTypeOption) => {
+    if (!canEditServices) {
+      showFeedback('Voce nao tem permissao para editar servicos.');
+      return;
+    }
+
     setEditingService({ vehicle, service });
     setServiceFormVehicle(vehicle);
     setServiceFormLabel(service.label);
@@ -374,6 +444,11 @@ export default function Settings({
   };
 
   const handleSaveServiceForm = async () => {
+    if (!canEditServices) {
+      showFeedback('Voce nao tem permissao para salvar servicos.');
+      return;
+    }
+
     if (!serviceTypes || !onUpdateServiceTypes) return;
 
     const normalizedLabel = serviceFormLabel.trim();
@@ -423,6 +498,11 @@ export default function Settings({
   };
 
   const handleDeleteServiceType = async (vehicle: VehicleType, serviceId: string) => {
+    if (!canEditServices) {
+      showFeedback('Voce nao tem permissao para excluir servicos.');
+      return;
+    }
+
     if (!serviceTypes || !onUpdateServiceTypes) return;
 
     requestConfirmation({
@@ -444,6 +524,11 @@ export default function Settings({
   };
 
   const handleAddVehicle = async () => {
+    if (!canEditServices) {
+      showFeedback('Voce nao tem permissao para cadastrar veiculos.');
+      return;
+    }
+
     if (!newVehicle.plate || !newVehicle.customer || !newVehicle.model) {
       showFeedback('Preencha placa, cliente e modelo.');
       return;
@@ -468,6 +553,12 @@ export default function Settings({
   };
 
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    if (!canEditServices) {
+      showFeedback('Voce nao tem permissao para importar a base de veiculos.');
+      event.target.value = '';
+      return;
+    }
+
     const file = event.target.files?.[0];
     if (!file) return;
 
@@ -555,7 +646,21 @@ export default function Settings({
   const currentRoleRules = rules.find(r => r.role === activeRole);
   const visiblePermissions = activeRole === 'Clientes'
     ? PERMISSIONS.filter((permission) => permission.id === 'manage_b2b')
-    : PERMISSIONS;
+    : PERMISSIONS.filter((permission) => permission.id !== 'manage_b2b');
+
+  if (availableTabs.length === 0) {
+    return (
+      <div className="flex min-h-full items-center justify-center bg-white px-6 py-16">
+        <div className="max-w-md rounded-3xl border border-slate-200 bg-slate-50 px-6 py-8 text-center shadow-sm">
+          <Lock className="mx-auto mb-4 h-10 w-10 text-slate-400" />
+          <h2 className="text-lg font-black text-slate-900">Acesso restrito</h2>
+          <p className="mt-2 text-sm text-slate-500">
+            Seu perfil nao possui permissoes para alterar acessos, servicos ou a base de veiculos.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col min-h-full bg-white pb-24">
@@ -607,24 +712,30 @@ export default function Settings({
 
       {/* Tabs */}
       <div className="flex px-6 border-b border-slate-100 overflow-x-auto no-scrollbar pt-6">
-        <button 
-          onClick={() => setActiveTab('access')}
-          className={`pb-4 pt-2 px-4 font-bold text-sm border-b-2 transition-colors whitespace-nowrap ${activeTab === 'access' ? 'border-primary text-primary' : 'border-transparent text-slate-400'}`}
-        >
-          Acesso & Equipe
-        </button>
-        <button 
-          onClick={() => setActiveTab('services')}
-          className={`pb-4 pt-2 px-4 font-bold text-sm border-b-2 transition-colors whitespace-nowrap ${activeTab === 'services' ? 'border-primary text-primary' : 'border-transparent text-slate-400'}`}
-        >
-          Serviços & Preços
-        </button>
-        <button 
-          onClick={() => setActiveTab('database')}
-          className={`pb-4 pt-2 px-4 font-bold text-sm border-b-2 transition-colors whitespace-nowrap ${activeTab === 'database' ? 'border-primary text-primary' : 'border-transparent text-slate-400'}`}
-        >
-          Cadastros de Clientes
-        </button>
+        {availableTabs.includes('access') && (
+          <button 
+            onClick={() => setActiveTab('access')}
+            className={`pb-4 pt-2 px-4 font-bold text-sm border-b-2 transition-colors whitespace-nowrap ${activeTab === 'access' ? 'border-primary text-primary' : 'border-transparent text-slate-400'}`}
+          >
+            Acesso & Equipe
+          </button>
+        )}
+        {availableTabs.includes('services') && (
+          <button 
+            onClick={() => setActiveTab('services')}
+            className={`pb-4 pt-2 px-4 font-bold text-sm border-b-2 transition-colors whitespace-nowrap ${activeTab === 'services' ? 'border-primary text-primary' : 'border-transparent text-slate-400'}`}
+          >
+            Serviços & Preços
+          </button>
+        )}
+        {availableTabs.includes('database') && (
+          <button 
+            onClick={() => setActiveTab('database')}
+            className={`pb-4 pt-2 px-4 font-bold text-sm border-b-2 transition-colors whitespace-nowrap ${activeTab === 'database' ? 'border-primary text-primary' : 'border-transparent text-slate-400'}`}
+          >
+            Cadastros de Clientes
+          </button>
+        )}
       </div>
 
       <div className="flex-1 flex flex-col lg:flex-row">
@@ -673,7 +784,7 @@ export default function Settings({
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {visiblePermissions.map((perm) => {
                   const isEnabled = currentRoleRules?.permissions.includes(perm.id);
-                  const isDisabled = activeRole === 'Administrador';
+                  const isDisabled = activeRole === 'Administrador' || !canManageAccess;
 
                   return (
                     <div 
@@ -718,22 +829,24 @@ export default function Settings({
                     <h3 className="text-lg font-black text-slate-900">Membros da Equipe ({activeRole})</h3>
                     <p className="text-xs text-slate-500">Gerencie os colaboradores vinculados a este nível de acesso.</p>
                   </div>
-                <button 
-                  onClick={() => {
-                    setEditingMemberId(null);
-                    setNewMemberName('');
-                    setNewMemberRegistration('');
-                    setNewMemberEmail('');
-                    setNewMemberPassword('');
-                    setNewMemberAvatar('');
-                    setNewMemberAllowedBaseIds([]);
-                    setIsAddingMember(true);
-                  }}
-                    className="bg-primary text-white px-4 py-2 rounded-xl font-bold text-xs flex items-center gap-2 active:scale-95 transition-all shadow-lg shadow-primary/20"
-                  >
-                    <UserPlus className="w-4 h-4" />
-                    <span>ADICIONAR</span>
-                  </button>
+                  {canManageTeam && (
+                    <button 
+                      onClick={() => {
+                        setEditingMemberId(null);
+                        setNewMemberName('');
+                        setNewMemberRegistration('');
+                        setNewMemberEmail('');
+                        setNewMemberPassword('');
+                        setNewMemberAvatar('');
+                        setNewMemberAllowedBaseIds([]);
+                        setIsAddingMember(true);
+                      }}
+                      className="bg-primary text-white px-4 py-2 rounded-xl font-bold text-xs flex items-center gap-2 active:scale-95 transition-all shadow-lg shadow-primary/20"
+                    >
+                      <UserPlus className="w-4 h-4" />
+                      <span>ADICIONAR</span>
+                    </button>
+                  )}
                 </div>
 
                 <div className="relative mb-4">
@@ -810,36 +923,38 @@ export default function Settings({
                           )}
                         </div>
 
-                        <div className="relative">
-                          <button 
-                            onClick={() => setOpenMenuId(openMenuId === member.id ? null : member.id)}
-                            className="p-2 text-slate-400 hover:text-slate-600 transition-colors"
-                          >
-                            <MoreVertical className="w-4 h-4" />
-                          </button>
-                          
-                          {openMenuId === member.id && (
-                            <>
-                              <div className="fixed inset-0 z-10" onClick={() => setOpenMenuId(null)} />
-                              <div className="absolute right-0 top-full mt-1 w-32 bg-white rounded-xl shadow-xl border border-slate-100 z-20 overflow-hidden">
-                                <button
-                                  onClick={() => handleEditMember(member)}
-                                  className="w-full text-left px-4 py-3 text-xs font-bold text-slate-700 hover:bg-slate-50 flex items-center gap-2"
-                                >
-                                  <Edit3 className="w-3.5 h-3.5" />
-                                  Editar
-                                </button>
-                                <button 
-                                  onClick={() => handleDeleteMember(member.id)}
-                                  className="w-full text-left px-4 py-3 text-xs font-bold text-rose-500 hover:bg-rose-50 flex items-center gap-2"
-                                >
-                                  <Trash2 className="w-3.5 h-3.5" />
-                                  Excluir
-                                </button>
-                              </div>
-                            </>
-                          )}
-                        </div>
+                        {canManageTeam && (
+                          <div className="relative">
+                            <button 
+                              onClick={() => setOpenMenuId(openMenuId === member.id ? null : member.id)}
+                              className="p-2 text-slate-400 hover:text-slate-600 transition-colors"
+                            >
+                              <MoreVertical className="w-4 h-4" />
+                            </button>
+                            
+                            {openMenuId === member.id && (
+                              <>
+                                <div className="fixed inset-0 z-10" onClick={() => setOpenMenuId(null)} />
+                                <div className="absolute right-0 top-full mt-1 w-32 bg-white rounded-xl shadow-xl border border-slate-100 z-20 overflow-hidden">
+                                  <button
+                                    onClick={() => handleEditMember(member)}
+                                    className="w-full text-left px-4 py-3 text-xs font-bold text-slate-700 hover:bg-slate-50 flex items-center gap-2"
+                                  >
+                                    <Edit3 className="w-3.5 h-3.5" />
+                                    Editar
+                                  </button>
+                                  <button 
+                                    onClick={() => handleDeleteMember(member.id)}
+                                    className="w-full text-left px-4 py-3 text-xs font-bold text-rose-500 hover:bg-rose-50 flex items-center gap-2"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                    Excluir
+                                  </button>
+                                </div>
+                              </>
+                            )}
+                          </div>
+                        )}
                       </motion.div>
                     ))
                   )}
@@ -854,13 +969,15 @@ export default function Settings({
                 <h3 className="text-lg font-black text-slate-900">Serviços por tipo de veículo</h3>
                 <p className="text-xs text-slate-500">Cadastre e edite os serviços com nome, valor e categoria do veículo.</p>
               </div>
-              <button
-                onClick={() => openNewServiceModal()}
-                className="bg-primary text-white px-4 py-2 rounded-xl font-bold text-xs flex items-center gap-2 active:scale-95 transition-all shadow-sm hover:bg-blue-600"
-              >
-                <Plus className="w-4 h-4" />
-                <span>Adicionar Serviço</span>
-              </button>
+              {canEditServices && (
+                <button
+                  onClick={() => openNewServiceModal()}
+                  className="bg-primary text-white px-4 py-2 rounded-xl font-bold text-xs flex items-center gap-2 active:scale-95 transition-all shadow-sm hover:bg-blue-600"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>Adicionar Serviço</span>
+                </button>
+              )}
             </div>
 
             {serviceTypes && Object.entries(serviceTypes).map(([type, category]) => (
@@ -875,13 +992,15 @@ export default function Settings({
                     </div>
                     <h3 className="text-lg font-black text-slate-900">{category.label}</h3>
                   </div>
-                  <button
-                    onClick={() => openNewServiceModal(type as VehicleType)}
-                    className="flex items-center gap-1 text-xs font-bold text-primary hover:bg-primary/5 px-3 py-1.5 rounded-lg transition-colors"
-                  >
-                    <Plus className="w-4 h-4" />
-                    Adicionar
-                  </button>
+                  {canEditServices && (
+                    <button
+                      onClick={() => openNewServiceModal(type as VehicleType)}
+                      className="flex items-center gap-1 text-xs font-bold text-primary hover:bg-primary/5 px-3 py-1.5 rounded-lg transition-colors"
+                    >
+                      <Plus className="w-4 h-4" />
+                      Adicionar
+                    </button>
+                  )}
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -900,18 +1019,22 @@ export default function Settings({
                             {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(service.price)}
                           </p>
                         </div>
-                        <button
-                          onClick={() => openEditServiceModal(type as VehicleType, service)}
-                          className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 text-slate-500 hover:border-primary hover:text-primary transition-colors"
-                        >
-                          <Edit3 className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() => handleDeleteServiceType(type as VehicleType, service.id)}
-                          className="flex h-10 w-10 items-center justify-center rounded-xl border border-rose-200 text-rose-500 hover:bg-rose-50 transition-colors"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
+                        {canEditServices && (
+                          <>
+                            <button
+                              onClick={() => openEditServiceModal(type as VehicleType, service)}
+                              className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 text-slate-500 hover:border-primary hover:text-primary transition-colors"
+                            >
+                              <Edit3 className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() => handleDeleteServiceType(type as VehicleType, service.id)}
+                              className="flex h-10 w-10 items-center justify-center rounded-xl border border-rose-200 text-rose-500 hover:bg-rose-50 transition-colors"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </>
+                        )}
                       </div>
                     </div>
                   ))}
@@ -926,20 +1049,22 @@ export default function Settings({
                 <h3 className="text-lg font-black text-slate-900">Base de Veículos e Centros de Custo</h3>
                 <p className="text-xs text-slate-500">Importe dados via CSV ou gerencie cadastros manualmente.</p>
               </div>
-              <div className="flex gap-2">
-                <button 
-                  onClick={() => setIsAddingVehicle(true)}
-                  className="bg-primary text-white px-4 py-2 rounded-xl font-bold text-xs flex items-center gap-2 active:scale-95 transition-all shadow-sm hover:bg-blue-600"
-                >
-                  <Plus className="w-4 h-4" />
-                  <span>Novo Cadastro</span>
-                </button>
-                <label className="bg-white border border-slate-200 text-slate-600 px-4 py-2 rounded-xl font-bold text-xs flex items-center gap-2 active:scale-95 transition-all shadow-sm cursor-pointer hover:bg-slate-50 hover:border-primary hover:text-primary">
-                  <Upload className="w-4 h-4" />
-                  <span>Importar CSV</span>
-                  <input type="file" accept=".csv" className="hidden" onChange={handleFileUpload} />
-                </label>
-              </div>
+              {canEditServices && (
+                <div className="flex gap-2">
+                  <button 
+                    onClick={() => setIsAddingVehicle(true)}
+                    className="bg-primary text-white px-4 py-2 rounded-xl font-bold text-xs flex items-center gap-2 active:scale-95 transition-all shadow-sm hover:bg-blue-600"
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span>Novo Cadastro</span>
+                  </button>
+                  <label className="bg-white border border-slate-200 text-slate-600 px-4 py-2 rounded-xl font-bold text-xs flex items-center gap-2 active:scale-95 transition-all shadow-sm cursor-pointer hover:bg-slate-50 hover:border-primary hover:text-primary">
+                    <Upload className="w-4 h-4" />
+                    <span>Importar CSV</span>
+                    <input type="file" accept=".csv" className="hidden" onChange={handleFileUpload} />
+                  </label>
+                </div>
+              )}
             </div>
 
             <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 flex items-start gap-3">
@@ -1387,20 +1512,22 @@ export default function Settings({
           >
             Cancelar
           </button>
-          <button 
-            onClick={handleSave}
-            disabled={isSaving}
-            className="flex-1 bg-primary text-white font-bold py-4 rounded-2xl shadow-lg shadow-primary/20 flex items-center justify-center gap-2 active:scale-[0.98] transition-all disabled:opacity-70"
-          >
-            {isSaving ? (
-              <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-            ) : (
-              <>
-                <Save className="w-5 h-5" />
-                <span>Salvar Alterações</span>
-              </>
-            )}
-          </button>
+          {activeTab === 'access' && canManageAccess && (
+            <button 
+              onClick={handleSave}
+              disabled={isSaving}
+              className="flex-1 bg-primary text-white font-bold py-4 rounded-2xl shadow-lg shadow-primary/20 flex items-center justify-center gap-2 active:scale-[0.98] transition-all disabled:opacity-70"
+            >
+              {isSaving ? (
+                <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+              ) : (
+                <>
+                  <Save className="w-5 h-5" />
+                  <span>Salvar Alterações</span>
+                </>
+              )}
+            </button>
+          )}
         </div>
       </div>
     </div>

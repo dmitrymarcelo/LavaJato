@@ -20,9 +20,22 @@ interface SidebarProps {
   isOpen: boolean;
   onToggle: () => void;
   currentUser?: TeamMember | null;
+  canViewAnalytics?: boolean;
+  canManageInventory?: boolean;
+  canManageSettings?: boolean;
 }
 
-export default function Sidebar({ currentScreen, onNavigate, onLogout, isOpen, onToggle, currentUser }: SidebarProps) {
+export default function Sidebar({
+  currentScreen,
+  onNavigate,
+  onLogout,
+  isOpen,
+  onToggle,
+  currentUser,
+  canViewAnalytics = false,
+  canManageInventory = false,
+  canManageSettings = false,
+}: SidebarProps) {
   const menuItems = [
     { id: 'dashboard', label: 'Painel', icon: <LayoutDashboard className="w-5 h-5" /> },
     { id: 'scheduling', label: 'Agenda & Fila', icon: <Droplets className="w-5 h-5" /> },
@@ -33,7 +46,21 @@ export default function Sidebar({ currentScreen, onNavigate, onLogout, isOpen, o
 
   const visibleMenuItems = currentUser?.role === 'Clientes'
     ? menuItems.filter((item) => item.id === 'scheduling')
-    : menuItems.filter((item) => item.id !== 'settings' || currentUser?.role === 'Administrador');
+    : menuItems.filter((item) => {
+      if (item.id === 'dashboard' || item.id === 'vehicle-history') {
+        return canViewAnalytics;
+      }
+
+      if (item.id === 'inventory') {
+        return canManageInventory;
+      }
+
+      if (item.id === 'settings') {
+        return canManageSettings;
+      }
+
+      return true;
+    });
 
   return (
     <div className="hidden lg:flex relative h-screen sticky top-0 z-50">

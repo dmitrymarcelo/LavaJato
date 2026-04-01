@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from './lib/motion';
 import { Screen, Service, Notification, INITIAL_SERVICE_TYPES, RoleAccessRule, VehicleCategory, VehicleType, VehicleRegistration, Product, TeamMember } from './types';
+import { AppPermissionId, userHasPermission } from './lib/access';
 
 import Sidebar from './components/Sidebar';
 import Notifications from './components/Notifications';
@@ -39,6 +40,7 @@ import {
   UNAUTHORIZED_SESSION_EVENT,
 } from './services/api';
 import { BASES, getBaseById } from './data/bases';
+import { getSafeLogoSrc } from './lib/placeholders';
 
 const LEGACY_STORAGE_KEYS = ['bootstrapCacheV2', 'bootstrapCacheV3', 'vehicleDbCacheV1', 'authUserV1', 'selectedBase', 'activeServiceId', 'access_rules', 'appCacheVersion', 'authToken'];
 const ACTIVE_SCHEDULING_APPOINTMENT_STATUSES: Appointment['status'][] = ['confirmed', 'pending'];
@@ -101,8 +103,8 @@ export default function App() {
   const [activeServiceId, setActiveServiceId] = useState<string | null>(null);
   const [selectedVehiclePlate, setSelectedVehiclePlate] = useState<string | null>(null);
   const [selectedBase, setSelectedBase] = useState<string | null>(null);
-  const [authToken, setAuthToken] = useState<string | null>(() => api.getAuthToken());
   const [currentUser, setCurrentUser] = useState<TeamMember | null>(null);
+  const [isSessionResolved, setIsSessionResolved] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
@@ -133,9 +135,27 @@ export default function App() {
   const isIntentionalLogoutRef = useRef(false);
   const isRecoveringSessionRef = useRef(false);
   const completionPopupTimerRef = useRef<number | null>(null);
-  const isAuthenticated = Boolean(authToken);
+  const isAuthenticated = Boolean(currentUser);
   const isClientUser = currentUser?.role === 'Clientes';
-  const isAdminUser = currentUser?.role === 'Administrador';
+  const hasPermission = React.useCallback((permission: AppPermissionId) => (
+    userHasPermission(currentUser, accessRules, permission)
+  ), [currentUser, accessRules]);
+  const canViewAnalytics = hasPermission('view_analytics');
+  const canManageInventory = hasPermission('manage_inventory');
+  const canManageSettings = hasPermission('manage_access') || hasPermission('manage_team') || hasPermission('edit_services');
+  const canDeleteOperationalRecords = hasPermission('delete_services');
+
+  const getHomeScreenForUser = React.useCallback((user: TeamMember | null | undefined) => {
+    if (!user) {
+      return 'login' as Screen;
+    }
+
+    if (user.role === 'Clientes') {
+      return 'scheduling' as Screen;
+    }
+
+    return userHasPermission(user, accessRules, 'view_analytics') ? 'dashboard' : 'scheduling';
+  }, [accessRules]);
 
   const normalizePlateKey = (plate?: string | null) => String(plate || '').trim().toUpperCase();
 
@@ -331,10 +351,6 @@ export default function App() {
   }, [clearCompletionPopupTimer]);
 
   useEffect(() => {
-    api.setAuthToken(authToken);
-  }, [authToken]);
-
-  useEffect(() => {
     const handleUnauthorizedEvent = () => {
       handleUnauthorizedSession();
     };
@@ -383,6 +399,7 @@ export default function App() {
   useEffect(() => {
     try {
       LEGACY_STORAGE_KEYS.forEach((key) => window.localStorage.removeItem(key));
+      window.sessionStorage.removeItem('authToken');
     } catch (error) {}
   }, []);
 
@@ -416,30 +433,57 @@ export default function App() {
       setTeam(nextTeam);
       teamRef.current = nextTeam;
       isRecoveringSessionRef.current = false;
+      setIsSessionResolved(true);
+      setCurrentScreen(getHomeScreenForUser(data.currentUser || null));
     } catch (error: any) {
       if (error instanceof ApiError && error.status === 401) {
-        handleUnauthorizedSession();
+        performClientLogout();
         setBackendError(null);
+        setIsSessionResolved(true);
         return;
       }
 
+      setCurrentUser(null);
       setBackendError(error.message || 'Nao foi possivel carregar os dados persistentes.');
+      setIsSessionResolved(true);
     } finally {
       setIsBootstrapping(false);
     }
   };
 
   useEffect(() => {
-    if (isAuthenticated) {
-      void loadBootstrap();
-    }
-  }, [isAuthenticated]);
+    void loadBootstrap();
+  }, []);
 
   useEffect(() => {
-    if (isAuthenticated && isClientUser && currentScreen !== 'scheduling') {
-      setCurrentScreen('scheduling');
+    if (!isAuthenticated) {
+      return;
     }
-  }, [isAuthenticated, isClientUser, currentScreen]);
+
+    if (isClientUser && currentScreen !== 'scheduling') {
+      setCurrentScreen('scheduling');
+      return;
+    }
+
+    if ((currentScreen === 'dashboard') && !canViewAnalytics) {
+      setCurrentScreen('scheduling');
+      return;
+    }
+
+    if ((currentScreen === 'vehicle-history' || currentScreen === 'vehicle-history-detail') && !canViewAnalytics) {
+      setCurrentScreen('scheduling');
+      return;
+    }
+
+    if (currentScreen === 'inventory' && !canManageInventory) {
+      setCurrentScreen(getHomeScreenForUser(currentUser));
+      return;
+    }
+
+    if (currentScreen === 'settings' && !canManageSettings) {
+      setCurrentScreen(getHomeScreenForUser(currentUser));
+    }
+  }, [isAuthenticated, isClientUser, currentScreen, canViewAnalytics, canManageInventory, canManageSettings, currentUser, getHomeScreenForUser]);
 
   useEffect(() => {
     if (!currentUser) {
@@ -844,9 +888,8 @@ export default function App() {
   };
 
   const performClientLogout = () => {
-    api.clearAuthToken();
-    setAuthToken(null);
     setCurrentUser(null);
+    setIsSessionResolved(true);
     setActiveServiceId(null);
     setSelectedVehiclePlate(null);
     setSelectedBase(null);
@@ -1436,6 +1479,26 @@ export default function App() {
       return;
     }
 
+    if (normalized === 'dashboard' && !canViewAnalytics) {
+      setCurrentScreen('scheduling');
+      return;
+    }
+
+    if ((normalized === 'vehicle-history' || normalized === 'vehicle-history-detail') && !canViewAnalytics) {
+      setCurrentScreen('scheduling');
+      return;
+    }
+
+    if (normalized === 'inventory' && !canManageInventory) {
+      setCurrentScreen(getHomeScreenForUser(currentUser));
+      return;
+    }
+
+    if (normalized === 'settings' && !canManageSettings) {
+      setCurrentScreen(getHomeScreenForUser(currentUser));
+      return;
+    }
+
     if (normalized !== 'vehicle-history-detail') {
       setSelectedVehiclePlate(null);
     }
@@ -1488,9 +1551,10 @@ export default function App() {
     isIntentionalLogoutRef.current = false;
     isRecoveringSessionRef.current = false;
     setCurrentUser(response.user);
-    setAuthToken(response.token);
+    setIsSessionResolved(true);
     setSelectedBase(response.user.role === 'Clientes' ? (response.user.allowedBaseIds?.[0] || null) : null);
-    setCurrentScreen(response.user.role === 'Clientes' ? 'scheduling' : 'dashboard');
+    setCurrentScreen(getHomeScreenForUser(response.user));
+    await loadBootstrap();
   };
 
   const activeService = services.find((service) => service.id === activeServiceId) || null;
@@ -1562,15 +1626,15 @@ export default function App() {
   }, [isAuthenticated, currentDateKey, services, appointments]);
 
   const renderScreen = () => {
+    if (!isSessionResolved || isBootstrapping) return <div className="min-h-screen flex items-center justify-center text-slate-500 font-bold">Carregando dados persistentes...</div>;
     if (!isAuthenticated) return <Login onLogin={handleLogin} />;
-    if (isBootstrapping) return <div className="min-h-screen flex items-center justify-center text-slate-500 font-bold">Carregando dados persistentes...</div>;
     if (backendError) return <div className="min-h-screen flex items-center justify-center p-6 text-center text-rose-600 font-bold">{backendError}</div>;
     if (activeServiceId && !activeService && isActiveServiceLoading && ['inspection-pre', 'inspection-post', 'payment', 'history', 'customer-history'].includes(currentScreen)) {
       return <div className="min-h-screen flex items-center justify-center text-slate-500 font-bold">Carregando servico...</div>;
     }
 
     switch (currentScreen) {
-      case 'dashboard': return <Dashboard onNavigate={handleNavigateWithService} services={services} appointments={appointments} currentDateKey={currentDateKey} team={team} />;
+      case 'dashboard': return <Dashboard onNavigate={handleNavigateWithService} services={services} appointments={appointments} currentDateKey={currentDateKey} team={team} canManageSettings={canManageSettings} />;
       case 'checkin': return <CheckIn onNavigate={navigateTo} onAddService={addService} serviceTypes={serviceTypes} vehicleDb={vehicleDb} selectedBaseId={selectedBaseInfo?.id} selectedBaseName={selectedBaseInfo?.name} />;
       case 'inspection-pre': return <InspectionPre service={activeService} teamMembers={team} elapsedMinutes={activeServiceElapsedMinutes} onNavigate={navigateTo} onServiceChange={mergeServiceIntoState} onStartWash={async (washers, photos, observations) => {
         if (activeServiceId) {
@@ -1599,7 +1663,7 @@ export default function App() {
       case 'vehicle-history-detail': return <VehicleHistoryDetail plate={selectedVehiclePlate} onNavigate={handleNavigateWithService} />;
       case 'queue':
       case 'scheduling': 
-        return <Scheduling currentDateKey={currentDateKey} appointments={appointments} onUpdateAppointments={persistAppointments} onCreateBooking={createScheduledBooking} onNavigate={handleNavigateWithService} services={services} onReorder={reorderServices} onDeleteServiceRecord={deleteServiceRecord} onDeleteAppointmentRecord={deleteAppointmentRecord} serviceTypes={serviceTypes} vehicleDb={vehicleDb} availableBases={availableBases} isClientUser={isClientUser} currentUser={currentUser} onRegisterVehicle={registerVehicleFromScheduling} selectedBaseId={selectedBaseInfo?.id} selectedBaseName={selectedBaseInfo?.name} onSelectBase={(baseId) => {
+        return <Scheduling currentDateKey={currentDateKey} appointments={appointments} onUpdateAppointments={persistAppointments} onCreateBooking={createScheduledBooking} onNavigate={handleNavigateWithService} services={services} onReorder={reorderServices} onDeleteServiceRecord={deleteServiceRecord} onDeleteAppointmentRecord={deleteAppointmentRecord} serviceTypes={serviceTypes} vehicleDb={vehicleDb} availableBases={availableBases} isClientUser={isClientUser} currentUser={currentUser} canDeleteRecords={canDeleteOperationalRecords} onRegisterVehicle={registerVehicleFromScheduling} selectedBaseId={selectedBaseInfo?.id} selectedBaseName={selectedBaseInfo?.name} onSelectBase={(baseId) => {
           setSelectedBase(baseId);
         }} onResetBaseFilter={() => {
           if (!isClientUser) {
@@ -1638,8 +1702,8 @@ export default function App() {
           />
         </div>
       );
-      case 'settings': return <Settings onNavigate={navigateTo} serviceTypes={serviceTypes} onUpdateServiceTypes={persistServiceTypes} vehicleDb={vehicleDb} isVehicleDbLoading={isVehicleDbLoading} onUpdateVehicleDb={persistVehicleDb} team={team} onUpdateTeam={persistTeam} accessRules={accessRules} onUpdateAccessRules={persistAccessRules} />;
-      default: return <Dashboard onNavigate={handleNavigateWithService} services={services} appointments={appointments} currentDateKey={currentDateKey} team={team} />;
+      case 'settings': return <Settings onNavigate={navigateTo} currentUser={currentUser} serviceTypes={serviceTypes} onUpdateServiceTypes={persistServiceTypes} vehicleDb={vehicleDb} isVehicleDbLoading={isVehicleDbLoading} onUpdateVehicleDb={persistVehicleDb} team={team} onUpdateTeam={persistTeam} accessRules={accessRules} onUpdateAccessRules={persistAccessRules} />;
+      default: return <Dashboard onNavigate={handleNavigateWithService} services={services} appointments={appointments} currentDateKey={currentDateKey} team={team} canManageSettings={canManageSettings} />;
     }
   };
 
@@ -1654,6 +1718,9 @@ export default function App() {
             isOpen={isSidebarOpen}
             onToggle={() => setIsSidebarOpen(!isSidebarOpen)}
             currentUser={currentUser}
+            canViewAnalytics={canViewAnalytics}
+            canManageInventory={canManageInventory}
+            canManageSettings={canManageSettings}
           />
         )}
 
@@ -1663,7 +1730,7 @@ export default function App() {
             <header className="sticky top-0 z-40 bg-white/80 backdrop-blur-md border-b border-slate-100 px-4 py-4 flex items-center justify-between transition-colors">
               <div className="flex items-center gap-3 lg:hidden">
                 <img 
-                  src="https://teslaeventos.com.br/assets/logos/NORTETECH-CIRCLE.png" 
+                  src={getSafeLogoSrc()} 
                   alt="Norte Tech Logo" 
                   className="w-8 h-8 object-contain"
                   referrerPolicy="no-referrer"
@@ -1690,7 +1757,7 @@ export default function App() {
               </div>
 
               <div className="flex items-center gap-2">
-                {isAdminUser && (
+                {canManageSettings && (
                   <button 
                     onClick={() => navigateTo('settings')}
                     className="p-2.5 rounded-xl bg-white text-slate-500 hover:text-primary transition-all active:scale-95 border border-slate-100 shadow-sm"
@@ -1778,30 +1845,36 @@ export default function App() {
           {/* Bottom Navigation (Mobile Only) */}
           {isAuthenticated && !isClientUser && !['checkin', 'inspection-pre', 'inspection-post', 'payment'].includes(currentScreen) && (
             <nav className="lg:hidden fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-md border-t border-slate-100 px-2 pb-8 pt-3 flex items-center justify-around z-50 transition-colors">
-              <NavButton 
-                active={currentScreen === 'dashboard'} 
-                onClick={() => navigateTo('dashboard')}
-                icon={<LayoutDashboard className="w-6 h-6" />}
-                label="Painel"
-              />
+              {canViewAnalytics && (
+                <NavButton 
+                  active={currentScreen === 'dashboard'} 
+                  onClick={() => navigateTo('dashboard')}
+                  icon={<LayoutDashboard className="w-6 h-6" />}
+                  label="Painel"
+                />
+              )}
               <NavButton 
                 active={currentScreen === 'scheduling' || currentScreen === 'queue'} 
                 onClick={() => navigateTo('scheduling')}
                 icon={<Droplets className="w-6 h-6" />}
                 label="Agenda & Fila"
               />
-              <NavButton 
-                active={currentScreen === 'inventory'} 
-                onClick={() => navigateTo('inventory')}
-                icon={<Package className="w-6 h-6" />}
-                label="Estoque"
-              />
-              <NavButton 
-                active={currentScreen === 'vehicle-history' || currentScreen === 'vehicle-history-detail'} 
-                onClick={() => navigateTo('vehicle-history')}
-                icon={<History className="w-6 h-6" />}
-                label="Histórico"
-              />
+              {canManageInventory && (
+                <NavButton 
+                  active={currentScreen === 'inventory'} 
+                  onClick={() => navigateTo('inventory')}
+                  icon={<Package className="w-6 h-6" />}
+                  label="Estoque"
+                />
+              )}
+              {canViewAnalytics && (
+                <NavButton 
+                  active={currentScreen === 'vehicle-history' || currentScreen === 'vehicle-history-detail'} 
+                  onClick={() => navigateTo('vehicle-history')}
+                  icon={<History className="w-6 h-6" />}
+                  label="Historico"
+                />
+              )}
             </nav>
           )}
 

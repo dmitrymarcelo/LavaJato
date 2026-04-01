@@ -7,7 +7,21 @@ import { mapSourceVehicleTypeToCategory, normalizeSourceVehicleType } from './ve
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const defaultAdminPassword = process.env.ADMIN_INITIAL_PASSWORD || 'Admin@123456!';
+const defaultAdminPassword = process.env.ADMIN_INITIAL_PASSWORD || (process.env.NODE_ENV === 'production' ? '' : 'Admin@123456!');
+const defaultAccessRules = [
+  {
+    role: 'Administrador',
+    permissions: ['view_analytics', 'manage_team', 'edit_services', 'delete_services', 'bypass_inspection', 'manage_b2b', 'manage_inventory', 'manage_access'],
+  },
+  {
+    role: 'Lavador',
+    permissions: [],
+  },
+  {
+    role: 'Clientes',
+    permissions: ['manage_b2b'],
+  },
+];
 
 const serviceTypes = {
   car: {
@@ -120,7 +134,33 @@ export async function seedDatabase() {
       [JSON.stringify(serviceTypes)]
     );
 
+    await client.query(
+      `
+      INSERT INTO app_settings (key, value)
+      VALUES ('access_rules', $1::jsonb)
+      ON CONFLICT (key) DO NOTHING
+      `,
+      [JSON.stringify(defaultAccessRules)]
+    );
+
     for (const member of defaultTeam) {
+      const existingMember = await client.query(
+        `
+        SELECT id
+        FROM team_members
+        WHERE registration = $1
+        LIMIT 1
+        `,
+        [member.registration]
+      );
+      if (existingMember.rows[0]) {
+        continue;
+      }
+
+      if (!member.password) {
+        throw new Error('ADMIN_INITIAL_PASSWORD e obrigatorio para criar o administrador inicial em producao.');
+      }
+
       const passwordHash = await bcrypt.hash(member.password, 10);
       await client.query(
         `

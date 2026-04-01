@@ -1,6 +1,5 @@
 import { Product, RoleAccessRule, Service, TeamMember, VehicleCategory, VehicleRegistration, VehicleType, WashingZoneId } from '../types';
 
-const AUTH_TOKEN_KEY = 'authToken';
 export const UNAUTHORIZED_SESSION_EVENT = 'app:unauthorized-session';
 
 export interface Appointment {
@@ -34,7 +33,6 @@ export interface BootstrapPayload {
 
 export interface LoginResponse {
   user: TeamMember;
-  token: string;
   expiresAt: string;
 }
 
@@ -111,33 +109,13 @@ export class ApiError extends Error {
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
 
-let authTokenCache: string | null = null;
-
-function readStoredAuthToken() {
-  if (authTokenCache) {
-    return authTokenCache;
-  }
-
+function clearLegacyAuthStorage() {
   try {
-    authTokenCache = window.sessionStorage.getItem(AUTH_TOKEN_KEY);
-  } catch (error) {
-    authTokenCache = null;
-  }
-
-  return authTokenCache;
-}
-
-function storeAuthToken(token: string | null) {
-  authTokenCache = token;
-
-  try {
-    if (token) {
-      window.sessionStorage.setItem(AUTH_TOKEN_KEY, token);
-    } else {
-      window.sessionStorage.removeItem(AUTH_TOKEN_KEY);
-    }
+    window.sessionStorage.removeItem('authToken');
   } catch (error) {}
 }
+
+clearLegacyAuthStorage();
 
 function dispatchUnauthorizedSession(message: string) {
   try {
@@ -150,17 +128,13 @@ function dispatchUnauthorizedSession(message: string) {
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const token = readStoredAuthToken();
   const headers = new Headers(init?.headers || {});
   headers.set('Content-Type', 'application/json');
-
-  if (token) {
-    headers.set('Authorization', `Bearer ${token}`);
-  }
 
   const response = await fetch(`${API_BASE_URL}${path}`, {
     ...init,
     headers,
+    credentials: 'include',
   });
 
   if (!response.ok) {
@@ -179,7 +153,6 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     }
 
     if (response.status === 401 && path !== '/auth/login') {
-      storeAuthToken(null);
       dispatchUnauthorizedSession(message);
     }
 
@@ -194,9 +167,6 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export const api = {
-  getAuthToken: () => readStoredAuthToken(),
-  setAuthToken: (token: string | null) => storeAuthToken(token),
-  clearAuthToken: () => storeAuthToken(null),
   login: (identifier: string, password: string) =>
     request<LoginResponse>('/auth/login', {
       method: 'POST',

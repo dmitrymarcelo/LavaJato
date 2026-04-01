@@ -165,6 +165,7 @@ export default function Scheduling({
   availableBases = BASES,
   isClientUser = false,
   currentUser,
+  canDeleteRecords = false,
   selectedBaseId,
   selectedBaseName,
   onSelectBase,
@@ -186,6 +187,7 @@ export default function Scheduling({
   availableBases?: BaseInfo[];
   isClientUser?: boolean;
   currentUser?: TeamMember | null;
+  canDeleteRecords?: boolean;
   selectedBaseId?: string | null;
   selectedBaseName?: string | null;
   onSelectBase?: (baseId: string) => void;
@@ -497,6 +499,11 @@ export default function Scheduling({
   };
 
   const handleDeleteService = async (service: Service) => {
+    if (!canDeleteRecords) {
+      alert('Seu perfil nao possui permissao para excluir registros.');
+      return;
+    }
+
     const confirmed = window.confirm(`Excluir o registro do veiculo ${service.plate}?`);
     if (!confirmed) {
       return;
@@ -519,6 +526,11 @@ export default function Scheduling({
   };
 
   const handleDeleteAppointment = async (appointment: Appointment) => {
+    if (!canDeleteRecords) {
+      alert('Seu perfil nao possui permissao para excluir agendamentos.');
+      return;
+    }
+
     const confirmed = window.confirm(`Excluir definitivamente o agendamento da placa ${appointment.plate}?`);
     if (!confirmed) {
       return;
@@ -985,18 +997,20 @@ export default function Scheduling({
                                   onClick={(event) => event.stopPropagation()}
                                   className="absolute right-0 top-10 z-[120] w-44 overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-2xl"
                                 >
-                                  <button
-                                    type="button"
-                                    onClick={async (event) => {
-                                      event.stopPropagation();
-                                      setOpenAppointmentMenuId(null);
-                                      await handleDeleteAppointment(appointment);
-                                    }}
-                                    className="flex w-full items-center gap-2 px-3 py-3 text-left text-xs font-bold text-rose-600 hover:bg-rose-50"
-                                  >
-                                    <Trash2 className="w-4 h-4" />
-                                    Excluir definitivamente
-                                  </button>
+                                  {canDeleteRecords && (
+                                    <button
+                                      type="button"
+                                      onClick={async (event) => {
+                                        event.stopPropagation();
+                                        setOpenAppointmentMenuId(null);
+                                        await handleDeleteAppointment(appointment);
+                                      }}
+                                      className="flex w-full items-center gap-2 px-3 py-3 text-left text-xs font-bold text-rose-600 hover:bg-rose-50"
+                                    >
+                                      <Trash2 className="w-4 h-4" />
+                                      Excluir definitivamente
+                                    </button>
+                                  )}
                                 </motion.div>
                               </>
                             )}
@@ -1064,19 +1078,19 @@ export default function Scheduling({
 
           {activeTab === 'waiting' && (
             <motion.div key="waiting-tab" initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }}>
-              <QueueSection title="Aguardando" services={waitingServices} timers={timers} onAction={handleAction} onMove={moveService} onEdit={handleEditService} onDelete={handleDeleteService} />
+              <QueueSection title="Aguardando" services={waitingServices} timers={timers} onAction={handleAction} onMove={moveService} onEdit={handleEditService} onDelete={handleDeleteService} canDeleteRecords={canDeleteRecords} />
             </motion.div>
           )}
 
           {activeTab === 'washing' && (
             <motion.div key="washing-tab" initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }}>
-              <QueueSection title="Em Lavagem" services={washingServices} timers={timers} onAction={handleAction} onMove={moveService} onEdit={handleEditService} onDelete={handleDeleteService} />
+              <QueueSection title="Em Lavagem" services={washingServices} timers={timers} onAction={handleAction} onMove={moveService} onEdit={handleEditService} onDelete={handleDeleteService} canDeleteRecords={canDeleteRecords} />
             </motion.div>
           )}
 
           {activeTab === 'completed' && (
             <motion.div key="completed-tab" initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }}>
-              <QueueSection title="Concluido" services={completedServices} timers={timers} onAction={handleAction} onMove={moveService} onEdit={handleEditService} onDelete={handleDeleteService} />
+              <QueueSection title="Concluido" services={completedServices} timers={timers} onAction={handleAction} onMove={moveService} onEdit={handleEditService} onDelete={handleDeleteService} canDeleteRecords={canDeleteRecords} />
             </motion.div>
           )}
         </AnimatePresence>
@@ -1570,6 +1584,7 @@ export function QueueSection({
   onMove,
   onEdit,
   onDelete,
+  canDeleteRecords = false,
 }: {
   title: string;
   services: Service[];
@@ -1578,6 +1593,7 @@ export function QueueSection({
   onMove: (id: string, direction: 'up' | 'down') => void;
   onEdit: (service: Service) => void;
   onDelete: (service: Service) => Promise<void> | void;
+  canDeleteRecords?: boolean;
 }) {
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const [photosModalOpen, setPhotosModalOpen] = useState(false);
@@ -1782,17 +1798,19 @@ export function QueueSection({
                                 <SquarePen className="w-4 h-4 text-primary" />
                                 Editar
                               </button>
-                              <button
-                                onClick={async (event) => {
-                                  event.stopPropagation();
-                                  setOpenMenuId(null);
-                                  await onDelete(service);
-                                }}
-                                className="flex w-full items-center gap-2 px-3 py-3 text-left text-xs font-bold text-rose-600 hover:bg-rose-50"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                                Excluir
-                              </button>
+                              {canDeleteRecords && (
+                                <button
+                                  onClick={async (event) => {
+                                    event.stopPropagation();
+                                    setOpenMenuId(null);
+                                    await onDelete(service);
+                                  }}
+                                  className="flex w-full items-center gap-2 px-3 py-3 text-left text-xs font-bold text-rose-600 hover:bg-rose-50"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                  Excluir
+                                </button>
+                              )}
                             </motion.div>
                           </>
                         )}
