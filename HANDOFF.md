@@ -6,7 +6,7 @@ Atualizado em: 2026-04-01
 
 - Repositorio: `https://github.com/dmitrymarcelo/LavaJato`
 - Branch principal: `main`
-- Commit atual: `c7291da8bf743298267c1c753653822850abea2f`
+- Commit atual: `ffdd5f63a3142f5a17f3efa4a0396c70478660ae`
 - Producao AWS atual: `https://3.145.153.19/` (HTTPS ativo direto no IP publico)
 - Regiao AWS: `us-east-2`
 - Instancia usada no deploy: `i-0ba1477cbbe3d986d`
@@ -65,12 +65,17 @@ Observacao:
 - O frontend usa `VITE_API_URL=/api` em producao por causa do proxy Nginx.
 - O backend real usa PostgreSQL.
 - O Gemini no frontend nao e mais o caminho principal do assistente; o fluxo atual usa backend/AWS.
-- O seed cria um usuario administrador com credenciais abaixo na primeira inicializacao da API.
+- Em producao, o primeiro seed administrativo agora depende de `ADMIN_INITIAL_PASSWORD`.
+- A sessao do usuario agora e mantida por cookie `HttpOnly`, com configuracao por `SESSION_COOKIE_*`.
 
 ## Credencial padrao de teste
 
-- Matricula: `1001`
-- Senha: `Admin@123456!`
+- Desenvolvimento local:
+  - Matricula: `1001`
+  - Senha: `Admin@123456!`
+- Producao nova:
+  - definir `ADMIN_INITIAL_PASSWORD` antes do primeiro seed
+  - a senha padrao nao deve ser usada como referencia operacional
 
 ## Decisoes importantes tomadas
 
@@ -118,6 +123,24 @@ Observacao:
   - a etapa muda localmente no aparelho
   - a fila exibe aviso de sincronizacao pendente
   - o app reenvia automaticamente quando voltar conexao, foco ou visibilidade
+
+### Seguranca
+
+- A autenticacao do frontend deixou de usar `sessionStorage` para token.
+- O backend agora cria sessao em `auth_sessions` e devolve cookie `HttpOnly`.
+- Requisicoes mutantes em `/api` validam origem confiavel via `Origin`/`Referer` antes de alterar estado.
+- O `bootstrap` agora entrega ao frontend o conjunto de permissoes do usuario autenticado.
+- A matriz `access_rules` passou a fazer enforcement real no backend para:
+  - `manage_access`
+  - `manage_team`
+  - `edit_services`
+  - `delete_services`
+  - `manage_inventory`
+  - `view_analytics`
+  - `bypass_inspection`
+- `Historico de Veiculos` agora exige permissao de analytics tambem na API.
+- Inicio e conclusao de lavagem sem foto obrigatoria so passam no backend se o perfil tiver `bypass_inspection`.
+- Exclusoes operacionais agora exigem permissao `delete_services`.
 - Isso reduz o risco de o time reiniciar a mesma lavagem por falta de confirmacao imediata do servidor.
 - A carga da base de veiculos em `Configuracoes` agora ignora respostas antigas da API quando a lista local ja mudou, evitando que um CSV importado suma da tela logo apos a importacao.
 - A importacao da base de veiculos agora usa `bulk upsert` transacional no backend e envio em lotes no frontend.
@@ -201,14 +224,14 @@ Observacao:
 
 ## Commits recentes relevantes
 
+- `ffdd5f6` `feat: harden sessions and permission enforcement`
+- `8c1aa48` `docs: refresh persistence after security hardening`
 - `c7291da` `feat: harden backend security baseline`
 - `bb1cca7` `docs: refresh persistence after notifications flow`
 - `18149a7` `feat: improve operational notifications flow`
 - `6525bff` `chore: keep ssm status as deploy diagnostic`
 - `acc0f09` `fix: validate public https build in deploy workflow`
 - `bb60ea9` `fix: poll ssm command status directly`
-- `5770c87` `fix: manage https renewal with systemd timer`
-- `137c2a0` `fix: wait for api health before tls step`
 
 ## Arquivos centrais
 
@@ -316,7 +339,7 @@ Com isso, qualquer alteracao publicada em `main` dispara o deploy via SSM no EC2
 - O botao flutuante do assistente IA foi removido da UI principal; a integracao Bedrock segue existente no backend, mas sem CTA visivel no app.
 - A tela `Configuracoes > Cadastros de Clientes` trocou `alert/confirm` por feedback visual interno, leve e mais amigavel para smartphone, sem adicionar polling ou dependencias pesadas.
 - O GitHub e a fonte principal da continuidade.
-- Se mudar de computador, o ideal e continuar a partir do commit `c7291da` ou posterior.
+- Se mudar de computador, o ideal e continuar a partir do commit `ffdd5f6` ou posterior.
 - Imagens enviadas ficam em `server/storage/uploads` (persistidas via volume Docker).
 - Em producao, altere a senha do administrador imediatamente.
 

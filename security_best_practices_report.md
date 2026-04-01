@@ -14,6 +14,9 @@ Resultado desta rodada:
 - fallback de senha previsivel removido do fluxo de criacao/edicao de usuarios
 - CORS saiu do modo permissivo e passou a aceitar mesmo-origem ou origens explicitamente liberadas
 - URLs remotas arbitrarias de imagem deixaram de ser persistidas
+- a sessao saiu de `sessionStorage` e passou para cookie `HttpOnly`
+- a matriz `access_rules` passou a proteger rotas reais no backend
+- mutacoes autenticadas passaram a validar origem confiavel
 - dependencias de producao ficaram com `pnpm audit --prod` zerado
 
 ## Findings corrigidos
@@ -96,26 +99,19 @@ Resultado desta rodada:
 
 ## Riscos residuais recomendados para a proxima rodada
 
-### SBP-R01 - Token ainda vive em `sessionStorage`
-
-- Severidade: Medium
-- Local: `src/services/api.ts:122`, `src/services/api.ts:135`, `src/services/api.ts:137`
-- Impacto: qualquer XSS relevante ainda poderia capturar a sessao do usuario.
-- Recomendacao: migrar para cookie `HttpOnly` com fluxo CSRF bem definido no backend.
-
-### SBP-R02 - Ainda podem existir URLs remotas historicas em registros antigos
+### SBP-R01 - Ainda podem existir URLs remotas historicas em registros antigos
 
 - Severidade: Medium
 - Local: dados operacionais ja persistidos antes desta rodada
 - Impacto: registros antigos alimentados manualmente com URL remota customizada ainda podem apontar para terceiros.
 - Recomendacao: executar uma limpeza de dados historicos e preferir somente `/uploads` ou placeholders internos.
 
-### SBP-R03 - RBAC ainda nao usa toda a matriz `access_rules` no backend
+### SBP-R02 - A matriz de permissoes ainda nao cobre toda a superficie de negocio
 
 - Severidade: Medium
-- Local: `src/components/Settings.tsx:31`, `server/index.mjs:1738`
-- Impacto: a defesa principal desta rodada ficou em `admin-only` para rotas criticas, mas a matriz de permissoes configuravel ainda nao faz enforcement fino em todas as superficies.
-- Recomendacao: adicionar middleware por permissao (`manage_team`, `edit_services`, `delete_services`, `view_analytics`) e alinhar a navegacao do frontend ao mesmo contrato.
+- Local: `src/components/Settings.tsx`, `server/index.mjs`
+- Impacto: as rotas principais sensiveis ja usam permissao real, mas ainda existem fluxos operacionais gerais que continuam autorizados por contexto/base e nao por uma matriz mais detalhada.
+- Recomendacao: se o negocio quiser granularidade ainda maior, modelar permissoes adicionais para agenda, pagamento e cadastro operacional fino sem afetar produtividade do campo.
 
 ## Validacoes executadas
 

@@ -1,7 +1,7 @@
 # SKILLS.md - Lava Jato Norte Tech
 
 Atualizado em: 2026-04-01
-Commit de referencia: `c7291da8bf743298267c1c753653822850abea2f`
+Commit de referencia: `ffdd5f63a3142f5a17f3efa4a0396c70478660ae`
 
 ## Objetivo
 
@@ -42,11 +42,12 @@ Ele complementa o `AGENTS.md`:
 
 - Tipo: governanca
 - Objetivo: manter login, logout e expiracao de sessao consistentes
-- Entradas: token, eventos `401`, credenciais, sessao local
+- Entradas: cookie de sessao, eventos `401`, credenciais, bootstrap autenticado
 - Saidas: sessao valida, logout limpo, recuperacao de autenticacao
 - Dependencias: `src/services/api.ts`, `src/App.tsx`, `server/index.mjs`
 - Falha esperada: token expirado ou ausente
 - Resposta esperada: limpar sessao e redirecionar sem corromper estado global
+- Guardrails atuais: cookie `HttpOnly`, `credentials: include`, expiracao no backend e limpeza de legado em `sessionStorage`
 
 ### S02. `bootstrap-hydration`
 
@@ -67,6 +68,16 @@ Ele complementa o `AGENTS.md`:
 - Dependencias: `server/index.mjs`, `src/data/bases.ts`
 - Falha esperada: base ausente ou fora da lista permitida
 - Resposta esperada: erro `403` ou resultado vazio seguro
+
+### S03B. `permission-enforcement`
+
+- Tipo: governanca
+- Objetivo: impedir que a API dependa apenas do frontend para seguranca
+- Entradas: `access_rules`, usuario autenticado, permissao requerida pela rota
+- Saidas: `403` seguro ou execucao autorizada
+- Dependencias: `server/index.mjs`, `src/lib/access.ts`, `src/App.tsx`, `src/components/Settings.tsx`
+- Falha esperada: perfil sem permissao para a acao
+- Resposta esperada: bloquear acesso no backend e refletir a restricao no frontend sem esconder inconsistencias
 
 ### S04. `vehicle-normalization`
 

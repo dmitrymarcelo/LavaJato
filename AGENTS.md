@@ -1,7 +1,7 @@
 # AGENTS.md - Lava Jato Norte Tech
 
 Atualizado em: 2026-04-01
-Commit de referencia: `c7291da8bf743298267c1c753653822850abea2f`
+Commit de referencia: `ffdd5f63a3142f5a17f3efa4a0396c70478660ae`
 
 ## Objetivo
 
@@ -53,7 +53,7 @@ O sistema precisa garantir cinco resultados de negocio sem ambiguidade:
 - backend monolitico em `server/index.mjs`, com rotas REST e helpers internos de persistencia/transacao
 - modelo de dados relacional com campos `JSONB` para estruturas flexiveis como timeline, fotos, movimentos e configuracoes
 - persistencia mobile resiliente usando fila local para fotos e transicoes operacionais
-- endurecimento recente de seguranca no backend com rate limit de login, CORS restritivo por mesmo-origem/allowlist, headers defensivos leves e autorizacao administrativa real nas rotas mais sensiveis
+- endurecimento recente de seguranca no backend com rate limit de login, CORS restritivo por mesmo-origem/allowlist, validacao de origem para mutacoes, cookie de sessao `HttpOnly` e enforcement real por permissao nas rotas mais sensiveis
 - deploy automatico em `main`, com memoria operacional sincronizada em `HANDOFF.md` e validacao de SHA real do frontend servido pela EC2
 
 ### Hotspots tecnicos
@@ -177,7 +177,7 @@ Este projeto adota os seguintes principios, alinhados a boas praticas publicadas
 - Missao: autenticar usuarios, gerenciar equipe, permissoes, tipos de servico e base de veiculos
 - Entradas: credenciais, perfis, base autorizada, regras de acesso e dados mestres
 - Saidas: sessao autenticada, usuarios atualizados, configuracoes persistidas
-- Guardrails: sessoes persistidas em `auth_sessions`, filtro por base para clientes, validacoes de senha e email no frontend e no backend, rate limit de login por IP + identificador, seed administrativo configuravel por `ADMIN_INITIAL_PASSWORD` e bloqueio de URL remota arbitraria em imagens persistidas
+- Guardrails: sessoes persistidas em `auth_sessions` com cookie `HttpOnly`, filtro por base para clientes, validacoes de senha e email no frontend e no backend, rate limit de login por IP + identificador, validacao de origem para mutacoes, enforcement por permissao (`manage_access`, `manage_team`, `edit_services`, `manage_inventory`, `delete_services`, `view_analytics`, `bypass_inspection`), seed administrativo configuravel por `ADMIN_INITIAL_PASSWORD` e bloqueio de URL remota arbitraria em imagens persistidas
 - Alinhamento de UX recente: `Configuracoes` deixou de aparecer para perfis nao administrativos na navegacao principal
 - UX atual: a tela de configuracoes usa feedback visual proprio para erro, sucesso e confirmacao, evitando dialogos nativos do navegador
 - Persistencia atual: importacao de CSV da base de veiculos usa `bulk upsert` transacional no backend e lotes no frontend, com estado de carregamento explicito apos refresh
