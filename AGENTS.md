@@ -1,7 +1,7 @@
 # AGENTS.md - Lava Jato Norte Tech
 
 Atualizado em: 2026-04-01
-Commit de referencia: `bb1cca723f24925af45dbb7b4f3262bc75a69171`
+Commit de referencia: `c7291da8bf743298267c1c753653822850abea2f`
 
 ## Objetivo
 
