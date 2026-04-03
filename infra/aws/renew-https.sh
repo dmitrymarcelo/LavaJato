@@ -14,6 +14,12 @@ mkdir -p .runtime/letsencrypt/conf .runtime/letsencrypt/www
 export APP_HOST
 export APP_CERT_NAME
 
+CERTBOT_RENEW_ARGS=(--keep-until-expiring)
+CURRENT_CERT_PATH=".runtime/letsencrypt/conf/live/${APP_CERT_NAME}/cert.pem"
+if [ ! -f "${CURRENT_CERT_PATH}" ] || ! openssl x509 -checkend 86400 -noout -in "${CURRENT_CERT_PATH}" >/dev/null 2>&1; then
+  CERTBOT_RENEW_ARGS=(--force-renewal)
+fi
+
 CERTBOT_CONTACT_ARGS=()
 if printf '%s' "${HTTPS_CERT_EMAIL}" | grep -Eq '^[^[:space:]@]+@[^[:space:]@]+\.[^[:space:]@]+$'; then
   CERTBOT_CONTACT_ARGS=(--email "${HTTPS_CERT_EMAIL}")
@@ -29,8 +35,8 @@ docker compose run --rm certbot certonly \
   --webroot-path /var/www/certbot \
   --non-interactive \
   --agree-tos \
-  --keep-until-expiring \
   --cert-name "${APP_CERT_NAME}" \
+  "${CERTBOT_RENEW_ARGS[@]}" \
   "${CERTBOT_CONTACT_ARGS[@]}" \
   --ip-address "${APP_HOST}"
 

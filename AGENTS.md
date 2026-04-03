@@ -1,7 +1,7 @@
 # AGENTS.md - Lava Jato Norte Tech
 
 Atualizado em: 2026-04-03
-Commit de referencia: `ca4ab15bf8bb1bfa364319be1409b79c712fed61`
+Commit de referencia: `6e53676f65ba8d80ad14eb42a1657ba3143bae12`
 
 ## Objetivo
 
@@ -219,6 +219,7 @@ Este projeto adota os seguintes principios, alinhados a boas praticas publicadas
 - Guardrails: `handoff:check` antes do deploy, health check da API com retentativa, sincronizacao documental, restauracao segura de `HANDOFF.md`, `AGENTS.md` e `SKILLS.md` pelo proprio Git no checkout da EC2, `APP_BUILD_SHA` no HTML, build cacheado de `api` e `web`, `--force-recreate`, validacao por `curl localhost` para impedir deploy verde com frontend velho, limpeza controlada do Docker antes da etapa TLS, emissao/renovacao HTTPS direta no IP publico via `certbot` com fallback sem email quando o secret nao existir, renovacao registrada em `systemd timer`, leitura do SSM via `get-command-invocation` como diagnostico nao bloqueante, validacao final pelo `app-build-sha` publico em HTTPS, `nginx -t` antes de recarregar o proxy e despejo automatico de logs quando o SSM falhar
 - Observacao operacional recente: como o acesso publico ainda usa IP direto, o health check final do workflow agora tolera certificado nao confiavel no runner para medir disponibilidade real sem derrubar o pipeline por falso negativo
 - Observacao operacional recente: certificados IP `short-lived` exigem renovacao mais frequente; o orquestrador de deploy agora instala timer de renovacao a cada `6h` para evitar novo `ERR_CERT_DATE_INVALID`
+- Observacao operacional recente: quando o certificado estiver com menos de `24h` de vida restante, o orquestrador passa a forcar a renovacao para evitar que o `certbot` mantenha um certificado prestes a vencer
 - Owner sugerido: plataforma + engenharia
 
 ## Catalogo de SKILLS do projeto
