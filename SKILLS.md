@@ -1,7 +1,7 @@
 # SKILLS.md - Lava Jato Norte Tech
 
 Atualizado em: 2026-04-03
-Commit de referencia: `08cf635816c162480b02e27598c5451159242a95`
+Commit de referencia: `ae8658842f498c4ca7888f0840f8515828a37cfc`
 
 ## Objetivo
 
@@ -19,6 +19,7 @@ Ele complementa o `AGENTS.md`:
 - cada skill precisa ter modo de falha conhecido
 - skills criticas de operacao devem sobreviver a rede instavel
 - skills administrativas nunca podem depender apenas do frontend para seguranca
+- assets de identidade visual que impactam confianca do usuario devem ficar versionados localmente no projeto
 - skills generativas sao consultivas, nao autoritativas, salvo regra explicitamente aprovada
 
 ## Classificacao

@@ -26,20 +26,7 @@ const getInitials = (value: string, fallback = 'NT') => {
   return initials || fallback;
 };
 
-export const APP_LOGO_SRC = toSvgDataUri(`
-  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" role="img" aria-label="Norte Tech">
-    <defs>
-      <linearGradient id="logo-bg" x1="0%" x2="100%" y1="0%" y2="100%">
-        <stop offset="0%" stop-color="#0f172a"/>
-        <stop offset="100%" stop-color="#2563eb"/>
-      </linearGradient>
-    </defs>
-    <rect width="96" height="96" rx="28" fill="url(#logo-bg)"/>
-    <circle cx="48" cy="48" r="31" fill="#ffffff" opacity="0.12"/>
-    <path d="M27 61V35h8l13 15V35h8v26h-7L35 45v16h-8Z" fill="#ffffff"/>
-    <path d="M60 35h14v7h-6v19h-8V42h-6v-7h6Z" fill="#f8fafc"/>
-  </svg>
-`);
+export const APP_LOGO_SRC = '/brand/nortetech-circle.png';
 
 export const DEFAULT_SERVICE_IMAGE_SRC = toSvgDataUri(`
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 360" role="img" aria-label="Servico">

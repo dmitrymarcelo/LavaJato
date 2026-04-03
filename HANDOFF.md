@@ -6,7 +6,7 @@ Atualizado em: 2026-04-03
 
 - Repositorio: `https://github.com/dmitrymarcelo/LavaJato`
 - Branch principal: `main`
-- Commit atual: `08cf635816c162480b02e27598c5451159242a95`
+- Commit atual: `ae8658842f498c4ca7888f0840f8515828a37cfc`
 - Producao AWS atual: `https://3.145.153.19/` (HTTPS ativo direto no IP publico)
 - Regiao AWS: `us-east-2`
 - Instancia usada no deploy: `i-0ba1477cbbe3d986d`
@@ -226,6 +226,7 @@ Observacao:
 
 ## Commits recentes relevantes
 
+- `ae86588` `fix: tolerate direct-ip tls in deploy health check`
 - `08cf635` `feat: reinforce wash completion feedback flow`
 - `e3b9858` `docs: refresh persistence after security hardening`
 - `ffdd5f6` `feat: harden sessions and permission enforcement`
@@ -233,7 +234,6 @@ Observacao:
 - `c7291da` `feat: harden backend security baseline`
 - `bb1cca7` `docs: refresh persistence after notifications flow`
 - `18149a7` `feat: improve operational notifications flow`
-- `6525bff` `chore: keep ssm status as deploy diagnostic`
 
 ## Arquivos centrais
 
@@ -340,9 +340,10 @@ Com isso, qualquer alteracao publicada em `main` dispara o deploy via SSM no EC2
 - `AGENTS.md` passa a ser a referencia principal de agentes, skills, ownership, KPIs e guardrails do projeto.
 - `SKILLS.md` passa a ser a referencia persistente de capacidades reutilizaveis e contratos tecnicos do projeto.
 - O botao flutuante do assistente IA foi removido da UI principal; a integracao Bedrock segue existente no backend, mas sem CTA visivel no app.
+- A logomarca oficial da empresa voltou para o login e para o canto superior esquerdo do sistema, mas agora empacotada localmente em `public/brand/nortetech-circle.png`, sem dependencia externa em runtime.
 - A tela `Configuracoes > Cadastros de Clientes` trocou `alert/confirm` por feedback visual interno, leve e mais amigavel para smartphone, sem adicionar polling ou dependencias pesadas.
 - O GitHub e a fonte principal da continuidade.
-- Se mudar de computador, o ideal e continuar a partir do commit `08cf635` ou posterior.
+- Se mudar de computador, o ideal e continuar a partir do commit `ae86588` ou posterior.
 - Imagens enviadas ficam em `server/storage/uploads` (persistidas via volume Docker).
 - Em producao, altere a senha do administrador imediatamente.
 

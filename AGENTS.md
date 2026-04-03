@@ -1,7 +1,7 @@
 # AGENTS.md - Lava Jato Norte Tech
 
 Atualizado em: 2026-04-03
-Commit de referencia: `08cf635816c162480b02e27598c5451159242a95`
+Commit de referencia: `ae8658842f498c4ca7888f0840f8515828a37cfc`
 
 ## Objetivo
 
@@ -49,6 +49,7 @@ O sistema precisa garantir cinco resultados de negocio sem ambiguidade:
 - frontend orientado a componentes funcionais com `useState`, `useEffect` e `useRef`
 - `src/App.tsx` atua como orquestrador principal de sessao, bootstrap, sincronizacao e navegacao
 - o mesmo `src/App.tsx` tambem orquestra feedback operacional leve via notificacoes e popup de conclusao, sem depender de polling extra
+- identidade visual critica do produto, como a logomarca da empresa, deve ser servida por asset local versionado para preservar branding sem depender de host externo
 - componentes grandes concentram regras de negocio locais, com destaque para `Scheduling.tsx`, `Settings.tsx`, `InspectionPre.tsx` e `InspectionPost.tsx`
 - backend monolitico em `server/index.mjs`, com rotas REST e helpers internos de persistencia/transacao
 - modelo de dados relacional com campos `JSONB` para estruturas flexiveis como timeline, fotos, movimentos e configuracoes
