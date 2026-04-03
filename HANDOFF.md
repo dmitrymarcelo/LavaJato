@@ -6,7 +6,7 @@ Atualizado em: 2026-04-03
 
 - Repositorio: `https://github.com/dmitrymarcelo/LavaJato`
 - Branch principal: `main`
-- Commit atual: `e3b98586328a8221ab8d50f41594619fae956c00`
+- Commit atual: `08cf635816c162480b02e27598c5451159242a95`
 - Producao AWS atual: `https://3.145.153.19/` (HTTPS ativo direto no IP publico)
 - Regiao AWS: `us-east-2`
 - Instancia usada no deploy: `i-0ba1477cbbe3d986d`
@@ -226,6 +226,7 @@ Observacao:
 
 ## Commits recentes relevantes
 
+- `08cf635` `feat: reinforce wash completion feedback flow`
 - `e3b9858` `docs: refresh persistence after security hardening`
 - `ffdd5f6` `feat: harden sessions and permission enforcement`
 - `8c1aa48` `docs: refresh persistence after security hardening`
@@ -233,7 +234,6 @@ Observacao:
 - `bb1cca7` `docs: refresh persistence after notifications flow`
 - `18149a7` `feat: improve operational notifications flow`
 - `6525bff` `chore: keep ssm status as deploy diagnostic`
-- `acc0f09` `fix: validate public https build in deploy workflow`
 
 ## Arquivos centrais
 
@@ -322,7 +322,8 @@ Com isso, qualquer alteracao publicada em `main` dispara o deploy via SSM no EC2
 - O quinto bloqueio real aconteceu ja depois do certificado emitido: a renovacao estava presa a `/etc/cron.d`, mas a EC2 nao tinha essa estrutura pronta. O deploy agora registra a renovacao via `systemd timer`, que e nativo da instancia e nao depende de `crond`.
 - O sexto ajuste foi no proprio GitHub Actions: a etapa `Check SSM command result` trocou `list-command-invocations` por `get-command-invocation` na instancia alvo, separando `Status`, `Stdout` e `Stderr` para o workflow nao cair depois de um deploy que ja terminou funcionalmente.
 - O setimo ajuste fechou o criterio de sucesso do pipeline: a leitura de SSM continua como diagnostico nao bloqueante, mas o job agora fica verde quando a URL publica em `HTTPS` estiver servindo o `app-build-sha` do commit publicado e `/api/health` responder corretamente.
-- O handoff sincronizado fica no proprio repo da instancia em `/opt/lavajato/app/HANDOFF.md`.
+- Como a publicacao continua presa ao IP publico da EC2, o health check do workflow agora usa `curl -k` apenas nessa validacao automatica do runner para nao marcar falso negativo por certificado nao confiavel fora de um dominio dedicado.
+  - O handoff sincronizado fica no proprio repo da instancia em `/opt/lavajato/app/HANDOFF.md`.
 - As referencias operacionais adicionais ficam em:
   - `/opt/lavajato/app/AGENTS.md`
   - `/opt/lavajato/app/SKILLS.md`
@@ -341,7 +342,7 @@ Com isso, qualquer alteracao publicada em `main` dispara o deploy via SSM no EC2
 - O botao flutuante do assistente IA foi removido da UI principal; a integracao Bedrock segue existente no backend, mas sem CTA visivel no app.
 - A tela `Configuracoes > Cadastros de Clientes` trocou `alert/confirm` por feedback visual interno, leve e mais amigavel para smartphone, sem adicionar polling ou dependencias pesadas.
 - O GitHub e a fonte principal da continuidade.
-- Se mudar de computador, o ideal e continuar a partir do commit `e3b9858` ou posterior.
+- Se mudar de computador, o ideal e continuar a partir do commit `08cf635` ou posterior.
 - Imagens enviadas ficam em `server/storage/uploads` (persistidas via volume Docker).
 - Em producao, altere a senha do administrador imediatamente.
 

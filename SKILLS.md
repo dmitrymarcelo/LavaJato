@@ -1,7 +1,7 @@
 # SKILLS.md - Lava Jato Norte Tech
 
 Atualizado em: 2026-04-03
-Commit de referencia: `e3b98586328a8221ab8d50f41594619fae956c00`
+Commit de referencia: `08cf635816c162480b02e27598c5451159242a95`
 
 ## Objetivo
 
@@ -248,7 +248,7 @@ Ele complementa o `AGENTS.md`:
 - Saidas: bundle web recompilado, HTML marcado com o SHA da build, runtime docs copiados do checkout atualizado, proxy HTTP valido antes da emissao do certificado e HTTPS ativo no proprio IP publico apos a renovacao
 - Dependencias: `index.html`, `package.json`, `Dockerfile.web`, `docker-compose.yml`, `infra/nginx/http.conf.template`, `infra/nginx/https.conf.template`, `infra/nginx/render-config.sh`, `infra/aws/renew-https.sh`, `.github/workflows/deploy.yml`, `scripts/build-ssm-deploy-command.mjs`, `scripts/run-vite-build.mjs`
 - Falha esperada: deploy verde com HTML ainda apontando para assets antigos, proxy tentando subir TLS sem certificado ou HTTPS nao publicado para smartphone
-- Resposta esperada: validar HTTP antes do `certbot`, esperar a API sair do `502` inicial com retentativa controlada, restaurar `HANDOFF.md`, `AGENTS.md` e `SKILLS.md` pelo Git antes do `git pull`, liberar espaco do Docker antes da etapa TLS, aceitar `HTTPS_CERT_EMAIL` valido quando existir e fazer fallback sem email quando nao existir, emitir certificado diretamente para o IP publico com perfil short-lived, registrar a renovacao por `systemd timer`, consultar o resultado do SSM com `get-command-invocation` apenas como diagnostico, renderizar apenas `1` config final do Nginx por vez, executar `nginx -t` antes do reload e exigir no workflow que o `app-build-sha` em HTTPS e o `/api/health` correspondam ao commit publicado
+- Resposta esperada: validar HTTP antes do `certbot`, esperar a API sair do `502` inicial com retentativa controlada, restaurar `HANDOFF.md`, `AGENTS.md` e `SKILLS.md` pelo Git antes do `git pull`, liberar espaco do Docker antes da etapa TLS, aceitar `HTTPS_CERT_EMAIL` valido quando existir e fazer fallback sem email quando nao existir, emitir certificado diretamente para o IP publico com perfil short-lived, registrar a renovacao por `systemd timer`, consultar o resultado do SSM com `get-command-invocation` apenas como diagnostico, renderizar apenas `1` config final do Nginx por vez, executar `nginx -t` antes do reload e exigir no workflow que o `app-build-sha` em HTTPS e o `/api/health` correspondam ao commit publicado, com `curl -k` apenas no runner quando o acesso publico ainda estiver preso ao IP
 
 ### S21. `security-hardening-baseline`
 

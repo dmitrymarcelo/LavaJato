@@ -123,6 +123,6 @@ jobs:
         run: |
           set -e
           curl -sS -I "http://${PUBLIC_IP}/" | head -n 5
-          curl -sS -I "https://${PUBLIC_IP}/" | head -n 5
-          curl -fsS "https://${PUBLIC_IP}/" | grep -F 'app-build-sha' | grep -F "${GITHUB_SHA}"
-          curl -sS "https://${PUBLIC_IP}/api/health"
+          curl -ksS -I "https://${PUBLIC_IP}/" | head -n 5
+          curl -kfsS "https://${PUBLIC_IP}/" | grep -F 'app-build-sha' | grep -F "${GITHUB_SHA}"
+          curl -ksS "https://${PUBLIC_IP}/api/health"

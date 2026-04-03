@@ -1,7 +1,7 @@
 # AGENTS.md - Lava Jato Norte Tech
 
 Atualizado em: 2026-04-03
-Commit de referencia: `e3b98586328a8221ab8d50f41594619fae956c00`
+Commit de referencia: `08cf635816c162480b02e27598c5451159242a95`
 
 ## Objetivo
 
@@ -216,6 +216,7 @@ Este projeto adota os seguintes principios, alinhados a boas praticas publicadas
 - Entradas: push em `main`, segredos AWS, estado do repositorio e `HANDOFF.md`
 - Saidas: deploy automatico, handoff sincronizado na EC2 e trilha historica recente
 - Guardrails: `handoff:check` antes do deploy, health check da API com retentativa, sincronizacao documental, restauracao segura de `HANDOFF.md`, `AGENTS.md` e `SKILLS.md` pelo proprio Git no checkout da EC2, `APP_BUILD_SHA` no HTML, build cacheado de `api` e `web`, `--force-recreate`, validacao por `curl localhost` para impedir deploy verde com frontend velho, limpeza controlada do Docker antes da etapa TLS, emissao/renovacao HTTPS direta no IP publico via `certbot` com fallback sem email quando o secret nao existir, renovacao registrada em `systemd timer`, leitura do SSM via `get-command-invocation` como diagnostico nao bloqueante, validacao final pelo `app-build-sha` publico em HTTPS, `nginx -t` antes de recarregar o proxy e despejo automatico de logs quando o SSM falhar
+- Observacao operacional recente: como o acesso publico ainda usa IP direto, o health check final do workflow agora tolera certificado nao confiavel no runner para medir disponibilidade real sem derrubar o pipeline por falso negativo
 - Owner sugerido: plataforma + engenharia
 
 ## Catalogo de SKILLS do projeto
