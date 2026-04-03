@@ -53,8 +53,10 @@ jobs:
             --instance-ids i-0ba1477cbbe3d986d \
             --query 'Reservations[0].Instances[0].PublicIpAddress' \
             --output text)
+          PUBLIC_HOST=$(echo "${PUBLIC_IP}" | tr '.' '-').sslip.io
           echo "PUBLIC_IP=${PUBLIC_IP}" >> $GITHUB_ENV
-          echo "Resolved endpoint: https://${PUBLIC_IP}"
+          echo "PUBLIC_HOST=${PUBLIC_HOST}" >> $GITHUB_ENV
+          echo "Resolved endpoint: https://${PUBLIC_HOST}"
       - name: Ensure public ingress for HTTP and HTTPS
         run: |
           SG_IDS=$(aws ec2 describe-instances \
@@ -123,6 +125,6 @@ jobs:
         run: |
           set -e
           curl -sS -I "http://${PUBLIC_IP}/" | head -n 5
-          curl -ksS -I "https://${PUBLIC_IP}/" | head -n 5
-          curl -kfsS "https://${PUBLIC_IP}/" | grep -F 'app-build-sha' | grep -F "${GITHUB_SHA}"
-          curl -ksS "https://${PUBLIC_IP}/api/health"
+          curl -sS -I "https://${PUBLIC_HOST}/" | head -n 5
+          curl -fsS "https://${PUBLIC_HOST}/" | grep -F 'app-build-sha' | grep -F "${GITHUB_SHA}"
+          curl -sS "https://${PUBLIC_HOST}/api/health"

@@ -7,7 +7,7 @@ Atualizado em: 2026-04-03
 - Repositorio: `https://github.com/dmitrymarcelo/LavaJato`
 - Branch principal: `main`
 - Commit atual: `6e53676f65ba8d80ad14eb42a1657ba3143bae12`
-- Producao AWS atual: `https://3.145.153.19/` (HTTPS ativo direto no IP publico)
+- Producao AWS atual: `https://3-145-153-19.sslip.io/` (hostname publico com certificado HTTPS confiavel)
 - Regiao AWS: `us-east-2`
 - Instancia usada no deploy: `i-0ba1477cbbe3d986d`
 
@@ -201,8 +201,8 @@ Observacao:
 ### HTTPS e acesso mobile
 
 - O acesso mobile ainda dependia de HTTP puro, o que prejudicava camera, upload e armazenamento em navegadores de smartphone.
-- A producao passou a ser endurecida para publicar diretamente em:
-  - `https://<ip-publico>/`
+- A producao passou a ser endurecida para publicar em hostname publico derivado do IP:
+  - `https://<ip-publico-formatado>.sslip.io/`
 - O deploy agora prepara:
   - porta `443` no `docker-compose.yml`
   - emissao automatica de certificado Let's Encrypt via `certbot` para o proprio IP publico
@@ -322,8 +322,8 @@ Com isso, qualquer alteracao publicada em `main` dispara o deploy via SSM no EC2
 - O quinto bloqueio real aconteceu ja depois do certificado emitido: a renovacao estava presa a `/etc/cron.d`, mas a EC2 nao tinha essa estrutura pronta. O deploy agora registra a renovacao via `systemd timer`, que e nativo da instancia e nao depende de `crond`.
 - O sexto ajuste foi no proprio GitHub Actions: a etapa `Check SSM command result` trocou `list-command-invocations` por `get-command-invocation` na instancia alvo, separando `Status`, `Stdout` e `Stderr` para o workflow nao cair depois de um deploy que ja terminou funcionalmente.
 - O setimo ajuste fechou o criterio de sucesso do pipeline: a leitura de SSM continua como diagnostico nao bloqueante, mas o job agora fica verde quando a URL publica em `HTTPS` estiver servindo o `app-build-sha` do commit publicado e `/api/health` responder corretamente.
-- Como a publicacao continua presa ao IP publico da EC2, o health check do workflow agora usa `curl -k` apenas nessa validacao automatica do runner para nao marcar falso negativo por certificado nao confiavel fora de um dominio dedicado.
-- Em 2026-04-03 o certificado IP voltou a expirar em producao porque a renovacao automatica rodava apenas uma vez por dia; para certificado curto isso cria janela de falha. O timer foi corrigido para rodar a cada `6h`, com primeira execucao `5min` apos boot.
+- Em 2026-04-03 o acesso HTTPS direto no IP voltou a se mostrar frágil. O fluxo passou a preferir um hostname publico derivado do IP via `sslip.io`, que permite certificado HTTPS normal para navegador sem depender de certificado IP curto.
+- O timer de renovacao foi corrigido para rodar a cada `6h`, com primeira execucao `5min` apos boot.
 - A logica de renovacao do `certbot` foi endurecida: se o certificado estiver ausente, expirado ou com menos de `24h` restantes, o deploy e o timer usam `--force-renewal` em vez de confiar apenas no `--keep-until-expiring`.
   - O handoff sincronizado fica no proprio repo da instancia em `/opt/lavajato/app/HANDOFF.md`.
 - As referencias operacionais adicionais ficam em:

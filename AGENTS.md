@@ -217,8 +217,8 @@ Este projeto adota os seguintes principios, alinhados a boas praticas publicadas
 - Entradas: push em `main`, segredos AWS, estado do repositorio e `HANDOFF.md`
 - Saidas: deploy automatico, handoff sincronizado na EC2 e trilha historica recente
 - Guardrails: `handoff:check` antes do deploy, health check da API com retentativa, sincronizacao documental, restauracao segura de `HANDOFF.md`, `AGENTS.md` e `SKILLS.md` pelo proprio Git no checkout da EC2, `APP_BUILD_SHA` no HTML, build cacheado de `api` e `web`, `--force-recreate`, validacao por `curl localhost` para impedir deploy verde com frontend velho, limpeza controlada do Docker antes da etapa TLS, emissao/renovacao HTTPS direta no IP publico via `certbot` com fallback sem email quando o secret nao existir, renovacao registrada em `systemd timer`, leitura do SSM via `get-command-invocation` como diagnostico nao bloqueante, validacao final pelo `app-build-sha` publico em HTTPS, `nginx -t` antes de recarregar o proxy e despejo automatico de logs quando o SSM falhar
-- Observacao operacional recente: como o acesso publico ainda usa IP direto, o health check final do workflow agora tolera certificado nao confiavel no runner para medir disponibilidade real sem derrubar o pipeline por falso negativo
-- Observacao operacional recente: certificados IP `short-lived` exigem renovacao mais frequente; o orquestrador de deploy agora instala timer de renovacao a cada `6h` para evitar novo `ERR_CERT_DATE_INVALID`
+- Observacao operacional recente: o endpoint publico passou a preferir hostname `sslip.io` derivado do IP da EC2, reduzindo o risco de aviso de navegador associado a HTTPS direto no IP
+- Observacao operacional recente: o orquestrador agora renova o certificado a cada `6h`
 - Observacao operacional recente: quando o certificado estiver com menos de `24h` de vida restante, o orquestrador passa a forcar a renovacao para evitar que o `certbot` mantenha um certificado prestes a vencer
 - Owner sugerido: plataforma + engenharia
 

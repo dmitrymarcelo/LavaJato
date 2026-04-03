@@ -6,8 +6,8 @@ cd "${APP_ROOT}"
 
 TOKEN="$(curl -fsS -X PUT 'http://169.254.169.254/latest/api/token' -H 'X-aws-ec2-metadata-token-ttl-seconds: 21600')"
 PUBLIC_IP="$(curl -fsSH "X-aws-ec2-metadata-token: ${TOKEN}" http://169.254.169.254/latest/meta-data/public-ipv4)"
-APP_HOST="${PUBLIC_IP}"
-APP_CERT_NAME="${PUBLIC_IP}"
+APP_HOST="$(printf '%s' "${PUBLIC_IP}" | tr '.' '-').sslip.io"
+APP_CERT_NAME="${APP_HOST}"
 HTTPS_CERT_EMAIL="${HTTPS_CERT_EMAIL:-}"
 
 mkdir -p .runtime/letsencrypt/conf .runtime/letsencrypt/www
@@ -38,7 +38,7 @@ docker compose run --rm certbot certonly \
   --cert-name "${APP_CERT_NAME}" \
   "${CERTBOT_RENEW_ARGS[@]}" \
   "${CERTBOT_CONTACT_ARGS[@]}" \
-  --ip-address "${APP_HOST}"
+  -d "${APP_HOST}"
 
 docker compose exec -T web /usr/local/bin/render-nginx-config.sh
 docker compose exec -T web nginx -t
