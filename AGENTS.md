@@ -1,7 +1,7 @@
 # AGENTS.md - Lava Jato Norte Tech
 
-Atualizado em: 2026-04-01
-Commit de referencia: `ffdd5f63a3142f5a17f3efa4a0396c70478660ae`
+Atualizado em: 2026-04-03
+Commit de referencia: `e3b98586328a8221ab8d50f41594619fae956c00`
 
 ## Objetivo
 
@@ -155,6 +155,7 @@ Este projeto adota os seguintes principios, alinhados a boas praticas publicadas
 - Tipo: deterministico
 - Arquivos principais: `src/components/Payment.tsx`, `src/services/api.ts`, `server/index.mjs`
 - Missao: converter servicos `waiting_payment` em `completed` com rastreabilidade
+- Feedback operacional recente: a confirmacao de `Lavagem concluida` agora tambem aparece dentro da tela de pagamento por alguns segundos, reduzindo perda de contexto no smartphone sem atrasar o caixa
 - Entradas: id do servico, forma de fechamento, contexto operacional
 - Saidas: status final, datas de encerramento, historico confiavel
 - Guardrails: fechamento centralizado no backend, consistencia da timeline

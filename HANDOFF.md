@@ -1,12 +1,12 @@
 # Handoff Lava Jato - Norte Tech
 
-Atualizado em: 2026-04-01
+Atualizado em: 2026-04-03
 
 ## Estado atual
 
 - Repositorio: `https://github.com/dmitrymarcelo/LavaJato`
 - Branch principal: `main`
-- Commit atual: `ffdd5f63a3142f5a17f3efa4a0396c70478660ae`
+- Commit atual: `e3b98586328a8221ab8d50f41594619fae956c00`
 - Producao AWS atual: `https://3.145.153.19/` (HTTPS ativo direto no IP publico)
 - Regiao AWS: `us-east-2`
 - Instancia usada no deploy: `i-0ba1477cbbe3d986d`
@@ -151,9 +151,11 @@ Observacao:
 - A correcao foi remover essa dependencia ciclica do efeito de carga da base.
 - A tela `Configuracoes` passou a usar feedback visual nativo do app para sucesso, erro e confirmacoes, evitando `alert` e `confirm` do navegador nessa area.
 - O fluxo de `Notificacoes` deixou de ser apenas estrutural e passou a receber eventos operacionais reais.
-- O sino usa `toggle` dedicado, sem reaproveitar o handler de fechamento, o que evita comportamento confuso no clique.
+  - O sino usa `toggle` dedicado, sem reaproveitar o handler de fechamento, o que evita comportamento confuso no clique.
 - Inicio de lavagem, conclusao de lavagem, pagamento concluido e retomada de sincronizacao offline agora alimentam a central de notificacoes.
 - Ao concluir uma lavagem, o app abre um popup leve de `Concluido` no topo da tela e segue direto para `Pagamento`, sem travar o operador.
+- A confirmacao de lavagem concluida foi reforcada na propria tela `Pagamento`, com um banner leve por alguns segundos para o operador mobile nao perder o feedback durante a navegacao.
+- O fluxo de `Pagamento` deixou de usar `alert` do navegador nesse caso e passou a manter o erro inline, preservando a velocidade e evitando interrupcao brusca no smartphone.
 - As notificacoes agora fazem deduplicacao por `id`, reduzindo spam visual em replay offline ou retentativas.
 - `Historico de Veiculos > Exportar CSV` agora leva mais contexto operacional:
   - tipo de veiculo
@@ -224,6 +226,7 @@ Observacao:
 
 ## Commits recentes relevantes
 
+- `e3b9858` `docs: refresh persistence after security hardening`
 - `ffdd5f6` `feat: harden sessions and permission enforcement`
 - `8c1aa48` `docs: refresh persistence after security hardening`
 - `c7291da` `feat: harden backend security baseline`
@@ -231,7 +234,6 @@ Observacao:
 - `18149a7` `feat: improve operational notifications flow`
 - `6525bff` `chore: keep ssm status as deploy diagnostic`
 - `acc0f09` `fix: validate public https build in deploy workflow`
-- `bb60ea9` `fix: poll ssm command status directly`
 
 ## Arquivos centrais
 
@@ -339,7 +341,7 @@ Com isso, qualquer alteracao publicada em `main` dispara o deploy via SSM no EC2
 - O botao flutuante do assistente IA foi removido da UI principal; a integracao Bedrock segue existente no backend, mas sem CTA visivel no app.
 - A tela `Configuracoes > Cadastros de Clientes` trocou `alert/confirm` por feedback visual interno, leve e mais amigavel para smartphone, sem adicionar polling ou dependencias pesadas.
 - O GitHub e a fonte principal da continuidade.
-- Se mudar de computador, o ideal e continuar a partir do commit `ffdd5f6` ou posterior.
+- Se mudar de computador, o ideal e continuar a partir do commit `e3b9858` ou posterior.
 - Imagens enviadas ficam em `server/storage/uploads` (persistidas via volume Docker).
 - Em producao, altere a senha do administrador imediatamente.
 

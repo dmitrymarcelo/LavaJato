@@ -11,12 +11,20 @@ import { formatElapsedMinutes, getElapsedMinutes, getServicePreviewImage } from 
 export default function Payment({
   onNavigate,
   onPaymentComplete,
+  completionNotice = null,
+  onDismissCompletionNotice,
   elapsedMinutes = 0,
   service,
   services = [],
 }: {
   onNavigate: (screen: Screen, serviceId?: string) => void;
   onPaymentComplete: () => Promise<void> | void;
+  completionNotice?: {
+    serviceId: string;
+    plate: string;
+    synced: boolean;
+  } | null;
+  onDismissCompletionNotice?: () => void;
   elapsedMinutes?: number;
   service?: Service | null;
   services?: Service[];
@@ -38,7 +46,6 @@ export default function Payment({
       console.error(error);
       const message = error instanceof Error ? error.message : 'Nao foi possivel finalizar o pagamento.';
       setSubmitError(message);
-      alert(message);
     } finally {
       setIsSubmitting(false);
     }
@@ -65,6 +72,34 @@ export default function Payment({
       </div>
 
       <div className="flex flex-col gap-1 mt-2">
+        {completionNotice && (
+          <div className={`mx-4 mb-3 rounded-2xl border px-4 py-3 shadow-sm ${completionNotice.synced ? 'border-emerald-100 bg-emerald-50/80' : 'border-amber-100 bg-amber-50/80'}`}>
+            <div className="flex items-start gap-3">
+              <div className={`mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl ${completionNotice.synced ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
+                <CheckCircle2 className="h-5 w-5" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className={`text-[11px] font-black uppercase tracking-[0.18em] ${completionNotice.synced ? 'text-emerald-700' : 'text-amber-700'}`}>
+                  Lavagem concluida
+                </p>
+                <p className="mt-1 text-sm font-bold text-slate-900">
+                  {completionNotice.synced
+                    ? `A placa ${completionNotice.plate} ja esta pronta para pagamento.`
+                    : `A placa ${completionNotice.plate} foi concluida neste aparelho e a sincronizacao seguira automaticamente.`}
+                </p>
+              </div>
+              {onDismissCompletionNotice && (
+                <button
+                  type="button"
+                  onClick={onDismissCompletionNotice}
+                  className="rounded-xl px-2 py-1 text-xs font-bold text-slate-500 transition-colors hover:bg-white/70 hover:text-slate-700"
+                >
+                  Fechar
+                </button>
+              )}
+            </div>
+          </div>
+        )}
         <div className="bg-white mx-4 rounded-2xl p-4 border border-blue-500/10 shadow-sm">
           <div className="flex items-center gap-4 mb-4">
             <div className="flex items-center justify-center bg-slate-100 aspect-square rounded-xl w-16 h-16 border border-slate-100 overflow-hidden">

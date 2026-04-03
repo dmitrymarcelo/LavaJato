@@ -113,6 +113,11 @@ export default function App() {
     message: string;
     synced: boolean;
   } | null>(null);
+  const [paymentCompletionNotice, setPaymentCompletionNotice] = useState<{
+    serviceId: string;
+    plate: string;
+    synced: boolean;
+  } | null>(null);
   const [clockNow, setClockNow] = useState(() => Date.now());
   const [currentDateKey, setCurrentDateKey] = useState(() => getTodayDate());
   const [isBootstrapping, setIsBootstrapping] = useState(false);
@@ -135,6 +140,7 @@ export default function App() {
   const isIntentionalLogoutRef = useRef(false);
   const isRecoveringSessionRef = useRef(false);
   const completionPopupTimerRef = useRef<number | null>(null);
+  const paymentCompletionNoticeTimerRef = useRef<number | null>(null);
   const isAuthenticated = Boolean(currentUser);
   const isClientUser = currentUser?.role === 'Clientes';
   const hasPermission = React.useCallback((permission: AppPermissionId) => (
@@ -263,6 +269,41 @@ export default function App() {
     }
   }, []);
 
+  const clearPaymentCompletionNoticeTimer = React.useCallback(() => {
+    if (paymentCompletionNoticeTimerRef.current !== null) {
+      window.clearTimeout(paymentCompletionNoticeTimerRef.current);
+      paymentCompletionNoticeTimerRef.current = null;
+    }
+  }, []);
+
+  const dismissPaymentCompletionNotice = React.useCallback((serviceId?: string) => {
+    setPaymentCompletionNotice((current) => {
+      if (!current) {
+        return current;
+      }
+
+      if (serviceId && current.serviceId !== serviceId) {
+        return current;
+      }
+
+      return null;
+    });
+    clearPaymentCompletionNoticeTimer();
+  }, [clearPaymentCompletionNoticeTimer]);
+
+  const queuePaymentCompletionNotice = React.useCallback((service: Service, persisted: boolean) => {
+    clearPaymentCompletionNoticeTimer();
+    setPaymentCompletionNotice({
+      serviceId: service.id,
+      plate: service.plate,
+      synced: persisted,
+    });
+    paymentCompletionNoticeTimerRef.current = window.setTimeout(() => {
+      setPaymentCompletionNotice(null);
+      paymentCompletionNoticeTimerRef.current = null;
+    }, 10000);
+  }, [clearPaymentCompletionNoticeTimer]);
+
   const showCompletionPopup = React.useCallback((service: Service, persisted: boolean) => {
     clearCompletionPopupTimer();
     setCompletionPopup({
@@ -275,7 +316,7 @@ export default function App() {
     completionPopupTimerRef.current = window.setTimeout(() => {
       setCompletionPopup(null);
       completionPopupTimerRef.current = null;
-    }, 3200);
+    }, 4200);
   }, [clearCompletionPopupTimer]);
 
   const notifyWashStarted = React.useCallback((service: Service, persisted: boolean) => {
@@ -298,8 +339,9 @@ export default function App() {
         : `A placa ${service.plate} foi concluida neste aparelho e aguardara sincronizacao automatica.`,
       type: persisted ? 'success' : 'warning',
     });
+    queuePaymentCompletionNotice(service, persisted);
     showCompletionPopup(service, persisted);
-  }, [pushNotification, showCompletionPopup]);
+  }, [pushNotification, queuePaymentCompletionNotice, showCompletionPopup]);
 
   const notifyPaymentCompleted = React.useCallback((service: Service) => {
     pushNotification({
@@ -347,8 +389,9 @@ export default function App() {
   useEffect(() => {
     return () => {
       clearCompletionPopupTimer();
+      clearPaymentCompletionNoticeTimer();
     };
-  }, [clearCompletionPopupTimer]);
+  }, [clearCompletionPopupTimer, clearPaymentCompletionNoticeTimer]);
 
   useEffect(() => {
     const handleUnauthorizedEvent = () => {
@@ -904,7 +947,9 @@ export default function App() {
     setHasLoadedVehicleDbFromApi(false);
     setNotifications([]);
     clearCompletionPopupTimer();
+    clearPaymentCompletionNoticeTimer();
     setCompletionPopup(null);
+    setPaymentCompletionNotice(null);
     setBackendError(null);
     setIsBootstrapping(false);
     setIsActiveServiceLoading(false);
@@ -1328,8 +1373,8 @@ export default function App() {
           service.id === completed.service.id ? completed.service : service
         ))
       );
-      setServices(nextServices);
-      servicesRef.current = nextServices;
+        setServices(nextServices);
+        servicesRef.current = nextServices;
 
       if (completed.appointment) {
         const nextAppointments = appointmentsRef.current.map((appointment) => (
@@ -1339,6 +1384,7 @@ export default function App() {
         appointmentsRef.current = nextAppointments;
       }
 
+      dismissPaymentCompletionNotice(completed.service.id);
       notifyPaymentCompleted(completed.service);
     } catch (error) {
       await handlePersistenceError(error, 'Nao foi possivel finalizar o pagamento.');
@@ -1652,7 +1698,7 @@ export default function App() {
           });
         }
       }} />;
-      case 'payment': return <Payment service={activeService} services={services} elapsedMinutes={activeServiceElapsedMinutes} onNavigate={navigateTo} onPaymentComplete={async () => {
+      case 'payment': return <Payment service={activeService} services={services} elapsedMinutes={activeServiceElapsedMinutes} onNavigate={navigateTo} completionNotice={paymentCompletionNotice && activeService?.id === paymentCompletionNotice.serviceId ? paymentCompletionNotice : null} onDismissCompletionNotice={() => dismissPaymentCompletionNotice(activeServiceId || undefined)} onPaymentComplete={async () => {
         if (activeServiceId) {
           await completePaymentForService(activeServiceId);
         }

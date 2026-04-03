@@ -1,7 +1,7 @@
 # SKILLS.md - Lava Jato Norte Tech
 
-Atualizado em: 2026-04-01
-Commit de referencia: `ffdd5f63a3142f5a17f3efa4a0396c70478660ae`
+Atualizado em: 2026-04-03
+Commit de referencia: `e3b98586328a8221ab8d50f41594619fae956c00`
 
 ## Objetivo
 
@@ -275,10 +275,10 @@ Ele complementa o `AGENTS.md`:
 - Tipo: operacao
 - Objetivo: avisar o operador sobre marcos criticos sem atrasar a execucao do servico
 - Entradas: inicio de lavagem, conclusao de lavagem, pagamento concluido e sincronizacao offline retomada
-- Saidas: central de notificacoes coerente e popup nao bloqueante de `Concluido`
-- Dependencias: `src/App.tsx`, `src/components/Notifications.tsx`
+- Saidas: central de notificacoes coerente, popup nao bloqueante de `Concluido` e reforco visual temporario na tela `Pagamento`
+- Dependencias: `src/App.tsx`, `src/components/Notifications.tsx`, `src/components/Payment.tsx`
 - Falha esperada: evento repetido por retentativa, clique ambiguuo no sino ou sincronizacao silenciosa demais
-- Resposta esperada: deduplicar por `id`, usar toggle explicito no botao de notificacoes e exibir feedback leve no topo sem interromper o redirecionamento para `Pagamento`
+- Resposta esperada: deduplicar por `id`, usar toggle explicito no botao de notificacoes, exibir feedback leve no topo sem interromper o redirecionamento para `Pagamento` e evitar `alert` bloqueante no mobile
 
 ## Procedimento operacional
 
