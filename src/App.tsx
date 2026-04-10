@@ -1116,7 +1116,13 @@ export default function App() {
       setHasLoadedVehicleDbFromApi(true);
       return savedVehicle;
     } catch (error) {
-      await handlePersistenceError(error, 'Nao foi possivel cadastrar o veiculo.');
+      console.error(error);
+      if (
+        (error instanceof ApiError && error.status === 401)
+        || String(error?.message || '').toLowerCase().includes('sessao expirou')
+      ) {
+        handleUnauthorizedSession();
+      }
       throw error;
     }
   };

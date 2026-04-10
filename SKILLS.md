@@ -1,7 +1,7 @@
 # SKILLS.md - Lava Jato Norte Tech
 
-Atualizado em: 2026-04-03
-Commit de referencia: `6e53676f65ba8d80ad14eb42a1657ba3143bae12`
+Atualizado em: 2026-04-10
+Commit de referencia: `051fba4d0112de003b86077bc01dff0d8f7e7342`
 
 ## Objetivo
 
@@ -88,7 +88,7 @@ Ele complementa o `AGENTS.md`:
 - Saidas: chave de placa canonica e categoria compatibilizada
 - Dependencias: `CheckIn.tsx`, `Settings.tsx`, `vehicle-type.mjs`, `POST /api/vehicles/bulk-upsert`
 - Falha esperada: placa ou tipo inconsistente
-- Resposta esperada: bloquear cadastro incompleto antes da persistencia e consolidar importacoes em lote sem perder o estado apos refresh
+- Resposta esperada: bloquear cadastro incompleto antes da persistencia, consolidar importacoes em lote sem perder o estado apos refresh, permitir cadastro unitario pelo acesso de cliente sem abrir permissao administrativa ampla e exibir precos com formatacao monetaria brasileira consistente
 
 ### S05. `scheduling-rules-engine`
 

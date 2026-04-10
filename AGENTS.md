@@ -1,7 +1,7 @@
 # AGENTS.md - Lava Jato Norte Tech
 
-Atualizado em: 2026-04-03
-Commit de referencia: `6e53676f65ba8d80ad14eb42a1657ba3143bae12`
+Atualizado em: 2026-04-10
+Commit de referencia: `051fba4d0112de003b86077bc01dff0d8f7e7342`
 
 ## Objetivo
 
@@ -116,6 +116,7 @@ Este projeto adota os seguintes principios, alinhados a boas praticas publicadas
 - Tipo: deterministico
 - Arquivos principais: `src/components/CheckIn.tsx`, `src/services/api.ts`, `server/index.mjs`
 - Missao: transformar chegada ou demanda espontanea em servico operacional pronto para fila
+- Observacao recente: o fluxo de cliente na agenda voltou a permitir cadastro unitario de veiculo sem herdar permissao administrativa de `edit_services`
 - Entradas: placa, modelo, cliente, servico escolhido, CPF terceiro quando aplicavel
 - Saidas: servico com status `pending` e veiculo atualizado/cadastrado
 - Guardrails: placa normalizada, validacao de CPF, consulta a base local/remota antes de duplicar cadastro

@@ -127,6 +127,15 @@ const isTruckType = (type?: VehicleType) => type === 'truck';
 const isTarumaBase = (baseId?: string | null) => baseId === 'taruma';
 const getTarumaZoneLabel = (zoneId?: WashingZoneId | null) => TARUMA_ZONE_RULES.find((rule) => rule.id === zoneId)?.label || 'Nao definido';
 const getDefaultTarumaZone = (vehicleType: VehicleType): WashingZoneId => (vehicleType === 'truck' ? 'dique_pesada' : 'dique_leve');
+const formatCurrency = (value: number | string | null | undefined) => {
+  const parsed = Number(String(value ?? '').replace(',', '.'));
+  return new Intl.NumberFormat('pt-BR', {
+    style: 'currency',
+    currency: 'BRL',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(Number.isFinite(parsed) ? parsed : 0);
+};
 const buildSchedulingSlotKey = (plate?: string | null, baseId?: string | null, date?: string | null, time?: string | null) => [
   normalizePlate(String(plate || '')),
   String(baseId || ''),
@@ -208,6 +217,7 @@ export default function Scheduling({
   const [openAppointmentMenuId, setOpenAppointmentMenuId] = useState<string | null>(null);
   const [isClientVehicleModalOpen, setIsClientVehicleModalOpen] = useState(false);
   const [isSavingClientVehicle, setIsSavingClientVehicle] = useState(false);
+  const [clientVehicleError, setClientVehicleError] = useState<string | null>(null);
 
   const [plate, setPlate] = useState('');
   const [customer, setCustomer] = useState('');
@@ -238,6 +248,7 @@ export default function Scheduling({
     setPlateLookupError(null);
     setIsClientVehicleModalOpen(false);
     setIsSavingClientVehicle(false);
+    setClientVehicleError(null);
     setClientVehicleModel('');
     setClientVehicleType('car');
     setAppointmentBaseId(selectedBaseId || availableBases[0]?.id || BASES[0]?.id || '');
@@ -359,6 +370,7 @@ export default function Scheduling({
     setPlate(nextPlate);
     setPlateLookupError(null);
     setIsClientVehicleModalOpen(false);
+    setClientVehicleError(null);
     setClientVehicleModel('');
     setClientVehicleType('car');
   };
@@ -429,17 +441,17 @@ export default function Scheduling({
   const handleRegisterClientVehicle = async () => {
     const normalizedPlate = plate.trim().toUpperCase();
     if (!normalizedPlate) {
-      alert('Informe a placa antes de cadastrar o veiculo.');
+      setClientVehicleError('Informe a placa antes de cadastrar o veiculo.');
       return;
     }
 
     if (!clientVehicleModel.trim()) {
-      alert('Informe o modelo do veiculo.');
+      setClientVehicleError('Informe o modelo do veiculo.');
       return;
     }
 
     if (!onRegisterVehicle) {
-      alert('Nao foi possivel salvar o veiculo agora.');
+      setClientVehicleError('Nao foi possivel salvar o veiculo agora.');
       return;
     }
 
@@ -454,6 +466,7 @@ export default function Scheduling({
 
     try {
       setIsSavingClientVehicle(true);
+      setClientVehicleError(null);
       const savedVehicle = await onRegisterVehicle(payload);
       const nextVehicle = savedVehicle || payload;
       setPlate(nextVehicle.plate);
@@ -462,7 +475,7 @@ export default function Scheduling({
       setIsClientVehicleModalOpen(false);
     } catch (error) {
       console.error(error);
-      alert(error instanceof Error ? error.message : 'Nao foi possivel cadastrar o veiculo.');
+      setClientVehicleError(error instanceof Error ? error.message : 'Nao foi possivel cadastrar o veiculo.');
     } finally {
       setIsSavingClientVehicle(false);
     }
@@ -1354,7 +1367,7 @@ export default function Scheduling({
                       >
                         {serviceTypes[vehicleType].services.map(service => (
                           <option key={service.id} value={service.label}>
-                            {service.label} - R$ {service.price},00
+                            {service.label} - {formatCurrency(service.price)}
                           </option>
                         ))}
                       </select>
@@ -1431,19 +1444,25 @@ export default function Scheduling({
                 </select>
               </div>
 
-              <div className="rounded-2xl border border-primary/10 bg-primary/5 px-4 py-3">
-                <p className="text-[10px] font-bold uppercase tracking-widest text-primary/70">Servicos liberados para este tipo</p>
-                <div className="mt-2 space-y-1">
-                  {(serviceTypes[clientVehicleType]?.services || []).map((service) => (
-                    <div key={service.id} className="flex items-center justify-between gap-3 text-sm font-bold text-slate-700">
-                      <span>{service.label}</span>
-                      <span className="text-primary">R$ {service.price},00</span>
-                    </div>
-                  ))}
+                <div className="rounded-2xl border border-primary/10 bg-primary/5 px-4 py-3">
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-primary/70">Servicos liberados para este tipo</p>
+                  <div className="mt-2 space-y-1">
+                    {(serviceTypes[clientVehicleType]?.services || []).map((service) => (
+                      <div key={service.id} className="flex items-center justify-between gap-3 text-sm font-bold text-slate-700">
+                        <span>{service.label}</span>
+                        <span className="text-primary">{formatCurrency(service.price)}</span>
+                      </div>
+                    ))}
+                  </div>
                 </div>
-              </div>
 
-              <button
+                {clientVehicleError && (
+                  <div className="rounded-2xl border border-rose-100 bg-rose-50 px-4 py-3 text-sm font-bold text-rose-600">
+                    {clientVehicleError}
+                  </div>
+                )}
+
+                <button
                 type="button"
                 onClick={handleRegisterClientVehicle}
                 disabled={isSavingClientVehicle}

@@ -1,12 +1,12 @@
 # Handoff Lava Jato - Norte Tech
 
-Atualizado em: 2026-04-03
+Atualizado em: 2026-04-10
 
 ## Estado atual
 
 - Repositorio: `https://github.com/dmitrymarcelo/LavaJato`
 - Branch principal: `main`
-- Commit atual: `6e53676f65ba8d80ad14eb42a1657ba3143bae12`
+- Commit atual: `051fba4d0112de003b86077bc01dff0d8f7e7342`
 - Producao AWS atual: `https://3-145-153-19.sslip.io/` (hostname publico com certificado HTTPS confiavel)
 - Regiao AWS: `us-east-2`
 - Instancia usada no deploy: `i-0ba1477cbbe3d986d`
@@ -226,14 +226,14 @@ Observacao:
 
 ## Commits recentes relevantes
 
+- `051fba4` `fix: move public https to sslip hostname`
+- `bcba705` `fix: force renew expiring direct-ip https certs`
 - `6e53676` `fix: renew direct-ip https certificates every 6 hours`
 - `ca4ab15` `fix: restore company logo assets locally`
 - `ae86588` `fix: tolerate direct-ip tls in deploy health check`
 - `08cf635` `feat: reinforce wash completion feedback flow`
 - `e3b9858` `docs: refresh persistence after security hardening`
 - `ffdd5f6` `feat: harden sessions and permission enforcement`
-- `8c1aa48` `docs: refresh persistence after security hardening`
-- `c7291da` `feat: harden backend security baseline`
 
 ## Arquivos centrais
 
@@ -343,9 +343,14 @@ Com isso, qualquer alteracao publicada em `main` dispara o deploy via SSM no EC2
 - `SKILLS.md` passa a ser a referencia persistente de capacidades reutilizaveis e contratos tecnicos do projeto.
 - O botao flutuante do assistente IA foi removido da UI principal; a integracao Bedrock segue existente no backend, mas sem CTA visivel no app.
 - A logomarca oficial da empresa voltou para o login e para o canto superior esquerdo do sistema, mas agora empacotada localmente em `public/brand/nortetech-circle.png`, sem dependencia externa em runtime.
+- O cadastro de `Novo Veiculo` no acesso de cliente foi corrigido:
+  - o backend agora aceita o `upsert` unitario desse fluxo sem liberar importacao/listagem administrativa
+  - clientes nao podem sobrescrever veiculo ja pertencente a outro cadastro
+  - o modal passou a exibir erro inline, sem `alert` de permissao do navegador
+  - os precos de servico no modal e no seletor passaram a usar formatacao monetaria `pt-BR`, evitando textos como `80.75,00`
 - A tela `Configuracoes > Cadastros de Clientes` trocou `alert/confirm` por feedback visual interno, leve e mais amigavel para smartphone, sem adicionar polling ou dependencias pesadas.
 - O GitHub e a fonte principal da continuidade.
-- Se mudar de computador, o ideal e continuar a partir do commit `6e53676` ou posterior.
+- Se mudar de computador, o ideal e continuar a partir do commit `051fba4` ou posterior.
 - Imagens enviadas ficam em `server/storage/uploads` (persistidas via volume Docker).
 - Em producao, altere a senha do administrador imediatamente.
 

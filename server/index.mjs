@@ -638,6 +638,10 @@ function getUserPermissions(user) {
   return getPermissionsForRole(user.role);
 }
 
+function isClientRole(user) {
+  return String(user?.role || '').trim() === 'Clientes';
+}
+
 function userHasPermission(user, permission) {
   return getUserPermissions(user).includes(permission);
 }
@@ -650,6 +654,55 @@ function assertUserHasPermission(user, permission, message = 'Voce nao tem permi
   const error = new Error(message);
   error.statusCode = 403;
   throw error;
+}
+
+async function sanitizeVehiclePayloadForUser(user, vehicle, executor = query) {
+  if (userHasPermission(user, 'edit_services')) {
+    return vehicle;
+  }
+
+  if (!isClientRole(user)) {
+    const error = new Error('Voce nao tem permissao para executar esta acao.');
+    error.statusCode = 403;
+    throw error;
+  }
+
+  const plate = String(vehicle?.plate || '').toUpperCase().trim();
+  const customerLabel = String(user?.name || user?.email || 'Cliente').trim() || 'Cliente';
+  const normalizedModel = String(vehicle?.model || '').trim();
+
+  if (!plate) {
+    const error = new Error('Placa do veiculo e obrigatoria.');
+    error.statusCode = 400;
+    throw error;
+  }
+
+  if (!normalizedModel) {
+    const error = new Error('Modelo do veiculo e obrigatorio.');
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const existingResult = await executor('SELECT customer FROM vehicles WHERE plate = $1 LIMIT 1', [plate]);
+  const existingCustomer = String(existingResult.rows[0]?.customer || '').trim().toLowerCase();
+  if (existingCustomer && existingCustomer !== customerLabel.toLowerCase()) {
+    const error = new Error('Este veiculo ja esta cadastrado e nao pode ser alterado por este acesso.');
+    error.statusCode = 403;
+    throw error;
+  }
+
+  return {
+    plate,
+    customer: customerLabel,
+    model: normalizedModel,
+    type: vehicle?.type,
+    sourceVehicleType: vehicle?.sourceVehicleType,
+    city: '',
+    state: '',
+    lastService: '',
+    thirdPartyName: '',
+    thirdPartyCpf: '',
+  };
 }
 
 function getAllowedBaseIdsForMember(member) {
@@ -2092,8 +2145,8 @@ app.get('/api/vehicles/lookup', async (req, res) => {
 });
 
 app.post('/api/vehicles/upsert', async (req, res) => {
-  assertUserHasPermission(req.user, 'edit_services');
-  const vehicle = req.body || {};
+  const incomingVehicle = req.body || {};
+  const vehicle = await sanitizeVehiclePayloadForUser(req.user, incomingVehicle);
   await upsertVehicleRow(vehicle);
   const result = await query('SELECT * FROM vehicles WHERE plate = $1', [String(vehicle.plate || '').toUpperCase().trim()]);
   res.json(toCamelVehicle(result.rows[0]));
