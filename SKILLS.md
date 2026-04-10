@@ -1,7 +1,7 @@
 # SKILLS.md - Lava Jato Norte Tech
 
 Atualizado em: 2026-04-10
-Commit de referencia: `051fba4d0112de003b86077bc01dff0d8f7e7342`
+Commit de referencia: `749455578062ff5a209ec6b819159037efec5348`
 
 ## Objetivo
 
@@ -98,7 +98,7 @@ Ele complementa o `AGENTS.md`:
 - Saidas: agendamento validado ou bloqueado com motivo
 - Dependencias: `Scheduling.tsx`, `server/schema.sql`, `server/index.mjs`
 - Falha esperada: slot lotado, domingo, sabado fora da janela, duplicidade
-- Resposta esperada: feedback imediato e nenhuma gravacao parcial
+- Resposta esperada: feedback imediato, nenhuma gravacao parcial e `Novo Agendamento` pre-preenchido com a mesma data visivel na regua principal da agenda
 
 ### S06. `taruma-zone-routing`
 

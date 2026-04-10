@@ -1,7 +1,7 @@
 # AGENTS.md - Lava Jato Norte Tech
 
 Atualizado em: 2026-04-10
-Commit de referencia: `051fba4d0112de003b86077bc01dff0d8f7e7342`
+Commit de referencia: `749455578062ff5a209ec6b819159037efec5348`
 
 ## Objetivo
 
@@ -108,7 +108,7 @@ Este projeto adota os seguintes principios, alinhados a boas praticas publicadas
 - Missao: gerenciar agenda, fila operacional, validacao de vagas, lotacao e regras por base
 - Entradas: placa, base, data, horario, tipo do veiculo, status do servico
 - Saidas: agendamentos validos, cards de fila, historico operacional e consultas por placa
-- Guardrails: bloqueio de domingo, sabado reduzido, capacidade por faixa, unicidade de placa/slot, Base Taruma com area obrigatoria
+- Guardrails: bloqueio de domingo, sabado reduzido, capacidade por faixa, unicidade de placa/slot, Base Taruma com area obrigatoria e abertura do `Novo Agendamento` sempre ancorada na data selecionada pelo operador na agenda
 - Owner sugerido: produto operacional + backend
 
 ### A03. Agente de Check-in e Cadastro Inicial

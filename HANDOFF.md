@@ -6,7 +6,7 @@ Atualizado em: 2026-04-10
 
 - Repositorio: `https://github.com/dmitrymarcelo/LavaJato`
 - Branch principal: `main`
-- Commit atual: `051fba4d0112de003b86077bc01dff0d8f7e7342`
+- Commit atual: `749455578062ff5a209ec6b819159037efec5348`
 - Producao AWS atual: `https://3-145-153-19.sslip.io/` (hostname publico com certificado HTTPS confiavel)
 - Regiao AWS: `us-east-2`
 - Instancia usada no deploy: `i-0ba1477cbbe3d986d`
@@ -106,6 +106,7 @@ Observacao:
 ### Persistencia
 
 - O fluxo de agendamento foi tornado transacional.
+- O modal `Novo Agendamento` agora herda a data selecionada na regua principal de `Agenda & Fila`, inclusive pelo atalho `Agendar agora`, para evitar abertura com dia divergente do contexto visual.
 - O `upsert` de `services` foi corrigido no campo `post_inspection_photos`.
 - Uploads de fotos foram endurecidos:
   - compressao maior no frontend
@@ -226,6 +227,7 @@ Observacao:
 
 ## Commits recentes relevantes
 
+- `7494555` `fix: allow client vehicle registration flow`
 - `051fba4` `fix: move public https to sslip hostname`
 - `bcba705` `fix: force renew expiring direct-ip https certs`
 - `6e53676` `fix: renew direct-ip https certificates every 6 hours`
@@ -233,7 +235,6 @@ Observacao:
 - `ae86588` `fix: tolerate direct-ip tls in deploy health check`
 - `08cf635` `feat: reinforce wash completion feedback flow`
 - `e3b9858` `docs: refresh persistence after security hardening`
-- `ffdd5f6` `feat: harden sessions and permission enforcement`
 
 ## Arquivos centrais
 
@@ -350,7 +351,7 @@ Com isso, qualquer alteracao publicada em `main` dispara o deploy via SSM no EC2
   - os precos de servico no modal e no seletor passaram a usar formatacao monetaria `pt-BR`, evitando textos como `80.75,00`
 - A tela `Configuracoes > Cadastros de Clientes` trocou `alert/confirm` por feedback visual interno, leve e mais amigavel para smartphone, sem adicionar polling ou dependencias pesadas.
 - O GitHub e a fonte principal da continuidade.
-- Se mudar de computador, o ideal e continuar a partir do commit `051fba4` ou posterior.
+- Se mudar de computador, o ideal e continuar a partir do commit `7494555` ou posterior.
 - Imagens enviadas ficam em `server/storage/uploads` (persistidas via volume Docker).
 - Em producao, altere a senha do administrador imediatamente.
 

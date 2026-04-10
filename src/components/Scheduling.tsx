@@ -235,7 +235,7 @@ export default function Scheduling({
 
   const resetAppointmentForm = () => {
     setIsAdding(false);
-    setAppointmentDate(currentDateKey);
+    setAppointmentDate(filterDate);
     setSelectedTime(null);
     setPlate('');
     setCustomer('');
