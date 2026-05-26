@@ -1296,6 +1296,8 @@ async function assertTarumaAppointmentSlotCapacity(appointment, executor = query
   if (!booking.ok) {
     const errorMessage = booking.reason === 'truck_interval'
       ? 'Base Taruma: caminhao exige intervalo minimo de 3 horas entre agendamentos.'
+      : booking.reason === 'truck_not_allowed_17'
+        ? 'Base Taruma: nao agendamos caminhao no horario das 17:00.'
       : booking.reason === 'slot_truck_full'
         ? 'Horario sem vaga para caminhao na Base Taruma. Limite: 1 caminhao por horario.'
         : booking.reason === 'slot_other_full'

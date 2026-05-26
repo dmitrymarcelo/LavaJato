@@ -1241,13 +1241,18 @@ export default function Scheduling({
                                   }
 
                                   if (isFull) {
+                                    if (isTarumaScheduling && vehicleType === 'truck' && fullReason === 'truck_not_allowed_17') {
+                                      alert('Base Taruma: nao agendamos caminhao no horario das 17:00.');
+                                      return;
+                                    }
+
                                     if (isTarumaScheduling && vehicleType === 'truck' && fullReason === 'truck_interval') {
                                       alert('Base Taruma: caminhao exige intervalo minimo de 3 horas entre agendamentos.');
                                       return;
                                     }
 
                                     alert(isTarumaScheduling
-                                      ? 'Horario sem vaga na Base Taruma. Limite: 3 veiculos (2 leves + 1 caminhao). As 17:00: 2 veiculos (ou 1 se tiver caminhao).'
+                                      ? 'Horario sem vaga na Base Taruma. Limite: 3 veiculos (2 leves + 1 caminhao). As 17:00: 2 leves (nao aceita caminhao).'
                                       : (
                                         vehicleType === 'truck'
                                           ? 'Horario sem vaga para caminhao. Limite: 2 caminhoes e 5 veiculos no total por horario.'
@@ -1293,7 +1298,7 @@ export default function Scheduling({
 
                     <div className="rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3 text-[10px] font-bold uppercase tracking-wider text-slate-500">
                       {isTarumaBase(appointmentBaseId)
-                        ? 'Base Taruma: Dique Leve recebe 3 veiculos (2 leves + 1 caminhao). Se houver caminhao, o intervalo minimo entre caminhoes e de 3 horas. As 17:00: 2 veiculos (ou 1 se tiver caminhao).'
+                        ? 'Base Taruma: Dique Leve recebe 3 veiculos (2 leves + 1 caminhao). Se houver caminhao, o intervalo minimo entre caminhoes e de 3 horas. As 17:00: somente 2 leves (nao aceita caminhao).'
                         : 'Capacidade por horario: 2 caminhoes, 3 outros veiculos, 5 vagas totais.'}
                     </div>
 

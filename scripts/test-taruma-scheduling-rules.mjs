@@ -103,11 +103,11 @@ assert.equal(
 
 const tarumaEndShiftWithCar = [{ ...tarumaAppointments[0], time: '17:00' }];
 assert.equal(canTarumaBookSlot(tarumaEndShiftWithCar, '2026-05-26', '17:00', { nextVehicleType: 'car' }).ok, true);
-assert.equal(canTarumaBookSlot(tarumaEndShiftWithCar, '2026-05-26', '17:00', { nextVehicleType: 'truck' }).ok, false);
+assert.equal(canTarumaBookSlot(tarumaEndShiftWithCar, '2026-05-26', '17:00', { nextVehicleType: 'truck' }).reason, 'truck_not_allowed_17');
 
 const tarumaEndShiftWithTruck = [{ ...tarumaAppointments[1], time: '17:00' }];
 assert.equal(canTarumaBookSlot(tarumaEndShiftWithTruck, '2026-05-26', '17:00', { nextVehicleType: 'car' }).ok, false);
-assert.equal(canTarumaBookSlot(tarumaEndShiftWithTruck, '2026-05-26', '17:00', { nextVehicleType: 'truck' }).ok, false);
+assert.equal(canTarumaBookSlot(tarumaEndShiftWithTruck, '2026-05-26', '17:00', { nextVehicleType: 'truck' }).reason, 'truck_not_allowed_17');
 
 const tarumaTruckSpacing = [
   { ...tarumaAppointments[1], id: 'truck-11', time: '11:00' },

@@ -6,7 +6,7 @@ Atualizado em: 2026-05-26
 
 - Repositorio: `https://github.com/dmitrymarcelo/LavaJato`
 - Branch principal: `main`
-- Commit atual: `9ab71fac85f4cfbd4639040b6aedcfc808f9e60b`
+- Commit atual: `570b8c3643164710ae1fe4097828ba05c8b75d6f`
 - Producao AWS atual: `https://3-145-153-19.sslip.io/` (hostname publico com certificado HTTPS confiavel)
 - Regiao AWS: `us-east-2`
 - Instancia usada no deploy: `i-0ba1477cbbe3d986d`
@@ -243,14 +243,14 @@ Observacao:
 
 ## Commits recentes relevantes
 
-- `bb76e4c` `fix: update taruma scheduling capacity`
-- `8b45b78` `fix: align deploy pnpm setup`
-- `f418020` `fix: pin pnpm for docker deploy`
-- `69cd367` `feat: improve dashboard operations view`
-- `a989d80` `Fix scheduling modal date prefill`
-- `7494555` `fix: allow client vehicle registration flow`
-- `051fba4` `fix: move public https to sslip hostname`
-- `bcba705` `fix: force renew expiring direct-ip https certs`
+- `570b8c3` `UI: titulo centralizado, remover dica inteligente e melhorar clima`
+- `f828689` `feat: clima real (Open-Meteo) na sidebar`
+- `3fdbb41` `ui: melhorar tipografia e remover embaçado`
+- `c72a97b` `ui: mover clima para sidebar e limpar header`
+- `85f6c4d` `feat: dica inteligente com previsao interativa`
+- `9ab71fa` `feat: dica inteligente interativa no header`
+- `91dd190` `fix: lint no scheduling taruma capacity label`
+- `c7c04f2` `feat: taruma regras caminhao + painel total geral`
 
 ## Arquivos centrais
 
@@ -367,7 +367,7 @@ Com isso, qualquer alteracao publicada em `main` dispara o deploy via SSM no EC2
   - os precos de servico no modal e no seletor passaram a usar formatacao monetaria `pt-BR`, evitando textos como `80.75,00`
 - A tela `Configuracoes > Cadastros de Clientes` trocou `alert/confirm` por feedback visual interno, leve e mais amigavel para smartphone, sem adicionar polling ou dependencias pesadas.
 - O GitHub e a fonte principal da continuidade.
-- Se mudar de computador, o ideal e continuar a partir do commit `bb76e4c` ou posterior.
+- Se mudar de computador, o ideal e continuar a partir do commit `570b8c3` ou posterior.
 - Imagens enviadas ficam em `server/storage/uploads` (persistidas via volume Docker).
 - Em producao, altere a senha do administrador imediatamente.
 

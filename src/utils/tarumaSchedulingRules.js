@@ -15,7 +15,7 @@ export const TARUMA_ZONE_RULES = [
   {
     id: TARUMA_DIQUE_LEVE_ZONE_ID,
     label: TARUMA_DIQUE_LEVE_ZONE_NAME,
-    capacityLabel: '3 veiculos (2 leves + 1 caminhao); 17:00: 2 (ou 1 se caminhao)',
+    capacityLabel: '3 veiculos (2 leves + 1 caminhao); 17:00: 2 leves (nao aceita caminhao)',
     accepts: () => true,
   },
 ];
@@ -107,20 +107,23 @@ export function canTarumaBookSlot(appointments, date, time, options = {}) {
   const nextIsTruck = isTruckVehicleType(nextVehicleType);
 
   const usage = getTarumaSlotUsageByType(appointments, targetDate, targetTime, { baseId: targetBaseId, excludeId: excludedId });
-  const hasTruckInSlot = usage.truck > 0 || nextIsTruck;
-
   const isEndOfShiftSlot = targetTime === TARUMA_END_OF_SHIFT_TIME;
+  const hasTruckInSlot = isEndOfShiftSlot ? usage.truck > 0 : (usage.truck > 0 || nextIsTruck);
   const slotTotalLimit = isEndOfShiftSlot
     ? (hasTruckInSlot ? TARUMA_END_OF_SHIFT_TRUCK_SLOT_CAPACITY : TARUMA_END_OF_SHIFT_SLOT_CAPACITY)
     : TARUMA_DEFAULT_SLOT_CAPACITY;
 
   const limits = {
     total: slotTotalLimit,
-    truck: TARUMA_MAX_TRUCKS_PER_SLOT,
+    truck: isEndOfShiftSlot ? 0 : TARUMA_MAX_TRUCKS_PER_SLOT,
     other: Math.min(TARUMA_MAX_OTHERS_PER_SLOT, slotTotalLimit),
   };
 
   if (nextIsTruck) {
+    if (isEndOfShiftSlot) {
+      return { ok: false, reason: 'truck_not_allowed_17', limits, usage };
+    }
+
     if (usage.truck >= limits.truck) {
       return { ok: false, reason: 'slot_truck_full', limits, usage };
     }
