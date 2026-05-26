@@ -1,7 +1,7 @@
 # AGENTS.md - Lava Jato Norte Tech
 
-Atualizado em: 2026-04-10
-Commit de referencia: `749455578062ff5a209ec6b819159037efec5348`
+Atualizado em: 2026-05-26
+Commit de referencia: `a989d800aad8d2f8aee2f1ae7e6f143f5735d014`
 
 ## Objetivo
 
@@ -196,6 +196,7 @@ Este projeto adota os seguintes principios, alinhados a boas praticas publicadas
 - Entradas: servicos, agendamentos, equipe, produtos e timeline
 - Saidas: KPIs do painel, rankings, faturamento, historico exportavel e contexto para clientes
 - Guardrails: escopo por base para clientes, consultas separadas para historico detalhado
+- Capacidade atual: o `Painel` exibe `Lavados ate hoje`, calculado de forma deterministica a partir dos servicos concluidos, em pagamento ou com marco real de conclusao de lavagem, excluindo `no_show`
 - Capacidade recente: o export de `Historico de Veiculos` passou a levar tipo de lavagem, status, responsaveis, ticket medio e tempos operacionais por resumo e por detalhe
 - Owner sugerido: produto + gestao operacional
 

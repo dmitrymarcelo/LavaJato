@@ -8,3 +8,5 @@ server/storage/
 .env*
 !.env.example
 .runtime/
+*accessKeys*.csv
+*access-keys*.csv

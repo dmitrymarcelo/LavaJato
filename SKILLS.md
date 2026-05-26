@@ -1,7 +1,7 @@
 # SKILLS.md - Lava Jato Norte Tech
 
-Atualizado em: 2026-04-10
-Commit de referencia: `749455578062ff5a209ec6b819159037efec5348`
+Atualizado em: 2026-05-26
+Commit de referencia: `a989d800aad8d2f8aee2f1ae7e6f143f5735d014`
 
 ## Objetivo
 
@@ -195,10 +195,10 @@ Ele complementa o `AGENTS.md`:
 - Tipo: consultiva
 - Objetivo: fornecer visao executiva de operacao e faturamento
 - Entradas: servicos, equipe, produtos, agenda
-- Saidas: KPIs, rankings e comparativos
-- Dependencias: `Dashboard.tsx`
+- Saidas: KPIs, rankings, comparativos e total vitalicio de lavagens realizadas ate hoje
+- Dependencias: `Dashboard.tsx`, `src/utils/dashboardMetrics.js`
 - Falha esperada: leituras parciais ou bootstrap incompleto
-- Resposta esperada: apresentar tendencia sem virar fonte unica de auditoria
+- Resposta esperada: apresentar tendencia sem virar fonte unica de auditoria, contando como lavado apenas servicos `completed`, `waiting_payment` ou com marco de conclusao de lavagem/pos-inspecao/pagamento na timeline, excluindo `no_show`, e reutilizar cache curto para dicas consultivas que nao alteram estado operacional
 
 ### S16. `bedrock-advisory`
 

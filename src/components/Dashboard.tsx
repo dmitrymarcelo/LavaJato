@@ -17,9 +17,9 @@ import {
   Target,
   TrendingUp,
 } from 'lucide-react';
-import { motion } from '../lib/motion';
 import { Screen, Service, TeamMember } from '../types';
 import { addDays, getElapsedMinutes, getTodayDate } from '../utils/app';
+import { getLifetimeWashSummary } from '../utils/dashboardMetrics.js';
 import { getWeatherRecommendation } from '../services/geminiService';
 import { BASES } from '../data/bases';
 import { Appointment } from '../services/api';
@@ -30,6 +30,10 @@ const currencyFormatter = new Intl.NumberFormat('pt-BR', {
   currency: 'BRL',
   minimumFractionDigits: 2,
 });
+
+const integerFormatter = new Intl.NumberFormat('pt-BR');
+const WEATHER_ADVICE_CACHE_KEY = 'dashboardWeatherAdviceV1';
+const WEATHER_ADVICE_CACHE_TTL_MS = 30 * 60 * 1000;
 
 const getServiceDateKey = (service: Service) =>
   service.scheduledDate || service.endTime?.slice(0, 10) || service.startTime?.slice(0, 10) || null;
@@ -53,6 +57,38 @@ const formatAverageMinutes = (minutes: number) => {
   return `${minutes.toFixed(1)} min`;
 };
 
+const readCachedWeatherAdvice = () => {
+  if (typeof window === 'undefined') return null;
+
+  try {
+    const cached = window.sessionStorage.getItem(WEATHER_ADVICE_CACHE_KEY);
+    if (!cached) return null;
+
+    const parsed = JSON.parse(cached) as { text?: string; expiresAt?: number };
+    if (!parsed.text || !parsed.expiresAt || parsed.expiresAt <= Date.now()) {
+      window.sessionStorage.removeItem(WEATHER_ADVICE_CACHE_KEY);
+      return null;
+    }
+
+    return parsed.text;
+  } catch (error) {
+    return null;
+  }
+};
+
+const writeCachedWeatherAdvice = (text: string) => {
+  if (typeof window === 'undefined') return;
+
+  try {
+    window.sessionStorage.setItem(
+      WEATHER_ADVICE_CACHE_KEY,
+      JSON.stringify({ text, expiresAt: Date.now() + WEATHER_ADVICE_CACHE_TTL_MS })
+    );
+  } catch (error) {
+    // Cache is optional; dashboard advice should never block operations.
+  }
+};
+
 export default function Dashboard({
   onNavigate,
   services,
@@ -68,13 +104,20 @@ export default function Dashboard({
   team?: TeamMember[];
   canManageSettings?: boolean;
 }) {
-  const [weatherAdvice, setWeatherAdvice] = useState<string>('Carregando recomendacao...');
+  const [weatherAdvice, setWeatherAdvice] = useState<string>(() => readCachedWeatherAdvice() || 'Carregando recomendacao...');
   const [timeframe, setTimeframe] = useState<'today' | 'week' | 'month'>('today');
 
   useEffect(() => {
     const fetchWeather = async () => {
+      const cachedAdvice = readCachedWeatherAdvice();
+      if (cachedAdvice) {
+        setWeatherAdvice(cachedAdvice);
+        return;
+      }
+
       try {
         const advice = await getWeatherRecommendation();
+        writeCachedWeatherAdvice(advice);
         setWeatherAdvice(advice);
       } catch (error) {
         setWeatherAdvice('Mantenha panos secos e priorize a fila por horario para evitar atrasos entre as lavagens.');
@@ -110,6 +153,7 @@ export default function Dashboard({
     : 0;
 
   const pendingPayments = services.filter(service => service.status === 'waiting_payment').length;
+  const lifetimeWashSummary = getLifetimeWashSummary(services);
   const growthLabel = formatGrowth(currentRevenue, previousRevenue);
   const demandByBase = [...BASES, { id: 'sem-base', name: 'Sem base', responsible: '', vehicles: 0, budget: '0', spent: '0', status: 'warning' as const }]
     .map(base => ({
@@ -212,7 +256,7 @@ export default function Dashboard({
       </div>
 
       <div className="px-4">
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
           <MetricCard
             icon={<DollarSign className="text-primary w-3.5 h-3.5" />}
             label="Faturamento"
@@ -229,6 +273,15 @@ export default function Dashboard({
             onClick={() => onNavigate('scheduling')}
           />
           <MetricCard
+            icon={<CheckCircle2 className="text-emerald-500 w-3.5 h-3.5" />}
+            label="Lavados ate hoje"
+            value={integerFormatter.format(lifetimeWashSummary.totalWashed)}
+            secondary={`${integerFormatter.format(lifetimeWashSummary.uniqueVehicles)} placas unicas`}
+            secondaryClassName="text-emerald-500"
+            interactive
+            onClick={() => onNavigate('vehicle-history')}
+          />
+          <MetricCard
             icon={<Gauge className="text-primary w-3.5 h-3.5" />}
             label="Tempo medio"
             value={formatAverageMinutes(averageMinutes)}
@@ -238,7 +291,7 @@ export default function Dashboard({
             icon={<Clock className="text-amber-500 w-3.5 h-3.5" />}
             label="Pendentes"
             value={pendingPayments.toString().padStart(2, '0')}
-            secondary="Aguardando pagamento"
+            secondary={`${integerFormatter.format(lifetimeWashSummary.pendingPayment)} no historico`}
             interactive
             onClick={() => onNavigate('scheduling')}
           />
@@ -261,7 +314,7 @@ export default function Dashboard({
                   <span className="text-sm font-bold text-slate-700">{base.name}</span>
                   <span className="text-xs font-black text-slate-900">{base.value} em lavagem</span>
                 </div>
-                <ChartBar height={`${Math.max(10, (base.value / maxDemandValue) * 100)}%`} active={base.value === maxDemandValue && base.value > 0} horizontal />
+                <DemandBar width={`${Math.max(10, (base.value / maxDemandValue) * 100)}%`} active={base.value === maxDemandValue && base.value > 0} />
               </div>
             ))}
           </div>
@@ -430,17 +483,11 @@ function MetricCard({
   );
 }
 
-function ChartBar({ height, active, horizontal }: { height: string; active?: boolean; horizontal?: boolean }) {
-  if (horizontal) {
-    return (
-      <div className="w-full h-3 bg-slate-100 rounded-full overflow-hidden">
-        <div className={`${active ? 'bg-primary' : 'bg-primary/40'} h-full rounded-full transition-all duration-500`} style={{ width: height }} />
-      </div>
-    );
-  }
-
+function DemandBar({ width, active }: { width: string; active?: boolean }) {
   return (
-    <div className={`flex-1 ${active ? 'bg-primary' : 'bg-primary/20'} rounded-t-lg transition-all duration-500`} style={{ height }} />
+    <div className="w-full h-3 bg-slate-100 rounded-full overflow-hidden">
+      <div className={`${active ? 'bg-primary' : 'bg-primary/40'} h-full rounded-full transition-all duration-500`} style={{ width }} />
+    </div>
   );
 }
 

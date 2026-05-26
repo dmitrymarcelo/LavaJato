@@ -1,12 +1,12 @@
 # Handoff Lava Jato - Norte Tech
 
-Atualizado em: 2026-04-10
+Atualizado em: 2026-05-26
 
 ## Estado atual
 
 - Repositorio: `https://github.com/dmitrymarcelo/LavaJato`
 - Branch principal: `main`
-- Commit atual: `749455578062ff5a209ec6b819159037efec5348`
+- Commit atual: `a989d800aad8d2f8aee2f1ae7e6f143f5735d014`
 - Producao AWS atual: `https://3-145-153-19.sslip.io/` (hostname publico com certificado HTTPS confiavel)
 - Regiao AWS: `us-east-2`
 - Instancia usada no deploy: `i-0ba1477cbbe3d986d`
@@ -94,6 +94,14 @@ Observacao:
 - `Inspecao Pre` e `Inspecao Pos` exigem no minimo `1` foto.
 
 ## Correcoes estruturais recentes
+
+### Painel e memoria operacional
+
+- O `Painel` passou a exibir `Lavados ate hoje`, com total vitalicio de lavagens e quantidade de placas unicas no historico.
+- A regra de contagem foi isolada em `src/utils/dashboardMetrics.js` e coberta por `pnpm run test:dashboard`.
+- A dica inteligente do `Painel` passou a usar cache curto em `sessionStorage`, evitando chamada repetida ao assistente a cada remount da tela.
+- Arquivos locais de chaves `*accessKeys*.csv` e `*access-keys*.csv` foram protegidos no `.gitignore` para reduzir risco de commit acidental.
+- Foi criada memoria Obsidian em `C:\Users\dmitry.santos\Downloads\Lembranças\Lava Jato Norte Tech.md`, registrando infraestrutura, deploy, comandos e guardrails sem copiar segredos em texto puro.
 
 ### Performance
 
@@ -227,6 +235,7 @@ Observacao:
 
 ## Commits recentes relevantes
 
+- `a989d80` `Fix scheduling modal date prefill`
 - `7494555` `fix: allow client vehicle registration flow`
 - `051fba4` `fix: move public https to sslip hostname`
 - `bcba705` `fix: force renew expiring direct-ip https certs`
@@ -234,7 +243,6 @@ Observacao:
 - `ca4ab15` `fix: restore company logo assets locally`
 - `ae86588` `fix: tolerate direct-ip tls in deploy health check`
 - `08cf635` `feat: reinforce wash completion feedback flow`
-- `e3b9858` `docs: refresh persistence after security hardening`
 
 ## Arquivos centrais
 
@@ -351,7 +359,7 @@ Com isso, qualquer alteracao publicada em `main` dispara o deploy via SSM no EC2
   - os precos de servico no modal e no seletor passaram a usar formatacao monetaria `pt-BR`, evitando textos como `80.75,00`
 - A tela `Configuracoes > Cadastros de Clientes` trocou `alert/confirm` por feedback visual interno, leve e mais amigavel para smartphone, sem adicionar polling ou dependencias pesadas.
 - O GitHub e a fonte principal da continuidade.
-- Se mudar de computador, o ideal e continuar a partir do commit `7494555` ou posterior.
+- Se mudar de computador, o ideal e continuar a partir do commit `a989d80` ou posterior.
 - Imagens enviadas ficam em `server/storage/uploads` (persistidas via volume Docker).
 - Em producao, altere a senha do administrador imediatamente.
 
