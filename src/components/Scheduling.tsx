@@ -32,9 +32,9 @@ import { getSourceVehicleTypeLabel } from '../utils/vehicleType';
 import {
   TARUMA_DIQUE_LEVE_ZONE_ID,
   TARUMA_DIQUE_LEVE_ZONE_NAME,
+  canTarumaBookSlot,
   getDefaultTarumaZone,
-  getTarumaSlotCapacity,
-  getTarumaSlotUsage,
+  getTarumaSlotUsageByType,
   getTarumaZoneLabel,
   isTarumaBase,
 } from '../utils/tarumaSchedulingRules.js';
@@ -607,19 +607,20 @@ export default function Scheduling({
 
     const isTarumaScheduling = isTarumaBase(appointmentBaseId);
     if (isTarumaScheduling) {
-      const zoneCount = getTarumaSlotUsage(appointments, date, time, { baseId: appointmentBaseId });
-      const capacity = getTarumaSlotCapacity(time);
+      const usage = getTarumaSlotUsageByType(appointments, date, time, { baseId: appointmentBaseId });
+      const booking = canTarumaBookSlot(appointments, date, time, { baseId: appointmentBaseId, nextVehicleType });
       const isBlockedBySchedule = isTimeBlockedByBusinessRules(date, time);
-      const isFull = zoneCount >= capacity;
+      const isFull = !booking.ok;
 
       return {
-        count: zoneCount,
-        truckCount: sameSlotAppointments.filter((appointment) => isTruckType(resolveAppointmentVehicleType(appointment))).length,
-        otherCount: sameSlotAppointments.filter((appointment) => !isTruckType(resolveAppointmentVehicleType(appointment))).length,
+        count: usage.total,
+        truckCount: usage.truck,
+        otherCount: usage.other,
         isFull,
         isPast: false,
         isBlockedBySchedule,
-        capacityLabel: `${TARUMA_DIQUE_LEVE_ZONE_NAME} ${capacity} vagas`,
+        fullReason: booking.ok ? null : booking.reason,
+        capacityLabel: `${TARUMA_DIQUE_LEVE_ZONE_NAME} ${booking.limits.total} vagas`,
       };
     }
 
@@ -1146,7 +1147,7 @@ export default function Scheduling({
                         <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400 ml-1">Area de lavagem</label>
                         <div className="flex min-h-14 items-center justify-between gap-3 rounded-2xl border border-emerald-100 bg-emerald-50 px-4 text-emerald-900">
                           <span className="text-sm font-black">{TARUMA_DIQUE_LEVE_ZONE_NAME}</span>
-                          <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-700">3 vagas; 2 as 17:00</span>
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-700">3 vagas (2 leves + 1 caminhao); 17:00: 2 (ou 1)</span>
                         </div>
                       </div>
                     )}
@@ -1219,10 +1220,9 @@ export default function Scheduling({
                         <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400 ml-1">Hora</label>
                         <div className="grid grid-cols-3 gap-2">
                           {TIME_SLOTS.map(time => {
-                            const { isFull, count, truckCount, otherCount, isBlockedBySchedule } = getSlotStatus(appointmentDate, time, vehicleType, appointmentWashingZoneId);
+                            const { isFull, fullReason, count, truckCount, otherCount, isBlockedBySchedule } = getSlotStatus(appointmentDate, time, vehicleType, appointmentWashingZoneId);
                             const isSelected = selectedTime === time;
                             const isTarumaScheduling = isTarumaBase(appointmentBaseId);
-                            const tarumaCapacity = getTarumaSlotCapacity(time);
 
                             return (
                               <button
@@ -1240,8 +1240,13 @@ export default function Scheduling({
                                   }
 
                                   if (isFull) {
+                                    if (isTarumaScheduling && vehicleType === 'truck' && fullReason === 'truck_interval') {
+                                      alert('Base Taruma: caminhao exige intervalo minimo de 3 horas entre agendamentos.');
+                                      return;
+                                    }
+
                                     alert(isTarumaScheduling
-                                      ? `Horario sem vaga na Base Taruma. Limite: ${tarumaCapacity} veiculos no Dique Leve.`
+                                      ? 'Horario sem vaga na Base Taruma. Limite: 3 veiculos (2 leves + 1 caminhao). As 17:00: 2 veiculos (ou 1 se tiver caminhao).'
                                       : (
                                         vehicleType === 'truck'
                                           ? 'Horario sem vaga para caminhao. Limite: 2 caminhoes e 5 veiculos no total por horario.'
@@ -1287,7 +1292,7 @@ export default function Scheduling({
 
                     <div className="rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3 text-[10px] font-bold uppercase tracking-wider text-slate-500">
                       {isTarumaBase(appointmentBaseId)
-                        ? 'Base Taruma: Dique Leve atende 3 veiculos por horario; as 17:00 atende 2 veiculos. Regra vale para qualquer categoria.'
+                        ? 'Base Taruma: Dique Leve recebe 3 veiculos (2 leves + 1 caminhao). Se houver caminhao, o intervalo minimo entre caminhoes e de 3 horas. As 17:00: 2 veiculos (ou 1 se tiver caminhao).'
                         : 'Capacidade por horario: 2 caminhoes, 3 outros veiculos, 5 vagas totais.'}
                     </div>
 

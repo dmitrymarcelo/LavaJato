@@ -105,7 +105,7 @@ export default function Dashboard({
   canManageSettings?: boolean;
 }) {
   const [weatherAdvice, setWeatherAdvice] = useState<string>(() => readCachedWeatherAdvice() || 'Carregando recomendacao...');
-  const [timeframe, setTimeframe] = useState<'today' | 'week' | 'month'>('today');
+  const [timeframe, setTimeframe] = useState<'today' | 'week' | 'month' | 'all'>('today');
 
   useEffect(() => {
     const fetchWeather = async () => {
@@ -128,13 +128,20 @@ export default function Dashboard({
   }, []);
 
   const todayKey = currentDateKey || getTodayDate();
-  const windowDays = timeframe === 'today' ? 1 : timeframe === 'week' ? 7 : 30;
-  const currentStartKey = addDays(todayKey, -(windowDays - 1));
-  const previousStartKey = addDays(currentStartKey, -windowDays);
-  const previousEndKey = addDays(currentStartKey, -1);
+  const windowDays = timeframe === 'today' ? 1 : timeframe === 'week' ? 7 : timeframe === 'month' ? 30 : null;
+  const currentStartKey = windowDays ? addDays(todayKey, -(windowDays - 1)) : null;
+  const previousStartKey = windowDays && currentStartKey ? addDays(currentStartKey, -windowDays) : null;
+  const previousEndKey = windowDays && currentStartKey ? addDays(currentStartKey, -1) : null;
 
-  const servicesInCurrentWindow = services.filter(service => isWithinRange(getServiceDateKey(service), currentStartKey, todayKey));
-  const servicesInPreviousWindow = services.filter(service => isWithinRange(getServiceDateKey(service), previousStartKey, previousEndKey));
+  const servicesInCurrentWindow = windowDays && currentStartKey
+    ? services.filter(service => isWithinRange(getServiceDateKey(service), currentStartKey, todayKey))
+    : services.filter((service) => {
+      const dateKey = getServiceDateKey(service);
+      return !dateKey || dateKey <= todayKey;
+    });
+  const servicesInPreviousWindow = windowDays && previousStartKey && previousEndKey
+    ? services.filter(service => isWithinRange(getServiceDateKey(service), previousStartKey, previousEndKey))
+    : [];
 
   const currentRevenue = servicesInCurrentWindow
     .filter(service => service.status === 'waiting_payment' || service.status === 'completed')
@@ -154,7 +161,7 @@ export default function Dashboard({
 
   const pendingPayments = services.filter(service => service.status === 'waiting_payment').length;
   const lifetimeWashSummary = getLifetimeWashSummary(services);
-  const growthLabel = formatGrowth(currentRevenue, previousRevenue);
+  const growthLabel = timeframe === 'all' ? 'Total geral' : formatGrowth(currentRevenue, previousRevenue);
   const demandByBase = [...BASES, { id: 'sem-base', name: 'Sem base', responsible: '', vehicles: 0, budget: '0', spent: '0', status: 'warning' as const }]
     .map(base => ({
       id: base.id,
@@ -252,6 +259,12 @@ export default function Dashboard({
           >
             Mes
           </button>
+          <button
+            onClick={() => setTimeframe('all')}
+            className={`flex-1 h-full rounded-lg text-xs font-bold uppercase tracking-wider active:scale-95 transition-all ${timeframe === 'all' ? 'bg-white shadow-sm text-primary' : 'text-slate-500'}`}
+          >
+            Total geral
+          </button>
         </div>
       </div>
 
@@ -268,7 +281,7 @@ export default function Dashboard({
             icon={<Car className="text-slate-500 w-3.5 h-3.5" />}
             label="Volume"
             value={`${servicesInCurrentWindow.length} veiculos`}
-            secondary="Periodo selecionado"
+            secondary={timeframe === 'all' ? 'Total ate hoje' : 'Periodo selecionado'}
             interactive
             onClick={() => onNavigate('scheduling')}
           />

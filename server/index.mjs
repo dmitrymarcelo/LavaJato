@@ -15,8 +15,8 @@ import {
   TARUMA_BASE_ID,
   TARUMA_DIQUE_LEVE_ZONE_ID,
   TARUMA_DIQUE_LEVE_ZONE_NAME,
+  canTarumaBookSlot,
   getDefaultTarumaZone,
-  getTarumaSlotCapacity,
   isActiveTarumaAppointment,
 } from '../src/utils/tarumaSchedulingRules.js';
 
@@ -1261,22 +1261,48 @@ async function assertTarumaAppointmentSlotCapacity(appointment, executor = query
     return;
   }
 
-  const capacity = getTarumaSlotCapacity(appointment.time);
-  const countResult = await executor(
+  const existingResult = await executor(
     `
-    SELECT COUNT(*)::int AS count
+    SELECT
+      id,
+      date::text AS date,
+      to_char(time, 'HH24:MI') AS time,
+      status,
+      vehicle_type
     FROM appointments
     WHERE base_id = $1
       AND date = $2
-      AND time = $3
-      AND status = ANY($4::text[])
-      AND id <> $5
+      AND status = ANY($3::text[])
+      AND id <> $4
     `,
-    [TARUMA_BASE_ID, appointment.date, appointment.time, TARUMA_ACTIVE_APPOINTMENT_STATUSES, appointment.id]
+    [TARUMA_BASE_ID, appointment.date, TARUMA_ACTIVE_APPOINTMENT_STATUSES, appointment.id]
   );
 
-  if (Number(countResult.rows[0]?.count || 0) >= capacity) {
-    const error = new Error(`Horario sem vaga na Base Taruma. Limite: ${capacity} veiculos no Dique Leve.`);
+  const existingAppointments = existingResult.rows.map((row) => ({
+    id: row.id,
+    baseId: TARUMA_BASE_ID,
+    date: row.date,
+    time: String(row.time || '').slice(0, 5),
+    status: row.status,
+    vehicleType: row.vehicle_type,
+  }));
+
+  const booking = canTarumaBookSlot(existingAppointments, appointment.date, appointment.time, {
+    baseId: TARUMA_BASE_ID,
+    excludeId: appointment.id,
+    nextVehicleType: appointment.vehicleType,
+  });
+
+  if (!booking.ok) {
+    const errorMessage = booking.reason === 'truck_interval'
+      ? 'Base Taruma: caminhao exige intervalo minimo de 3 horas entre agendamentos.'
+      : booking.reason === 'slot_truck_full'
+        ? 'Horario sem vaga para caminhao na Base Taruma. Limite: 1 caminhao por horario.'
+        : booking.reason === 'slot_other_full'
+          ? 'Horario sem vaga para veiculo leve na Base Taruma. Limite: 2 veiculos leves por horario.'
+          : `Horario sem vaga na Base Taruma. Limite: ${booking.limits.total} veiculos no Dique Leve.`;
+
+    const error = new Error(errorMessage);
     error.statusCode = 409;
     throw error;
   }
