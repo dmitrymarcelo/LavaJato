@@ -833,7 +833,7 @@ export default function Scheduling({
         </div>
       )}
 
-      <nav className="sticky top-0 z-20 bg-white/80 backdrop-blur-md border-b border-slate-100">
+      <nav className="sticky top-0 z-20 bg-white border-b border-slate-100">
         <div className="flex px-4 gap-6 overflow-x-auto no-scrollbar">
           <button
             onClick={() => setActiveTab('appointments')}
@@ -1076,7 +1076,7 @@ export default function Scheduling({
       <AnimatePresence>
         {isAdding && (
           <ModalSurface onClose={resetAppointmentForm} position="center" panelClassName="max-w-[440px] p-0 border border-slate-200/80">
-              <div className="sticky top-0 z-10 flex justify-between items-center border-b border-slate-100 bg-white/95 px-5 py-4 backdrop-blur-sm">
+              <div className="sticky top-0 z-10 flex justify-between items-center border-b border-slate-100 bg-white px-5 py-4">
                 <div>
                   <h3 className="text-xl font-black text-slate-900">Novo Agendamento</h3>
                   <p className="mt-0.5 text-[11px] font-medium text-slate-400">Fluxo direto, sem travar a tela ao fundo.</p>
@@ -1323,7 +1323,7 @@ export default function Scheduling({
                       </select>
                     </div>
 
-                    <div className="sticky bottom-0 -mx-5 mt-6 border-t border-slate-100 bg-white/95 px-5 py-4 backdrop-blur-sm">
+                    <div className="sticky bottom-0 -mx-5 mt-6 border-t border-slate-100 bg-white px-5 py-4">
                       <button
                         type="submit"
                         disabled={isSavingAppointment}

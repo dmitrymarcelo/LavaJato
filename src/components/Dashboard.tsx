@@ -402,7 +402,7 @@ export default function Dashboard({
 
         <div className="space-y-6">
           <div className="bg-gradient-to-br from-primary to-blue-700 rounded-2xl p-6 text-white shadow-xl shadow-primary/20 flex items-center gap-5">
-            <div className="bg-white/20 p-4 rounded-2xl backdrop-blur-md shrink-0">
+            <div className="bg-white/20 p-4 rounded-2xl shrink-0">
               <CloudSun className="w-10 h-10" />
             </div>
             <div className="flex-1">

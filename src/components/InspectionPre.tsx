@@ -561,7 +561,7 @@ export default function InspectionPre({
       )}
 
       {/* Footer Action */}
-      <footer className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[430px] p-4 bg-white/95 backdrop-blur-lg border-t border-slate-100 pb-6 z-[70]">
+      <footer className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[430px] p-4 bg-white border-t border-slate-100 pb-6 z-[70]">
         <div className="space-y-3">
           {submitError && (
             <div className="rounded-2xl border border-rose-100 bg-rose-50 px-3 py-2 text-[12px] font-bold text-rose-700">

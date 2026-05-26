@@ -1,4 +1,4 @@
-﻿import React, { useState } from 'react';
+import React, { useState } from 'react';
 import { Shield, UserCog, CheckCircle2, XCircle, Save, Info, Lock, Eye, Edit3, Trash2, BarChart3, Users, UserPlus, Star, Clock, MoreVertical, Search, Filter, ShieldCheck, Car, Bike, Truck, Ship, Plus, Upload, FileSpreadsheet, Download, Package } from 'lucide-react';
 import { RoleAccessRule, Screen, TeamMember, VehicleCategory, VehicleType, ServiceTypeOption, VehicleRegistration } from '../types';
 import { motion, AnimatePresence } from '../lib/motion';
@@ -674,7 +674,7 @@ export default function Settings({
             className="fixed top-4 right-4 left-4 z-[130] sm:left-auto sm:w-full sm:max-w-sm"
           >
             <div
-              className={`rounded-2xl border px-4 py-3 shadow-2xl backdrop-blur-sm ${
+              className={`rounded-2xl border px-4 py-3 shadow-2xl ${
                 feedback.tone === 'success'
                   ? 'border-emerald-200 bg-emerald-50/95 text-emerald-700'
                   : feedback.tone === 'info'
@@ -1504,7 +1504,7 @@ export default function Settings({
       </AnimatePresence>
 
       {/* Footer Actions */}
-      <div className="fixed bottom-0 left-0 right-0 lg:left-72 bg-white/95 backdrop-blur-md border-t border-slate-100 p-4 flex justify-end z-30">
+      <div className="fixed bottom-0 left-0 right-0 lg:left-72 bg-white border-t border-slate-100 p-4 flex justify-end z-30">
         <div className="flex gap-3 w-full max-w-md">
           <button 
             onClick={() => onNavigate('dashboard')}
@@ -1533,4 +1533,3 @@ export default function Settings({
     </div>
   );
 }
-

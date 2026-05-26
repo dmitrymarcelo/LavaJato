@@ -122,7 +122,6 @@ export default function App() {
   const [hasLoadedVehicleDbFromApi, setHasLoadedVehicleDbFromApi] = useState(false);
   const [backendError, setBackendError] = useState<string | null>(null);
   const [isActiveServiceLoading, setIsActiveServiceLoading] = useState(false);
-  const [appScale, setAppScale] = useState(1);
   const servicesRef = useRef<Service[]>([]);
   const appointmentsRef = useRef<Appointment[]>([]);
   const vehicleDbRef = useRef<VehicleRegistration[]>([]);
@@ -389,36 +388,6 @@ export default function App() {
   useEffect(() => {
     document.documentElement.classList.remove('dark');
   }, []);
-
-  useEffect(() => {
-    const updateAppScale = () => {
-      const width = window.innerWidth;
-      const height = window.innerHeight;
-
-      if (width < 1024) {
-        setAppScale(1);
-        return;
-      }
-
-      const widthScale = width / 1760;
-      const heightScale = height / 980;
-      const nextScale = Math.max(0.82, Math.min(1, Math.min(widthScale, heightScale)));
-      setAppScale(Number(nextScale.toFixed(2)));
-    };
-
-    updateAppScale();
-    window.addEventListener('resize', updateAppScale);
-
-    return () => window.removeEventListener('resize', updateAppScale);
-  }, []);
-
-  useEffect(() => {
-    document.documentElement.style.setProperty('--app-scale', String(isAuthenticated ? appScale : 1));
-
-    return () => {
-      document.documentElement.style.removeProperty('--app-scale');
-    };
-  }, [appScale, isAuthenticated]);
 
   useEffect(() => {
     try {
@@ -934,7 +903,6 @@ export default function App() {
     setBackendError(null);
     setIsBootstrapping(false);
     setIsActiveServiceLoading(false);
-    setIsNotificationsOpen(false);
     setCurrentScreen('login');
   };
 
@@ -1760,7 +1728,7 @@ export default function App() {
         <div className="flex-1 flex flex-col min-h-screen relative overflow-hidden">
           {/* Header */}
           {isAuthenticated && (
-            <header className="sticky top-0 z-40 bg-white/80 backdrop-blur-md border-b border-slate-100 px-4 py-4 flex items-center justify-between transition-colors">
+            <header className="sticky top-0 z-40 bg-white border-b border-slate-100 px-4 py-4 flex items-center justify-between transition-colors">
               <div className="flex items-center gap-3 lg:hidden">
                 <img 
                   src={getSafeLogoSrc()} 
@@ -1858,7 +1826,7 @@ export default function App() {
 
           {/* Bottom Navigation (Mobile Only) */}
           {isAuthenticated && !isClientUser && !['checkin', 'inspection-pre', 'inspection-post', 'payment'].includes(currentScreen) && (
-            <nav className="lg:hidden fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-md border-t border-slate-100 px-2 pb-8 pt-3 flex items-center justify-around z-50 transition-colors">
+            <nav className="lg:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-100 px-2 pb-8 pt-3 flex items-center justify-around z-50 transition-colors">
               {canViewAnalytics && (
                 <NavButton 
                   active={currentScreen === 'dashboard'} 

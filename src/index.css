@@ -1,7 +1,7 @@
 @import "tailwindcss";
 
 @theme {
-  --font-sans: "Segoe UI Variable Text", "Segoe UI", "SF Pro Display", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "Nunito", "Segoe UI Variable Text", "Segoe UI", ui-sans-serif, system-ui, sans-serif;
   --color-primary: #137fec;
   --color-surface: #ffffff;
   --color-card-blue: #f0f9ff;
@@ -19,7 +19,6 @@
     --color-surface: #ffffff;
     --color-card-blue: #f0f9ff;
     --color-card-gray: #ffffff;
-    --app-scale: 1;
     color-scheme: light;
   }
 
@@ -27,7 +26,7 @@
   body,
   #root {
     height: 100%;
-    font-size: calc(16px * var(--app-scale));
+    font-size: 16px;
     scrollbar-width: none;
     -ms-overflow-style: none;
   }
@@ -48,16 +47,6 @@
   }
 }
 
-@media (max-width: 1023px) {
-  @layer base {
-    html,
-    body,
-    #root {
-      font-size: 16px;
-    }
-  }
-}
-
 @layer utilities {
   .no-scrollbar::-webkit-scrollbar {
     display: none;
@@ -73,11 +62,13 @@
 
 body {
   @apply bg-surface text-slate-900 transition-colors duration-300;
-  font-family: "Segoe UI Variable Text", "Segoe UI", "SF Pro Display", ui-sans-serif, system-ui, sans-serif;
+  font-family: "Nunito", "Segoe UI Variable Text", "Segoe UI", ui-sans-serif, system-ui, sans-serif;
   overflow-x: hidden;
   font-kerning: auto;
   text-rendering: auto;
   text-size-adjust: 100%;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 .app-shell-scale {
