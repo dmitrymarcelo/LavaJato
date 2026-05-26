@@ -620,6 +620,7 @@ export default function Scheduling({
         isPast: false,
         isBlockedBySchedule,
         fullReason: booking.ok ? null : booking.reason,
+        capacityTotal: booking.limits.total,
         capacityLabel: `${TARUMA_DIQUE_LEVE_ZONE_NAME} ${booking.limits.total} vagas`,
       };
     }
@@ -1220,7 +1221,7 @@ export default function Scheduling({
                         <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400 ml-1">Hora</label>
                         <div className="grid grid-cols-3 gap-2">
                           {TIME_SLOTS.map(time => {
-                            const { isFull, fullReason, count, truckCount, otherCount, isBlockedBySchedule } = getSlotStatus(appointmentDate, time, vehicleType, appointmentWashingZoneId);
+                            const { isFull, fullReason, count, truckCount, otherCount, isBlockedBySchedule, capacityTotal } = getSlotStatus(appointmentDate, time, vehicleType, appointmentWashingZoneId);
                             const isSelected = selectedTime === time;
                             const isTarumaScheduling = isTarumaBase(appointmentBaseId);
 
@@ -1270,7 +1271,7 @@ export default function Scheduling({
                                 <span className="block">{time}</span>
                                 <span className="block text-[8px] font-medium opacity-70">
                                   {isTarumaScheduling
-                                    ? `${count}/${tarumaCapacity}`
+                                    ? `${count}/${capacityTotal}`
                                     : `C${truckCount}/2 O${otherCount}/3`}
                                 </span>
                                 {(isFull || isBlockedBySchedule) && (
