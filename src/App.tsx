@@ -7,9 +7,13 @@ import React, { Suspense, lazy, useState, ReactNode, useEffect, useRef } from 'r
 import {
   LayoutDashboard, 
   History,
+  RefreshCw,
+  Send,
   Settings as SettingsIcon, 
   Droplets,
-  Package
+  Package,
+  Sparkles,
+  X
 } from 'lucide-react';
 import { motion, AnimatePresence } from './lib/motion';
 import { Screen, Service, Notification, INITIAL_SERVICE_TYPES, RoleAccessRule, VehicleCategory, VehicleType, VehicleRegistration, Product, TeamMember } from './types';
@@ -17,6 +21,7 @@ import { AppPermissionId, userHasPermission } from './lib/access';
 
 import Sidebar from './components/Sidebar';
 import Notifications from './components/Notifications';
+import ModalSurface from './components/ModalSurface';
 import Scheduling, { QueueSection } from './components/Scheduling';
 import {
   enqueuePendingOperationalAction,
@@ -41,9 +46,12 @@ import {
 } from './services/api';
 import { BASES, getBaseById } from './data/bases';
 import { getSafeLogoSrc } from './lib/placeholders';
+import { getCarCareTips, getWeatherRecommendation } from './services/geminiService';
 
 const LEGACY_STORAGE_KEYS = ['bootstrapCacheV2', 'bootstrapCacheV3', 'vehicleDbCacheV1', 'authUserV1', 'selectedBase', 'activeServiceId', 'access_rules', 'appCacheVersion', 'authToken'];
 const ACTIVE_SCHEDULING_APPOINTMENT_STATUSES: Appointment['status'][] = ['confirmed', 'pending'];
+const SMART_TIP_WEATHER_CACHE_KEY = 'smartTipWeatherAdviceV1';
+const SMART_TIP_WEATHER_CACHE_TTL_MS = 30 * 60 * 1000;
 
 const Login = lazy(() => import('./components/Login'));
 const Dashboard = lazy(() => import('./components/Dashboard'));
@@ -108,6 +116,13 @@ export default function App() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
+  const [isSmartTipOpen, setIsSmartTipOpen] = useState(false);
+  const [smartTipTab, setSmartTipTab] = useState<'weather' | 'tips'>('weather');
+  const [smartTipWeather, setSmartTipWeather] = useState<string>('Carregando...');
+  const [smartTipQuestion, setSmartTipQuestion] = useState('');
+  const [smartTipAnswer, setSmartTipAnswer] = useState<string>('');
+  const [smartTipError, setSmartTipError] = useState<string | null>(null);
+  const [smartTipLoading, setSmartTipLoading] = useState(false);
   const [completionPopup, setCompletionPopup] = useState<{
     title: string;
     message: string;
@@ -151,6 +166,65 @@ export default function App() {
   const canManageSettings = hasPermission('manage_access') || hasPermission('manage_team') || hasPermission('edit_services');
   const canDeleteOperationalRecords = hasPermission('delete_services');
 
+  const readCachedSmartTipWeather = () => {
+    if (typeof window === 'undefined') return null;
+    try {
+      const raw = window.sessionStorage.getItem(SMART_TIP_WEATHER_CACHE_KEY);
+      if (!raw) return null;
+      const parsed = JSON.parse(raw);
+      if (!parsed?.text || !parsed?.expiresAt || Number(parsed.expiresAt) <= Date.now()) {
+        window.sessionStorage.removeItem(SMART_TIP_WEATHER_CACHE_KEY);
+        return null;
+      }
+      return String(parsed.text);
+    } catch (error) {
+      return null;
+    }
+  };
+
+  const writeCachedSmartTipWeather = (text: string) => {
+    if (typeof window === 'undefined') return;
+    try {
+      window.sessionStorage.setItem(
+        SMART_TIP_WEATHER_CACHE_KEY,
+        JSON.stringify({ text, expiresAt: Date.now() + SMART_TIP_WEATHER_CACHE_TTL_MS })
+      );
+    } catch (error) {}
+  };
+
+  const refreshSmartTipWeather = async () => {
+    setSmartTipError(null);
+    setSmartTipLoading(true);
+    try {
+      const advice = await getWeatherRecommendation();
+      setSmartTipWeather(advice);
+      writeCachedSmartTipWeather(advice);
+    } catch (error: any) {
+      setSmartTipError(error?.message || 'Erro ao consultar o assistente.');
+    } finally {
+      setSmartTipLoading(false);
+    }
+  };
+
+  const handleAskSmartTip = async () => {
+    const question = smartTipQuestion.trim();
+    if (!question) {
+      setSmartTipError('Informe uma pergunta para o assistente.');
+      return;
+    }
+
+    setSmartTipError(null);
+    setSmartTipLoading(true);
+    try {
+      const answer = await getCarCareTips(question);
+      setSmartTipAnswer(answer);
+    } catch (error: any) {
+      setSmartTipError(error?.message || 'Erro ao consultar o assistente.');
+    } finally {
+      setSmartTipLoading(false);
+    }
+  };
+
   const getHomeScreenForUser = React.useCallback((user: TeamMember | null | undefined) => {
     if (!user) {
       return 'login' as Screen;
@@ -174,6 +248,20 @@ export default function App() {
       setHasLoadedVehicleDbFromApi(true);
     }
   }, []);
+
+  useEffect(() => {
+    if (!isSmartTipOpen || !isAuthenticated) {
+      return;
+    }
+
+    const cached = readCachedSmartTipWeather();
+    if (cached) {
+      setSmartTipWeather(cached);
+      return;
+    }
+
+    void refreshSmartTipWeather();
+  }, [isSmartTipOpen, isAuthenticated]);
 
   useEffect(() => {
     const interval = window.setInterval(() => {
@@ -1809,6 +1897,18 @@ export default function App() {
               </div>
 
               <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsSmartTipOpen(true);
+                    setSmartTipTab('weather');
+                    setSmartTipError(null);
+                  }}
+                  className="p-2.5 rounded-xl bg-white text-slate-500 hover:text-primary transition-all active:scale-95 border border-slate-100 shadow-sm"
+                  title="Dica Inteligente"
+                >
+                  <Sparkles className="w-5 h-5" />
+                </button>
                 {canManageSettings && (
                   <button 
                     onClick={() => navigateTo('settings')}
@@ -1851,6 +1951,104 @@ export default function App() {
           </main>
 
           <AnimatePresence>
+            {isAuthenticated && isSmartTipOpen && (
+              <ModalSurface onClose={() => setIsSmartTipOpen(false)} position="center" panelClassName="max-w-lg p-6 border border-slate-100">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <p className="text-[10px] font-black uppercase tracking-[0.18em] text-amber-500">Dica Inteligente</p>
+                    <h3 className="mt-1 text-lg font-black text-slate-900">Assistente operacional</h3>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setIsSmartTipOpen(false)}
+                    className="p-2 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
+                    aria-label="Fechar"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+
+                <div className="mt-5 flex h-10 w-full items-center justify-center rounded-xl bg-slate-100 p-1">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSmartTipTab('weather');
+                      setSmartTipError(null);
+                    }}
+                    className={`flex-1 h-full rounded-lg text-xs font-bold uppercase tracking-wider active:scale-95 transition-all ${smartTipTab === 'weather' ? 'bg-white shadow-sm text-primary' : 'text-slate-500'}`}
+                  >
+                    Clima
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSmartTipTab('tips');
+                      setSmartTipError(null);
+                    }}
+                    className={`flex-1 h-full rounded-lg text-xs font-bold uppercase tracking-wider active:scale-95 transition-all ${smartTipTab === 'tips' ? 'bg-white shadow-sm text-primary' : 'text-slate-500'}`}
+                  >
+                    Perguntar
+                  </button>
+                </div>
+
+                {smartTipError && (
+                  <div className="mt-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-xs font-bold text-rose-700">
+                    {smartTipError}
+                  </div>
+                )}
+
+                {smartTipTab === 'weather' ? (
+                  <div className="mt-4 space-y-3">
+                    <div className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm">
+                      <p className="text-sm font-bold leading-relaxed text-slate-900">
+                        {smartTipWeather}
+                      </p>
+                    </div>
+                    <div className="flex items-center justify-end">
+                      <button
+                        type="button"
+                        onClick={refreshSmartTipWeather}
+                        disabled={smartTipLoading}
+                        className="inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2 text-xs font-black uppercase tracking-widest text-white disabled:opacity-60 active:scale-95 transition-all"
+                      >
+                        <RefreshCw className="w-4 h-4" />
+                        Atualizar
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="mt-4 space-y-3">
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400 ml-1">
+                        Pergunta
+                      </label>
+                      <input
+                        value={smartTipQuestion}
+                        onChange={(event) => setSmartTipQuestion(event.target.value)}
+                        placeholder="Ex: Como organizar a fila para diminuir atrasos hoje?"
+                        className="w-full h-12 px-4 bg-slate-50 border border-slate-100 rounded-2xl focus:border-primary outline-none text-slate-900"
+                      />
+                    </div>
+                    <div className="flex items-center justify-end">
+                      <button
+                        type="button"
+                        onClick={handleAskSmartTip}
+                        disabled={smartTipLoading}
+                        className="inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2 text-xs font-black uppercase tracking-widest text-white disabled:opacity-60 active:scale-95 transition-all"
+                      >
+                        <Send className="w-4 h-4" />
+                        Enviar
+                      </button>
+                    </div>
+                    {smartTipAnswer && (
+                      <div className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm">
+                        <p className="text-sm font-bold leading-relaxed text-slate-900">{smartTipAnswer}</p>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </ModalSurface>
+            )}
             {completionPopup && (
               <motion.div
                 initial={{ opacity: 0, y: -12, scale: 0.96 }}
