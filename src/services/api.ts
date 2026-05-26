@@ -111,6 +111,23 @@ export interface WeatherForecastResponse {
   generatedAt: string;
 }
 
+export interface RealWeatherForecastDay {
+  date: string;
+  minC: number;
+  maxC: number;
+  rainMm: number;
+  weatherCode: number;
+}
+
+export interface RealWeatherForecastResponse {
+  source: 'open-meteo';
+  latitude: number;
+  longitude: number;
+  timezone: string;
+  generatedAt: string;
+  days: RealWeatherForecastDay[];
+}
+
 export class ApiError extends Error {
   status: number;
 
@@ -246,6 +263,19 @@ export const api = {
     request<{ text: string }>(`/assistant/weather${location ? `?location=${encodeURIComponent(location)}` : ''}`),
   assistantWeatherForecast: (location?: string) =>
     request<WeatherForecastResponse>(`/assistant/weather-forecast${location ? `?location=${encodeURIComponent(location)}` : ''}`),
+  realWeatherForecast: (options?: { lat?: number; lon?: number; days?: number; tz?: string }) => {
+    const lat = typeof options?.lat === 'number' ? options.lat : undefined;
+    const lon = typeof options?.lon === 'number' ? options.lon : undefined;
+    const days = typeof options?.days === 'number' ? options.days : undefined;
+    const tz = typeof options?.tz === 'string' ? options.tz : undefined;
+    const query = new URLSearchParams();
+    if (typeof lat === 'number') query.set('lat', String(lat));
+    if (typeof lon === 'number') query.set('lon', String(lon));
+    if (typeof days === 'number') query.set('days', String(days));
+    if (typeof tz === 'string') query.set('tz', tz);
+    const suffix = query.toString() ? `?${query.toString()}` : '';
+    return request<RealWeatherForecastResponse>(`/weather/forecast${suffix}`);
+  },
   upsertProduct: (product: Product) =>
     request<Product>('/products/upsert', { method: 'POST', body: JSON.stringify(product) }),
   deleteProduct: (id: string) =>

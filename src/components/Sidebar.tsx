@@ -16,30 +16,69 @@ import {
 import { motion } from '../lib/motion';
 import { Screen, TeamMember } from '../types';
 import { getSafeLogoSrc } from '../lib/placeholders';
-import { getWeatherForecast } from '../services/geminiService';
+import { getRealWeatherForecast, getWeatherForecast } from '../services/geminiService';
 import { WeatherForecastResponse } from '../services/api';
 
 const SMART_TIP_WEATHER_CACHE_KEY = 'smartTipWeatherForecastV1';
 const SMART_TIP_WEATHER_CACHE_TTL_MS = 10 * 60 * 1000;
-const getWeekdayLabel = (dayOffset: number) => {
-  const date = new Date();
-  date.setHours(12, 0, 0, 0);
-  date.setDate(date.getDate() + dayOffset);
-  const raw = new Intl.DateTimeFormat('pt-BR', { weekday: 'long' }).format(date);
-  return raw.replace('-feira', '').trim().toUpperCase();
-};
+const MANAUS_COORDINATES = { lat: -3.119, lon: -60.021, tz: 'America/Manaus' };
 const formatTemperature = (minC: number, maxC: number) => `${Math.round(minC)}°C / ${Math.round(maxC)}°C`;
 const formatRain = (rainMm: number) => {
   if (!Number.isFinite(rainMm) || rainMm <= 0) return '0 mm';
   const rounded = Math.round(rainMm * 10) / 10;
   return `${rounded.toFixed(1)} mm`;
 };
-const renderConditionIcon = (condition: WeatherForecastResponse['days'][number]['condition']) => {
+type WeatherCondition = 'sun' | 'partly_cloudy' | 'cloudy' | 'rain';
+const renderConditionIcon = (condition: WeatherCondition) => {
   if (condition === 'sun') return <Sun className="w-6 h-6 text-amber-300" />;
   if (condition === 'rain') return <CloudRain className="w-6 h-6 text-sky-200" />;
   if (condition === 'partly_cloudy') return <CloudSun className="w-6 h-6 text-amber-200" />;
   if (condition === 'cloudy') return <Cloud className="w-6 h-6 text-slate-200" />;
   return <Cloud className="w-6 h-6 text-slate-200" />;
+};
+
+const getWeekdayLabelFromDate = (isoDate: string) => {
+  const date = new Date(`${isoDate}T12:00:00`);
+  const raw = new Intl.DateTimeFormat('pt-BR', { weekday: 'long' }).format(date);
+  return raw.replace('-feira', '').trim().toUpperCase();
+};
+
+const getWeekdayLabelFromOffset = (dayOffset: number) => {
+  const date = new Date();
+  date.setHours(12, 0, 0, 0);
+  date.setDate(date.getDate() + dayOffset);
+  const raw = new Intl.DateTimeFormat('pt-BR', { weekday: 'long' }).format(date);
+  return raw.replace('-feira', '').trim().toUpperCase();
+};
+
+const mapOpenMeteoCodeToCondition = (code: number): WeatherCondition => {
+  if (code === 0) return 'sun';
+  if (code === 1 || code === 2) return 'partly_cloudy';
+  if (code === 3) return 'cloudy';
+  if (code === 45 || code === 48) return 'cloudy';
+  if ((code >= 51 && code <= 67) || (code >= 80 && code <= 82) || (code >= 95 && code <= 99)) return 'rain';
+  return 'partly_cloudy';
+};
+
+const buildOperationalNote = (rainMm: number) => {
+  if (Number.isFinite(rainMm) && rainMm >= 1) {
+    return 'Risco de chuva: priorize interna e entrega por horario.';
+  }
+  return 'Dia bom: acelere a fila e finalize com secagem completa.';
+};
+
+type WeatherWidget = {
+  source: 'open-meteo' | 'assistant';
+  generatedAt: string;
+  days: Array<{
+    key: string;
+    label: string;
+    condition: WeatherCondition;
+    minC: number;
+    maxC: number;
+    rainMm: number;
+    note: string;
+  }>;
 };
 
 interface SidebarProps {
@@ -65,7 +104,7 @@ export default function Sidebar({
   canManageInventory = false,
   canManageSettings = false,
 }: SidebarProps) {
-  const [forecast, setForecast] = useState<WeatherForecastResponse | null>(null);
+  const [forecast, setForecast] = useState<WeatherWidget | null>(null);
 
   useEffect(() => {
     let isCancelled = false;
@@ -79,13 +118,13 @@ export default function Sidebar({
           window.sessionStorage.removeItem(SMART_TIP_WEATHER_CACHE_KEY);
           return null;
         }
-        return parsed.payload as WeatherForecastResponse;
+        return parsed.payload as WeatherWidget;
       } catch (error) {
         return null;
       }
     };
 
-    const writeCache = (payload: WeatherForecastResponse) => {
+    const writeCache = (payload: WeatherWidget) => {
       try {
         window.sessionStorage.setItem(
           SMART_TIP_WEATHER_CACHE_KEY,
@@ -102,13 +141,46 @@ export default function Sidebar({
       }
 
       try {
-        const payload = await getWeatherForecast();
+        const real = await getRealWeatherForecast({ ...MANAUS_COORDINATES, days: 7 });
+        const widget: WeatherWidget = {
+          source: 'open-meteo',
+          generatedAt: real.generatedAt,
+          days: real.days.slice(0, 7).map((day) => ({
+            key: day.date,
+            label: getWeekdayLabelFromDate(day.date),
+            condition: mapOpenMeteoCodeToCondition(day.weatherCode),
+            minC: day.minC,
+            maxC: day.maxC,
+            rainMm: day.rainMm,
+            note: buildOperationalNote(day.rainMm),
+          })),
+        };
         if (isCancelled) return;
-        setForecast(payload);
-        writeCache(payload);
+        setForecast(widget);
+        writeCache(widget);
       } catch (error) {
-        if (isCancelled) return;
-        setForecast(null);
+        try {
+          const assistant = await getWeatherForecast();
+          const widget: WeatherWidget = {
+            source: 'assistant',
+            generatedAt: assistant.generatedAt,
+            days: assistant.days.slice(0, 7).map((day) => ({
+              key: String(day.dayOffset),
+              label: getWeekdayLabelFromOffset(day.dayOffset),
+              condition: day.condition,
+              minC: day.minC,
+              maxC: day.maxC,
+              rainMm: day.rainMm,
+              note: day.note,
+            })),
+          };
+          if (isCancelled) return;
+          setForecast(widget);
+          writeCache(widget);
+        } catch (innerError) {
+          if (isCancelled) return;
+          setForecast(null);
+        }
       }
     };
 
@@ -196,52 +268,70 @@ export default function Sidebar({
             );
           })}
 
-          {isOpen && (
+          {isOpen ? (
             <div className="mt-4 rounded-3xl overflow-hidden border border-slate-200 bg-gradient-to-br from-slate-900 via-slate-900 to-slate-800 text-white shadow-xl">
               <div className="px-4 pt-4 pb-3">
-                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-white/75">Clima</p>
-                <p className="mt-1 text-[10px] font-bold uppercase tracking-widest text-white/60">
-                  {forecast?.generatedAt
-                    ? `Atualizado ${new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-digit' }).format(new Date(forecast.generatedAt))}`
-                    : 'Carregando...'}
-                </p>
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-[10px] font-black uppercase tracking-[0.18em] text-white/75">Clima</p>
+                    <p className="mt-1 text-[10px] font-bold uppercase tracking-widest text-white/60">
+                      {forecast?.generatedAt
+                        ? `Atualizado ${new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-digit' }).format(new Date(forecast.generatedAt))}`
+                        : 'Carregando...'}
+                    </p>
+                  </div>
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-white/55">
+                    {forecast?.source === 'open-meteo' ? 'Open-Meteo' : 'Assistente'}
+                  </p>
+                </div>
               </div>
 
               <div className="px-4 pb-4 space-y-2">
                 {forecast?.days?.length ? (
-                  [...forecast.days]
-                    .sort((a, b) => a.dayOffset - b.dayOffset)
-                    .map((day) => (
-                      <div key={day.dayOffset} className="rounded-2xl border border-white/10 bg-white/5 px-3 py-3">
-                        <div className="flex items-center justify-between gap-3">
-                          <div className="flex items-center gap-3 min-w-0">
-                            <div className="w-7 h-7 flex items-center justify-center rounded-xl bg-white/10 border border-white/10 shrink-0">
-                              {renderConditionIcon(day.condition)}
-                            </div>
-                            <div className="min-w-0">
-                              <p className="text-[10px] font-black uppercase tracking-widest text-white/85">
-                                {getWeekdayLabel(day.dayOffset)}
-                              </p>
-                              <p className="text-xs font-black text-white">
-                                {formatTemperature(day.minC, day.maxC)}
-                              </p>
-                            </div>
+                  forecast.days.slice(0, 7).map((day) => (
+                    <div key={day.key} className="rounded-2xl border border-white/10 bg-white/5 px-3 py-3">
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className="w-7 h-7 flex items-center justify-center rounded-xl bg-white/10 border border-white/10 shrink-0">
+                            {renderConditionIcon(day.condition)}
                           </div>
-                          <p className="text-[10px] font-bold text-white/70 shrink-0">
-                            {formatRain(day.rainMm)}
-                          </p>
+                          <div className="min-w-0">
+                            <p className="text-[10px] font-black uppercase tracking-widest text-white/85">
+                              {day.label}
+                            </p>
+                            <p className="text-xs font-black text-white">
+                              {formatTemperature(day.minC, day.maxC)}
+                            </p>
+                          </div>
                         </div>
-                        <p className="mt-2 text-[10px] font-bold text-white/80">
-                          {day.note}
+                        <p className="text-[10px] font-bold text-white/70 shrink-0">
+                          {formatRain(day.rainMm)}
                         </p>
                       </div>
-                    ))
+                      <p className="mt-2 text-[10px] font-bold text-white/80">
+                        {day.note}
+                      </p>
+                    </div>
+                  ))
                 ) : (
                   <div className="rounded-2xl border border-white/10 bg-white/5 px-3 py-4 text-center text-xs font-bold text-white/70">
                     Sem previsao no momento.
                   </div>
                 )}
               </div>
+            </div>
+          ) : (
+            <div className="mt-4 flex flex-col items-center gap-2">
+              {(forecast?.days?.length ? forecast.days.slice(0, 4) : []).map((day) => (
+                <div
+                  key={day.key}
+                  title={`${day.label} • ${formatTemperature(day.minC, day.maxC)} • ${formatRain(day.rainMm)} • ${day.note}`}
+                  className="w-12 h-12 rounded-2xl bg-slate-50 border border-slate-100 flex flex-col items-center justify-center text-slate-900 shadow-sm"
+                >
+                  <div className="text-slate-900">{renderConditionIcon(day.condition)}</div>
+                  <span className="text-[9px] font-black leading-none -mt-1">{Math.round(day.maxC)}°</span>
+                </div>
+              ))}
             </div>
           )}
         </nav>

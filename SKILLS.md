@@ -206,10 +206,10 @@ Ele complementa o `AGENTS.md`:
 - Objetivo: orientar operacao com dicas e contexto textual
 - Entradas: prompt interno, clima e contexto basico
 - Saidas: texto aconselhativo
-- Dependencias: `server/assistant.mjs`, `src/services/geminiService.ts`
+- Dependencias: `server/assistant.mjs`, `server/index.mjs`, `src/services/geminiService.ts` (fallback), `src/components/Sidebar.tsx`
 - Falha esperada: indisponibilidade do modelo ou timeout externo
 - Resposta esperada: fallback deterministico e nunca bloquear o app
-- Exposicao atual: a capacidade segue implementada, mas o botao flutuante do assistente foi removido da UI principal
+- Exposicao atual: a previsao do clima na sidebar usa fonte real quando disponivel (`GET /api/weather/forecast`) e recorre ao Bedrock apenas como fallback
 
 ### S17. `handoff-sync`
 

@@ -1995,6 +1995,60 @@ app.get('/api/assistant/weather-forecast', async (req, res) => {
   res.json({ ...forecast, generatedAt: new Date().toISOString() });
 });
 
+app.get('/api/weather/forecast', async (req, res) => {
+  const latitude = typeof req.query.lat === 'string' ? Number(req.query.lat) : -3.119;
+  const longitude = typeof req.query.lon === 'string' ? Number(req.query.lon) : -60.021;
+  const days = typeof req.query.days === 'string' ? Number(req.query.days) : 7;
+
+  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+    return res.status(400).json({ error: 'Informe lat e lon validos.' });
+  }
+
+  const clampedDays = Math.max(1, Math.min(14, Number.isFinite(days) ? days : 7));
+  const timezone = typeof req.query.tz === 'string' ? req.query.tz : 'America/Manaus';
+
+  try {
+    const url = new URL('https://api.open-meteo.com/v1/forecast');
+    url.searchParams.set('latitude', String(latitude));
+    url.searchParams.set('longitude', String(longitude));
+    url.searchParams.set('timezone', timezone);
+    url.searchParams.set('forecast_days', String(clampedDays));
+    url.searchParams.set('daily', 'temperature_2m_max,temperature_2m_min,precipitation_sum,weathercode');
+
+    const response = await fetch(url.toString(), { headers: { accept: 'application/json' } });
+    if (!response.ok) {
+      return res.status(502).json({ error: 'Falha ao consultar o provedor de clima.' });
+    }
+
+    const data = await response.json();
+    const daily = data?.daily || {};
+    const dates = Array.isArray(daily?.time) ? daily.time : [];
+    const max = Array.isArray(daily?.temperature_2m_max) ? daily.temperature_2m_max : [];
+    const min = Array.isArray(daily?.temperature_2m_min) ? daily.temperature_2m_min : [];
+    const rain = Array.isArray(daily?.precipitation_sum) ? daily.precipitation_sum : [];
+    const code = Array.isArray(daily?.weathercode) ? daily.weathercode : [];
+
+    const payload = dates.map((date, index) => ({
+      date,
+      minC: Number(min[index]),
+      maxC: Number(max[index]),
+      rainMm: Number(rain[index]),
+      weatherCode: Number(code[index]),
+    }));
+
+    res.json({
+      source: 'open-meteo',
+      latitude,
+      longitude,
+      timezone,
+      generatedAt: new Date().toISOString(),
+      days: payload,
+    });
+  } catch (error) {
+    res.status(502).json({ error: 'Falha ao consultar o provedor de clima.' });
+  }
+});
+
 app.get('/api/bootstrap', async (req, res) => {
   await syncAppointmentStatuses();
   await cleanupOrphanActiveAppointments();

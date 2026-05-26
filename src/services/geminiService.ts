@@ -34,3 +34,16 @@ export async function getWeatherForecast(location = 'Manaus') {
     throw new Error(error.message || 'Erro ao consultar o assistente.');
   }
 }
+
+export async function getRealWeatherForecast(options?: { lat?: number; lon?: number; days?: number; tz?: string }) {
+  try {
+    const response = await api.realWeatherForecast(options);
+    if (!response?.days?.length) {
+      throw new Error('O provedor de clima retornou uma previsao vazia.');
+    }
+    return response;
+  } catch (error: any) {
+    console.error('Weather API Error:', error);
+    throw new Error(error.message || 'Erro ao consultar o provedor de clima.');
+  }
+}

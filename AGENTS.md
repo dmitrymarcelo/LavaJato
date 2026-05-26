@@ -204,12 +204,12 @@ Este projeto adota os seguintes principios, alinhados a boas praticas publicadas
 ### A11. Agente Assistente Bedrock
 
 - Tipo: generativo
-- Arquivos principais: `server/assistant.mjs`, `src/services/geminiService.ts`, `src/components/Dashboard.tsx`
+- Arquivos principais: `server/assistant.mjs`, `server/index.mjs`, `src/services/geminiService.ts`, `src/components/Dashboard.tsx`, `src/components/Sidebar.tsx`
 - Missao: fornecer dicas operacionais e recomendacoes contextuais de clima/atendimento
 - Entradas: contexto basico do negocio, parametros climaticos e prompts internos
 - Saidas: recomendacoes textuais para apoiar decisao humana
 - Guardrails: o assistente e consultivo, nunca fonte de verdade para status, faturamento, estoque ou autorizacao
-- Estado atual da UI: o CTA flutuante foi removido da casca principal do app; o agente segue disponivel apenas como capacidade de backend e base para usos futuros controlados
+- Estado atual da UI: a previsao exibida na sidebar prioriza fonte real (`GET /api/weather/forecast` via Open-Meteo) e usa o assistente apenas como fallback consultivo
 - Owner sugerido: produto + backend
 
 ### A12. Agente de Deploy e Memoria Operacional
