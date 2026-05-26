@@ -21,3 +21,16 @@ export async function getCarCareTips(query: string) {
 export async function getWeatherRecommendation(location = 'Manaus') {
   return handleAssistantCall(() => api.assistantWeather(location));
 }
+
+export async function getWeatherForecast(location = 'Manaus') {
+  try {
+    const response = await api.assistantWeatherForecast(location);
+    if (!response?.days?.length) {
+      throw new Error('O assistente retornou uma previsao vazia.');
+    }
+    return response;
+  } catch (error: any) {
+    console.error('Assistant API Error:', error);
+    throw new Error(error.message || 'Erro ao consultar o assistente.');
+  }
+}

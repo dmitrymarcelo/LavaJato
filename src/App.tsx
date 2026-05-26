@@ -7,12 +7,16 @@ import React, { Suspense, lazy, useState, ReactNode, useEffect, useRef } from 'r
 import {
   LayoutDashboard, 
   History,
+  Cloud,
+  CloudSun,
+  CloudRain,
   RefreshCw,
   Send,
   Settings as SettingsIcon, 
   Droplets,
   Package,
   Sparkles,
+  Sun,
   X
 } from 'lucide-react';
 import { motion, AnimatePresence } from './lib/motion';
@@ -43,15 +47,16 @@ import {
   ServiceStageTransitionPayload,
   StartWashPayload,
   UNAUTHORIZED_SESSION_EVENT,
+  WeatherForecastResponse,
 } from './services/api';
 import { BASES, getBaseById } from './data/bases';
 import { getSafeLogoSrc } from './lib/placeholders';
-import { getCarCareTips, getWeatherRecommendation } from './services/geminiService';
+import { getCarCareTips, getWeatherForecast } from './services/geminiService';
 
 const LEGACY_STORAGE_KEYS = ['bootstrapCacheV2', 'bootstrapCacheV3', 'vehicleDbCacheV1', 'authUserV1', 'selectedBase', 'activeServiceId', 'access_rules', 'appCacheVersion', 'authToken'];
 const ACTIVE_SCHEDULING_APPOINTMENT_STATUSES: Appointment['status'][] = ['confirmed', 'pending'];
-const SMART_TIP_WEATHER_CACHE_KEY = 'smartTipWeatherAdviceV1';
-const SMART_TIP_WEATHER_CACHE_TTL_MS = 30 * 60 * 1000;
+const SMART_TIP_WEATHER_CACHE_KEY = 'smartTipWeatherForecastV1';
+const SMART_TIP_WEATHER_CACHE_TTL_MS = 10 * 60 * 1000;
 
 const Login = lazy(() => import('./components/Login'));
 const Dashboard = lazy(() => import('./components/Dashboard'));
@@ -118,7 +123,8 @@ export default function App() {
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const [isSmartTipOpen, setIsSmartTipOpen] = useState(false);
   const [smartTipTab, setSmartTipTab] = useState<'weather' | 'tips'>('weather');
-  const [smartTipWeather, setSmartTipWeather] = useState<string>('Carregando...');
+  const [smartTipForecast, setSmartTipForecast] = useState<WeatherForecastResponse | null>(null);
+  const [smartTipSelectedDayOffset, setSmartTipSelectedDayOffset] = useState(0);
   const [smartTipQuestion, setSmartTipQuestion] = useState('');
   const [smartTipAnswer, setSmartTipAnswer] = useState<string>('');
   const [smartTipError, setSmartTipError] = useState<string | null>(null);
@@ -166,28 +172,28 @@ export default function App() {
   const canManageSettings = hasPermission('manage_access') || hasPermission('manage_team') || hasPermission('edit_services');
   const canDeleteOperationalRecords = hasPermission('delete_services');
 
-  const readCachedSmartTipWeather = () => {
+  const readCachedSmartTipWeather = (): WeatherForecastResponse | null => {
     if (typeof window === 'undefined') return null;
     try {
       const raw = window.sessionStorage.getItem(SMART_TIP_WEATHER_CACHE_KEY);
       if (!raw) return null;
       const parsed = JSON.parse(raw);
-      if (!parsed?.text || !parsed?.expiresAt || Number(parsed.expiresAt) <= Date.now()) {
+      if (!parsed?.payload || !parsed?.expiresAt || Number(parsed.expiresAt) <= Date.now()) {
         window.sessionStorage.removeItem(SMART_TIP_WEATHER_CACHE_KEY);
         return null;
       }
-      return String(parsed.text);
+      return parsed.payload as WeatherForecastResponse;
     } catch (error) {
       return null;
     }
   };
 
-  const writeCachedSmartTipWeather = (text: string) => {
+  const writeCachedSmartTipWeather = (payload: WeatherForecastResponse) => {
     if (typeof window === 'undefined') return;
     try {
       window.sessionStorage.setItem(
         SMART_TIP_WEATHER_CACHE_KEY,
-        JSON.stringify({ text, expiresAt: Date.now() + SMART_TIP_WEATHER_CACHE_TTL_MS })
+        JSON.stringify({ payload, expiresAt: Date.now() + SMART_TIP_WEATHER_CACHE_TTL_MS })
       );
     } catch (error) {}
   };
@@ -196,9 +202,9 @@ export default function App() {
     setSmartTipError(null);
     setSmartTipLoading(true);
     try {
-      const advice = await getWeatherRecommendation();
-      setSmartTipWeather(advice);
-      writeCachedSmartTipWeather(advice);
+      const forecast = await getWeatherForecast();
+      setSmartTipForecast(forecast);
+      writeCachedSmartTipWeather(forecast);
     } catch (error: any) {
       setSmartTipError(error?.message || 'Erro ao consultar o assistente.');
     } finally {
@@ -223,6 +229,49 @@ export default function App() {
     } finally {
       setSmartTipLoading(false);
     }
+  };
+
+  const getSmartTipWeekdayLabel = (dayOffset: number) => {
+    const date = new Date();
+    date.setHours(12, 0, 0, 0);
+    date.setDate(date.getDate() + dayOffset);
+    const raw = new Intl.DateTimeFormat('pt-BR', { weekday: 'long' }).format(date);
+    return raw.replace('-feira', '').trim().toUpperCase();
+  };
+
+  const formatSmartTipTemperature = (minC: number, maxC: number) => {
+    const safeMin = Number.isFinite(minC) ? Math.round(minC) : 0;
+    const safeMax = Number.isFinite(maxC) ? Math.round(maxC) : 0;
+    return `${safeMin}°C / ${safeMax}°C`;
+  };
+
+  const formatSmartTipRain = (rainMm: number) => {
+    if (!Number.isFinite(rainMm) || rainMm <= 0) {
+      return '0 mm';
+    }
+
+    const rounded = Math.round(rainMm * 10) / 10;
+    return `${rounded.toFixed(1)} mm`;
+  };
+
+  const renderSmartTipConditionIcon = (condition: string) => {
+    if (condition === 'sun') {
+      return <Sun className="w-12 h-12 text-amber-300" />;
+    }
+
+    if (condition === 'rain') {
+      return <CloudRain className="w-12 h-12 text-sky-200" />;
+    }
+
+    if (condition === 'partly_cloudy') {
+      return <CloudSun className="w-12 h-12 text-amber-200" />;
+    }
+
+    if (condition === 'cloudy') {
+      return <Cloud className="w-12 h-12 text-slate-200" />;
+    }
+
+    return <Cloud className="w-12 h-12 text-slate-200" />;
   };
 
   const getHomeScreenForUser = React.useCallback((user: TeamMember | null | undefined) => {
@@ -256,12 +305,26 @@ export default function App() {
 
     const cached = readCachedSmartTipWeather();
     if (cached) {
-      setSmartTipWeather(cached);
+      setSmartTipForecast(cached);
       return;
     }
 
     void refreshSmartTipWeather();
   }, [isSmartTipOpen, isAuthenticated]);
+
+  useEffect(() => {
+    if (!isSmartTipOpen || !isAuthenticated) {
+      return;
+    }
+
+    const interval = window.setInterval(() => {
+      if (!smartTipLoading) {
+        void refreshSmartTipWeather();
+      }
+    }, SMART_TIP_WEATHER_CACHE_TTL_MS);
+
+    return () => window.clearInterval(interval);
+  }, [isSmartTipOpen, isAuthenticated, smartTipLoading]);
 
   useEffect(() => {
     const interval = window.setInterval(() => {
@@ -1902,6 +1965,9 @@ export default function App() {
                   onClick={() => {
                     setIsSmartTipOpen(true);
                     setSmartTipTab('weather');
+                    setSmartTipSelectedDayOffset(0);
+                    setSmartTipQuestion('');
+                    setSmartTipAnswer('');
                     setSmartTipError(null);
                   }}
                   className="p-2.5 rounded-xl bg-white text-slate-500 hover:text-primary transition-all active:scale-95 border border-slate-100 shadow-sm"
@@ -1998,22 +2064,88 @@ export default function App() {
                 )}
 
                 {smartTipTab === 'weather' ? (
-                  <div className="mt-4 space-y-3">
-                    <div className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm">
-                      <p className="text-sm font-bold leading-relaxed text-slate-900">
-                        {smartTipWeather}
-                      </p>
-                    </div>
-                    <div className="flex items-center justify-end">
-                      <button
-                        type="button"
-                        onClick={refreshSmartTipWeather}
-                        disabled={smartTipLoading}
-                        className="inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2 text-xs font-black uppercase tracking-widest text-white disabled:opacity-60 active:scale-95 transition-all"
-                      >
-                        <RefreshCw className="w-4 h-4" />
-                        Atualizar
-                      </button>
+                  <div className="mt-4">
+                    <div className="rounded-3xl overflow-hidden border border-slate-200 bg-gradient-to-br from-slate-900 via-slate-900 to-slate-800 text-white shadow-xl">
+                      <div className="px-5 pt-5 pb-4 flex items-start justify-between gap-4">
+                        <div className="min-w-0">
+                          <p className="text-[10px] font-black uppercase tracking-[0.18em] text-white/75">
+                            Previsao (assistente)
+                          </p>
+                          <p className="mt-1 text-[10px] font-bold uppercase tracking-widest text-white/60">
+                            {smartTipForecast?.generatedAt
+                              ? `Atualizado ${new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-digit' }).format(new Date(smartTipForecast.generatedAt))}`
+                              : 'Carregando...'}
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={refreshSmartTipWeather}
+                          disabled={smartTipLoading}
+                          className="inline-flex items-center gap-2 rounded-xl bg-white/10 px-4 py-2 text-[10px] font-black uppercase tracking-widest text-white hover:bg-white/15 disabled:opacity-60 active:scale-95 transition-all border border-white/15"
+                        >
+                          <RefreshCw className="w-4 h-4" />
+                          Atualizar
+                        </button>
+                      </div>
+
+                      <div className="px-5 pb-5">
+                        {!smartTipForecast ? (
+                          <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-6 text-center text-sm font-bold text-white/70">
+                            Carregando previsao...
+                          </div>
+                        ) : (
+                          <>
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                              {[...smartTipForecast.days]
+                                .sort((a, b) => a.dayOffset - b.dayOffset)
+                                .map((day) => {
+                                  const isSelected = day.dayOffset === smartTipSelectedDayOffset;
+                                  return (
+                                    <button
+                                      key={day.dayOffset}
+                                      type="button"
+                                      onClick={() => setSmartTipSelectedDayOffset(day.dayOffset)}
+                                      className={`rounded-2xl px-3 py-4 text-center transition-all border active:scale-95 ${
+                                        isSelected
+                                          ? 'bg-white/10 border-white/25'
+                                          : 'bg-white/5 border-white/10 hover:bg-white/10'
+                                      }`}
+                                    >
+                                      <p className="text-[10px] font-black uppercase tracking-widest text-white/85">
+                                        {getSmartTipWeekdayLabel(day.dayOffset)}
+                                      </p>
+                                      <div className="mt-3 flex justify-center">
+                                        {renderSmartTipConditionIcon(day.condition)}
+                                      </div>
+                                      <p className="mt-3 text-xs font-black text-white">
+                                        {formatSmartTipTemperature(day.minC, day.maxC)}
+                                      </p>
+                                      <p className="mt-1 text-[10px] font-bold text-white/70">
+                                        {formatSmartTipRain(day.rainMm)}
+                                      </p>
+                                    </button>
+                                  );
+                                })}
+                            </div>
+
+                            {(() => {
+                              const ordered = [...smartTipForecast.days].sort((a, b) => a.dayOffset - b.dayOffset);
+                              const selected = ordered.find((day) => day.dayOffset === smartTipSelectedDayOffset) || ordered[0];
+                              if (!selected) return null;
+                              return (
+                                <div className="mt-4 rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
+                                  <p className="text-[10px] font-black uppercase tracking-widest text-white/70">
+                                    Orientacao
+                                  </p>
+                                  <p className="mt-1 text-sm font-bold text-white">
+                                    {selected.note}
+                                  </p>
+                                </div>
+                              );
+                            })()}
+                          </>
+                        )}
+                      </div>
                     </div>
                   </div>
                 ) : (

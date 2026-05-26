@@ -97,6 +97,20 @@ export interface VehicleHistoryDetail extends VehicleHistorySummary {
   records: Service[];
 }
 
+export interface WeatherForecastDay {
+  dayOffset: number;
+  condition: 'sun' | 'partly_cloudy' | 'cloudy' | 'rain';
+  minC: number;
+  maxC: number;
+  rainMm: number;
+  note: string;
+}
+
+export interface WeatherForecastResponse {
+  days: WeatherForecastDay[];
+  generatedAt: string;
+}
+
 export class ApiError extends Error {
   status: number;
 
@@ -230,6 +244,8 @@ export const api = {
     request<{ text: string }>('/assistant/tips', { method: 'POST', body: JSON.stringify({ query }) }),
   assistantWeather: (location?: string) =>
     request<{ text: string }>(`/assistant/weather${location ? `?location=${encodeURIComponent(location)}` : ''}`),
+  assistantWeatherForecast: (location?: string) =>
+    request<WeatherForecastResponse>(`/assistant/weather-forecast${location ? `?location=${encodeURIComponent(location)}` : ''}`),
   upsertProduct: (product: Product) =>
     request<Product>('/products/upsert', { method: 'POST', body: JSON.stringify(product) }),
   deleteProduct: (id: string) =>

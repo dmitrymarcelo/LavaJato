@@ -74,3 +74,54 @@ export async function getAssistantWeather(location = 'Manaus') {
     return fallback;
   }
 }
+
+export async function getAssistantWeatherForecast(location = 'Manaus') {
+  const fallback = {
+    days: [
+      { dayOffset: 0, condition: 'partly_cloudy', minC: 24, maxC: 32, rainMm: 0.2, note: 'Priorize veiculos ja inspecionados e mantenha panos secos a mao.' },
+      { dayOffset: 1, condition: 'sun', minC: 24, maxC: 33, rainMm: 0, note: 'Dia bom para acelerar a fila e finalizar com secagem completa.' },
+      { dayOffset: 2, condition: 'partly_cloudy', minC: 24, maxC: 32, rainMm: 0.4, note: 'Evite deixar carros prontos expostos; organize entregas por horario.' },
+      { dayOffset: 3, condition: 'rain', minC: 23, maxC: 31, rainMm: 3.0, note: 'Reforce cobertura e priorize lavagem interna quando chover.' },
+    ],
+  };
+
+  try {
+    const text = await askBedrock(
+      'Voce e um assistente de clima para operacao de lava jato. Retorne APENAS JSON valido, sem markdown, sem texto extra. Campos: days: [{dayOffset:0-3, condition:\"sun\"|\"partly_cloudy\"|\"cloudy\"|\"rain\", minC:number, maxC:number, rainMm:number, note:string}]. Valores realistas para o clima de Manaus e arredonde rainMm com 1 casa. note deve ser objetiva (maximo 12 palavras).',
+      `Gere uma previsao simplificada para ${location} para os proximos 4 dias.`
+    );
+
+    const parsed = JSON.parse(text);
+    const days = Array.isArray(parsed?.days) ? parsed.days : [];
+    if (days.length !== 4) {
+      return fallback;
+    }
+
+    const normalizedDays = days.map((day) => ({
+      dayOffset: Number(day?.dayOffset),
+      condition: String(day?.condition || ''),
+      minC: Number(day?.minC),
+      maxC: Number(day?.maxC),
+      rainMm: Number(day?.rainMm),
+      note: String(day?.note || '').trim(),
+    }));
+
+    const isValid = normalizedDays.every((day) => (
+      [0, 1, 2, 3].includes(day.dayOffset)
+      && ['sun', 'partly_cloudy', 'cloudy', 'rain'].includes(day.condition)
+      && Number.isFinite(day.minC)
+      && Number.isFinite(day.maxC)
+      && Number.isFinite(day.rainMm)
+      && Boolean(day.note)
+    ));
+
+    if (!isValid) {
+      return fallback;
+    }
+
+    return { days: normalizedDays };
+  } catch (error) {
+    console.error('AWS Bedrock weather forecast error:', error);
+    return fallback;
+  }
+}

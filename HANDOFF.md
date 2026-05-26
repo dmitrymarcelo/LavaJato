@@ -6,7 +6,7 @@ Atualizado em: 2026-05-26
 
 - Repositorio: `https://github.com/dmitrymarcelo/LavaJato`
 - Branch principal: `main`
-- Commit atual: `bb76e4c0c82ae0a1a65e034f5fb31551841f7f41`
+- Commit atual: `9ab71fac85f4cfbd4639040b6aedcfc808f9e60b`
 - Producao AWS atual: `https://3-145-153-19.sslip.io/` (hostname publico com certificado HTTPS confiavel)
 - Regiao AWS: `us-east-2`
 - Instancia usada no deploy: `i-0ba1477cbbe3d986d`
@@ -91,8 +91,9 @@ Observacao:
 - Base Taruma:
   - nao usa mais `Dique Pesada`
   - todo veiculo agenda em `Dique Leve`
-  - limite de `3` veiculos por horario, independente da categoria
-  - limite de `2` veiculos no horario das `17:00`
+  - limite normal: `3` veiculos por horario (`2` leves + `1` caminhao)
+  - caminhao exige intervalo minimo de `3h` entre agendamentos
+  - `17:00`: `2` veiculos (ou `1` se houver caminhao no horario)
 - Nao pode existir a mesma placa no mesmo horario e mesma data em agendamento ativo.
 - Os cards da fila possuem menu de `Editar` e `Excluir`.
 - A foto `Frente` do checklist vira imagem principal do card do veiculo.
@@ -104,7 +105,8 @@ Observacao:
 
 - O `Painel` passou a exibir `Lavados ate hoje`, com total vitalicio de lavagens e quantidade de placas unicas no historico.
 - A regra de contagem foi isolada em `src/utils/dashboardMetrics.js` e coberta por `pnpm run test:dashboard`.
-- A dica inteligente do `Painel` passou a usar cache curto em `sessionStorage`, evitando chamada repetida ao assistente a cada remount da tela.
+- O `Painel` passou a ter filtro `Total Geral` junto de `Hoje`, `Semana` e `Mes`.
+- A dica inteligente passou a ter atalho interativo no header, com previsao em grade e atualizacao periodica.
 - Arquivos locais de chaves `*accessKeys*.csv` e `*access-keys*.csv` foram protegidos no `.gitignore` para reduzir risco de commit acidental.
 - Foi criada memoria Obsidian em `C:\Users\dmitry.santos\Downloads\Lembranças\Lava Jato Norte Tech.md`, registrando infraestrutura, deploy, comandos e guardrails sem copiar segredos em texto puro.
 

@@ -8,7 +8,7 @@ import bcrypt from 'bcryptjs';
 import compression from 'compression';
 import { pool, query, withTransaction } from './db.mjs';
 import { seedDatabase } from './seed.mjs';
-import { getAssistantTips, getAssistantWeather } from './assistant.mjs';
+import { getAssistantTips, getAssistantWeather, getAssistantWeatherForecast } from './assistant.mjs';
 import { mapSourceVehicleTypeToCategory, normalizeSourceVehicleType } from './vehicle-type.mjs';
 import {
   TARUMA_ACTIVE_APPOINTMENT_STATUSES,
@@ -1987,6 +1987,12 @@ app.get('/api/assistant/weather', async (req, res) => {
   const location = typeof req.query.location === 'string' ? req.query.location : 'Manaus';
   const text = await getAssistantWeather(location);
   res.json({ text });
+});
+
+app.get('/api/assistant/weather-forecast', async (req, res) => {
+  const location = typeof req.query.location === 'string' ? req.query.location : 'Manaus';
+  const forecast = await getAssistantWeatherForecast(location);
+  res.json({ ...forecast, generatedAt: new Date().toISOString() });
 });
 
 app.get('/api/bootstrap', async (req, res) => {
