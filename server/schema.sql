@@ -169,14 +169,8 @@ ALTER TABLE appointments
 
 UPDATE appointments
 SET
-    washing_zone_id = CASE
-        WHEN COALESCE(vehicle_type, '') = 'truck' THEN 'dique_pesada'
-        ELSE 'dique_leve'
-    END,
-    washing_zone_name = CASE
-        WHEN COALESCE(vehicle_type, '') = 'truck' THEN 'Dique Pesada'
-        ELSE 'Dique Leve'
-    END,
+    washing_zone_id = 'dique_leve',
+    washing_zone_name = 'Dique Leve',
     updated_at = NOW()
 WHERE base_id = 'taruma'
   AND (washing_zone_id IS NULL OR BTRIM(washing_zone_id) = '');
@@ -185,12 +179,10 @@ UPDATE services
 SET
     washing_zone_id = CASE
         WHEN appointments.washing_zone_id IS NOT NULL AND BTRIM(appointments.washing_zone_id) <> '' THEN appointments.washing_zone_id
-        WHEN COALESCE(services.type, '') = 'truck' THEN 'dique_pesada'
         ELSE 'dique_leve'
     END,
     washing_zone_name = CASE
         WHEN appointments.washing_zone_name IS NOT NULL AND BTRIM(appointments.washing_zone_name) <> '' THEN appointments.washing_zone_name
-        WHEN COALESCE(services.type, '') = 'truck' THEN 'Dique Pesada'
         ELSE 'Dique Leve'
     END,
     updated_at = NOW()
@@ -201,14 +193,8 @@ WHERE services.id = appointments.id
 
 UPDATE services
 SET
-    washing_zone_id = CASE
-        WHEN COALESCE(type, '') = 'truck' THEN 'dique_pesada'
-        ELSE 'dique_leve'
-    END,
-    washing_zone_name = CASE
-        WHEN COALESCE(type, '') = 'truck' THEN 'Dique Pesada'
-        ELSE 'Dique Leve'
-    END,
+    washing_zone_id = 'dique_leve',
+    washing_zone_name = 'Dique Leve',
     updated_at = NOW()
 WHERE base_id = 'taruma'
   AND (washing_zone_id IS NULL OR BTRIM(washing_zone_id) = '');

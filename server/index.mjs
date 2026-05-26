@@ -10,6 +10,15 @@ import { pool, query, withTransaction } from './db.mjs';
 import { seedDatabase } from './seed.mjs';
 import { getAssistantTips, getAssistantWeather } from './assistant.mjs';
 import { mapSourceVehicleTypeToCategory, normalizeSourceVehicleType } from './vehicle-type.mjs';
+import {
+  TARUMA_ACTIVE_APPOINTMENT_STATUSES,
+  TARUMA_BASE_ID,
+  TARUMA_DIQUE_LEVE_ZONE_ID,
+  TARUMA_DIQUE_LEVE_ZONE_NAME,
+  getDefaultTarumaZone,
+  getTarumaSlotCapacity,
+  isActiveTarumaAppointment,
+} from '../src/utils/tarumaSchedulingRules.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -51,9 +60,7 @@ const explicitCorsAllowedOrigins = new Set(
 );
 const ALL_BASE_IDS = ['flores', 'sao-jose', 'cidade-nova', 'ponta-negra', 'taruma'];
 const TARUMA_ZONE_NAMES = {
-  dique_leve: 'Dique Leve',
-  dique_pesada: 'Dique Pesada',
-  estacionamento: 'Estacionamentos',
+  [TARUMA_DIQUE_LEVE_ZONE_ID]: TARUMA_DIQUE_LEVE_ZONE_NAME,
 };
 const OPERATIONAL_SERVICE_STATUSES = ['pending', 'in_progress', 'waiting_payment'];
 const ADMIN_ROLES = new Set(['Administrador']);
@@ -75,7 +82,7 @@ app.disable('x-powered-by');
 app.set('trust proxy', trustProxyHops);
 
 function inferTarumaZoneId(vehicleType) {
-  return vehicleType === 'truck' ? 'dique_pesada' : 'dique_leve';
+  return getDefaultTarumaZone(vehicleType);
 }
 
 async function cleanupOrphanActiveAppointments(executor = query) {
@@ -1230,44 +1237,49 @@ function assertCarryOverObservation(service) {
 }
 
 function normalizeTarumaZone(baseId, vehicleType, washingZoneId) {
-  if (baseId !== 'taruma') {
+  if (baseId !== TARUMA_BASE_ID) {
     return {
       washingZoneId: null,
       washingZoneName: null,
     };
   }
 
-  const normalizedZoneId = String(washingZoneId || '').trim();
-  if (!normalizedZoneId) {
-    const inferredZoneId = inferTarumaZoneId(vehicleType);
-    return {
-      washingZoneId: inferredZoneId,
-      washingZoneName: TARUMA_ZONE_NAMES[inferredZoneId],
-    };
-  }
-
-  if (!TARUMA_ZONE_NAMES[normalizedZoneId]) {
-    const error = new Error('Selecione uma area de lavagem valida da Base Taruma.');
-    error.statusCode = 400;
-    throw error;
-  }
-
-  if (normalizedZoneId === 'dique_pesada' && vehicleType !== 'truck') {
-    const error = new Error('Dique Pesada da Base Taruma atende somente caminhoes.');
-    error.statusCode = 400;
-    throw error;
-  }
-
-  if (normalizedZoneId === 'dique_leve' && vehicleType === 'truck') {
-    const error = new Error('Caminhoes devem ser direcionados para Dique Pesada ou Estacionamentos.');
-    error.statusCode = 400;
-    throw error;
-  }
-
+  const normalizedZoneId = inferTarumaZoneId(vehicleType);
   return {
     washingZoneId: normalizedZoneId,
     washingZoneName: TARUMA_ZONE_NAMES[normalizedZoneId],
   };
+}
+
+async function assertTarumaAppointmentSlotCapacity(appointment, executor = query) {
+  if (
+    appointment.baseId !== TARUMA_BASE_ID
+    || !appointment.date
+    || !appointment.time
+    || !isActiveTarumaAppointment(appointment)
+  ) {
+    return;
+  }
+
+  const capacity = getTarumaSlotCapacity(appointment.time);
+  const countResult = await executor(
+    `
+    SELECT COUNT(*)::int AS count
+    FROM appointments
+    WHERE base_id = $1
+      AND date = $2
+      AND time = $3
+      AND status = ANY($4::text[])
+      AND id <> $5
+    `,
+    [TARUMA_BASE_ID, appointment.date, appointment.time, TARUMA_ACTIVE_APPOINTMENT_STATUSES, appointment.id]
+  );
+
+  if (Number(countResult.rows[0]?.count || 0) >= capacity) {
+    const error = new Error(`Horario sem vaga na Base Taruma. Limite: ${capacity} veiculos no Dique Leve.`);
+    error.statusCode = 409;
+    throw error;
+  }
 }
 
 async function upsertServiceRow(service, executor = query) {
@@ -1765,7 +1777,6 @@ async function getSessionUser(token) {
 
 async function upsertAppointmentRow(appointment, executor = query) {
   const normalizedTarumaZone = normalizeTarumaZone(appointment.baseId || null, appointment.vehicleType || null, appointment.washingZoneId);
-  const persistedAppointmentPhoto = await persistUploadedImage(appointment.photo || null, 'appointments');
 
   const duplicate = await executor(
     `
@@ -1786,6 +1797,10 @@ async function upsertAppointmentRow(appointment, executor = query) {
     error.statusCode = 409;
     throw error;
   }
+
+  await assertTarumaAppointmentSlotCapacity(appointment, executor);
+
+  const persistedAppointmentPhoto = await persistUploadedImage(appointment.photo || null, 'appointments');
 
   try {
     await executor(

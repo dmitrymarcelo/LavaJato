@@ -1,7 +1,7 @@
 # SKILLS.md - Lava Jato Norte Tech
 
 Atualizado em: 2026-05-26
-Commit de referencia: `f418020c52b15719d8d8a495f28fb7c1091bcec1`
+Commit de referencia: `8b45b78242b8e1c94c1e9e69451afcf881657884`
 
 ## Objetivo
 
@@ -96,19 +96,19 @@ Ele complementa o `AGENTS.md`:
 - Objetivo: aplicar regras de horario e capacidade sem ambiguidade
 - Entradas: data, hora, placa, tipo, base, area
 - Saidas: agendamento validado ou bloqueado com motivo
-- Dependencias: `Scheduling.tsx`, `server/schema.sql`, `server/index.mjs`
+- Dependencias: `Scheduling.tsx`, `server/schema.sql`, `server/index.mjs`, `src/utils/tarumaSchedulingRules.js`
 - Falha esperada: slot lotado, domingo, sabado fora da janela, duplicidade
-- Resposta esperada: feedback imediato, nenhuma gravacao parcial e `Novo Agendamento` pre-preenchido com a mesma data visivel na regua principal da agenda
+- Resposta esperada: feedback imediato, nenhuma gravacao parcial e `Novo Agendamento` pre-preenchido com a mesma data visivel na regua principal da agenda. Na Base Taruma, `Dique Leve` e fila unica: `3` veiculos por horario e `2` veiculos as `17:00`, independente da categoria.
 
 ### S06. `taruma-zone-routing`
 
 - Tipo: operacao
-- Objetivo: garantir roteamento correto na Base Taruma
-- Entradas: base `taruma`, tipo do veiculo, area escolhida
-- Saidas: `washingZoneId` coerente
-- Dependencias: `Scheduling.tsx`, `server/index.mjs`
-- Falha esperada: area ausente
-- Resposta esperada: impedir continuidade ate a definicao da area
+- Objetivo: garantir roteamento correto na Base Taruma sem `Dique Pesada`
+- Entradas: base `taruma`, tipo do veiculo, horario
+- Saidas: `washingZoneId=dique_leve` e capacidade por horario aplicada
+- Dependencias: `Scheduling.tsx`, `server/index.mjs`, `src/utils/tarumaSchedulingRules.js`
+- Falha esperada: horario cheio na fila unica do `Dique Leve`
+- Resposta esperada: bloquear novo agendamento quando o horario chegar em `3` veiculos, ou `2` veiculos as `17:00`
 
 ### S07. `service-upsert-transaction`
 

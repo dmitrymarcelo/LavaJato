@@ -6,7 +6,7 @@ Atualizado em: 2026-05-26
 
 - Repositorio: `https://github.com/dmitrymarcelo/LavaJato`
 - Branch principal: `main`
-- Commit atual: `f418020c52b15719d8d8a495f28fb7c1091bcec1`
+- Commit atual: `8b45b78242b8e1c94c1e9e69451afcf881657884`
 - Producao AWS atual: `https://3-145-153-19.sslip.io/` (hostname publico com certificado HTTPS confiavel)
 - Regiao AWS: `us-east-2`
 - Instancia usada no deploy: `i-0ba1477cbbe3d986d`
@@ -88,6 +88,11 @@ Observacao:
   - `2` caminhoes
   - `3` outros veiculos
   - `5` vagas totais
+- Base Taruma:
+  - nao usa mais `Dique Pesada`
+  - todo veiculo agenda em `Dique Leve`
+  - limite de `3` veiculos por horario, independente da categoria
+  - limite de `2` veiculos no horario das `17:00`
 - Nao pode existir a mesma placa no mesmo horario e mesma data em agendamento ativo.
 - Os cards da fila possuem menu de `Editar` e `Excluir`.
 - A foto `Frente` do checklist vira imagem principal do card do veiculo.
@@ -235,6 +240,7 @@ Observacao:
 
 ## Commits recentes relevantes
 
+- `8b45b78` `fix: align deploy pnpm setup`
 - `f418020` `fix: pin pnpm for docker deploy`
 - `69cd367` `feat: improve dashboard operations view`
 - `a989d80` `Fix scheduling modal date prefill`
@@ -242,7 +248,6 @@ Observacao:
 - `051fba4` `fix: move public https to sslip hostname`
 - `bcba705` `fix: force renew expiring direct-ip https certs`
 - `6e53676` `fix: renew direct-ip https certificates every 6 hours`
-- `ca4ab15` `fix: restore company logo assets locally`
 
 ## Arquivos centrais
 
@@ -359,7 +364,7 @@ Com isso, qualquer alteracao publicada em `main` dispara o deploy via SSM no EC2
   - os precos de servico no modal e no seletor passaram a usar formatacao monetaria `pt-BR`, evitando textos como `80.75,00`
 - A tela `Configuracoes > Cadastros de Clientes` trocou `alert/confirm` por feedback visual interno, leve e mais amigavel para smartphone, sem adicionar polling ou dependencias pesadas.
 - O GitHub e a fonte principal da continuidade.
-- Se mudar de computador, o ideal e continuar a partir do commit `f418020` ou posterior.
+- Se mudar de computador, o ideal e continuar a partir do commit `8b45b78` ou posterior.
 - Imagens enviadas ficam em `server/storage/uploads` (persistidas via volume Docker).
 - Em producao, altere a senha do administrador imediatamente.
 

@@ -1,7 +1,7 @@
 # AGENTS.md - Lava Jato Norte Tech
 
 Atualizado em: 2026-05-26
-Commit de referencia: `f418020c52b15719d8d8a495f28fb7c1091bcec1`
+Commit de referencia: `8b45b78242b8e1c94c1e9e69451afcf881657884`
 
 ## Objetivo
 
@@ -71,6 +71,7 @@ O sistema precisa garantir cinco resultados de negocio sem ambiguidade:
 - domingo e bloqueado
 - sabado vai ate `12:00`
 - capacidade por horario: `5` vagas totais, `2` caminhoes, `3` outros
+- Base Taruma: nao usa mais `Dique Pesada`; todo veiculo agenda em `Dique Leve`, com `3` vagas por horario e `2` vagas as `17:00`
 - nao pode haver a mesma placa no mesmo horario em agendamento ativo
 - `Inspecao Pre` e `Inspecao Pos` exigem no minimo `1` foto
 - a foto `Frente` pode virar imagem principal do card
@@ -108,7 +109,7 @@ Este projeto adota os seguintes principios, alinhados a boas praticas publicadas
 - Missao: gerenciar agenda, fila operacional, validacao de vagas, lotacao e regras por base
 - Entradas: placa, base, data, horario, tipo do veiculo, status do servico
 - Saidas: agendamentos validos, cards de fila, historico operacional e consultas por placa
-- Guardrails: bloqueio de domingo, sabado reduzido, capacidade por faixa, unicidade de placa/slot, Base Taruma com area obrigatoria e abertura do `Novo Agendamento` sempre ancorada na data selecionada pelo operador na agenda
+- Guardrails: bloqueio de domingo, sabado reduzido, capacidade por faixa, unicidade de placa/slot, Base Taruma em fila unica de `Dique Leve` com limite especial as `17:00` e abertura do `Novo Agendamento` sempre ancorada na data selecionada pelo operador na agenda
 - Owner sugerido: produto operacional + backend
 
 ### A03. Agente de Check-in e Cadastro Inicial
@@ -235,7 +236,7 @@ Definicao adotada neste documento: `SKILL` e uma capacidade reutilizavel, docume
 | `base-scoping` | Filtra dados por bases autorizadas para usuarios `Clientes` | agenda do cliente, historico, bootstrap | `server/index.mjs`, `src/data/bases.ts` | cliente so enxerga Taruma e Flores |
 | `vehicle-normalization` | Normaliza placa, tipo de veiculo e dados de cadastro | check-in, agenda, importacao de frota | `CheckIn.tsx`, `Settings.tsx`, `vehicle-type.mjs` | placa `abc-1234` vira chave canonica |
 | `scheduling-rules-engine` | Aplica regras de domingo, sabado, capacidade e conflito de placa | criar ou editar agendamento | `Scheduling.tsx`, `server/schema.sql` | sistema bloqueia slot lotado |
-| `taruma-zone-routing` | Obriga selecao e inferencia de area na Base Taruma | agenda e fila da Taruma | `Scheduling.tsx`, `server/index.mjs` | caminhao vai para `dique_pesada` |
+| `taruma-zone-routing` | Normaliza a Base Taruma para `Dique Leve` e aplica capacidade unica por horario | agenda e fila da Taruma | `Scheduling.tsx`, `server/index.mjs`, `src/utils/tarumaSchedulingRules.js` | qualquer categoria conta no mesmo limite do horario |
 | `service-upsert-transaction` | Persiste servicos com consistencia transacional | edicao, sincronizacao, importacao | `server/index.mjs`, `withTransaction` | servico muda sem deixar agendamento orfao |
 | `inspection-photo-atomic-save` | Salva cada foto de inspecao separadamente no backend | pre-inspecao, pos-inspecao | `POST /api/services/:id/inspection-photo` | foto de celular persiste mesmo com rede lenta |
 | `offline-photo-retry` | Enfileira fotos localmente e tenta reenviar depois | offline, 4G oscilando, foco/visibilidade | `src/utils/app.ts`, `src/App.tsx` | foto aparece pendente e sincroniza depois |
