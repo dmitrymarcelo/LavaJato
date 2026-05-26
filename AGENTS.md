@@ -48,7 +48,7 @@ O sistema precisa garantir cinco resultados de negocio sem ambiguidade:
 
 - frontend orientado a componentes funcionais com `useState`, `useEffect` e `useRef`
 - `src/App.tsx` atua como orquestrador principal de sessao, bootstrap, sincronizacao e navegacao
-- o mesmo `src/App.tsx` tambem orquestra feedback operacional leve via notificacoes e popup de conclusao, sem depender de polling extra
+- o mesmo `src/App.tsx` tambem orquestra feedback operacional leve via notificacoes internas e popup de conclusao, sem depender de polling extra (UI de notificacoes no header foi removida)
 - identidade visual critica do produto, como a logomarca da empresa, deve ser servida por asset local versionado para preservar branding sem depender de host externo
 - componentes grandes concentram regras de negocio locais, com destaque para `Scheduling.tsx`, `Settings.tsx`, `InspectionPre.tsx` e `InspectionPost.tsx`
 - backend monolitico em `server/index.mjs`, com rotas REST e helpers internos de persistencia/transacao

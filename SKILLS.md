@@ -20,7 +20,7 @@ Ele complementa o `AGENTS.md`:
 - skills criticas de operacao devem sobreviver a rede instavel
 - skills administrativas nunca podem depender apenas do frontend para seguranca
 - assets de identidade visual que impactam confianca do usuario devem ficar versionados localmente no projeto
-- skills generativas sao consultivas, nao autoritativas, salvo regra explicitamente aprovada
+- skills generativas sao consultivas, nao autoritativas, salvo regra explicitamente aprovada (ex.: clima exibido na sidebar)
 
 ## Classificacao
 

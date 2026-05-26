@@ -106,7 +106,7 @@ Observacao:
 - O `Painel` passou a exibir `Lavados ate hoje`, com total vitalicio de lavagens e quantidade de placas unicas no historico.
 - A regra de contagem foi isolada em `src/utils/dashboardMetrics.js` e coberta por `pnpm run test:dashboard`.
 - O `Painel` passou a ter filtro `Total Geral` junto de `Hoje`, `Semana` e `Mes`.
-- A dica inteligente passou a ter atalho interativo no header, com previsao em grade e atualizacao periodica.
+- A dica inteligente (clima) passou a ficar fixa na sidebar, em formato empilhado, com atualizacao automatica periodica.
 - Arquivos locais de chaves `*accessKeys*.csv` e `*access-keys*.csv` foram protegidos no `.gitignore` para reduzir risco de commit acidental.
 - Foi criada memoria Obsidian em `C:\Users\dmitry.santos\Downloads\Lembranças\Lava Jato Norte Tech.md`, registrando infraestrutura, deploy, comandos e guardrails sem copiar segredos em texto puro.
 
