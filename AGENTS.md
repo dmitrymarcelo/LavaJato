@@ -1,7 +1,7 @@
 # AGENTS.md - Lava Jato Norte Tech
 
 Atualizado em: 2026-05-26
-Commit de referencia: `570b8c3643164710ae1fe4097828ba05c8b75d6f`
+Commit de referencia: `b18edd54978a11c9cbdbd24b6d7dd0fe76c167f5`
 
 ## Objetivo
 
@@ -73,6 +73,8 @@ O sistema precisa garantir cinco resultados de negocio sem ambiguidade:
 - capacidade por horario: `5` vagas totais, `2` caminhoes, `3` outros
 - Base Taruma: nao usa mais `Dique Pesada`; todo veiculo agenda em `Dique Leve`, com `3` vagas por horario e `2` vagas as `17:00`
 - nao pode haver a mesma placa no mesmo horario em agendamento ativo
+- clientes podem se cadastrar pela tela de login, com email, senha forte, base autorizada e pelo menos `1` veiculo inicial
+- o cadastro publico sempre cria role `Clientes` e nunca sobrescreve placa ja existente
 - `Inspecao Pre` e `Inspecao Pos` exigem no minimo `1` foto
 - a foto `Frente` pode virar imagem principal do card
 - cliente e filtrado por bases autorizadas
@@ -117,10 +119,10 @@ Este projeto adota os seguintes principios, alinhados a boas praticas publicadas
 - Tipo: deterministico
 - Arquivos principais: `src/components/CheckIn.tsx`, `src/services/api.ts`, `server/index.mjs`
 - Missao: transformar chegada ou demanda espontanea em servico operacional pronto para fila
-- Observacao recente: o fluxo de cliente na agenda voltou a permitir cadastro unitario de veiculo sem herdar permissao administrativa de `edit_services`
+- Observacao recente: o fluxo de cliente na agenda permite cadastro unitario de veiculo sem herdar permissao administrativa de `edit_services`, e a tela de login agora permite autocadastro imediato de cliente com veiculo inicial
 - Entradas: placa, modelo, cliente, servico escolhido, CPF terceiro quando aplicavel
 - Saidas: servico com status `pending` e veiculo atualizado/cadastrado
-- Guardrails: placa normalizada, validacao de CPF, consulta a base local/remota antes de duplicar cadastro
+- Guardrails: placa normalizada, validacao de CPF, consulta a base local/remota antes de duplicar cadastro, autocadastro publico forca role `Clientes` e rejeita placa existente
 - Owner sugerido: operacoes + frontend
 
 ### A04. Agente de Inspecao Pre

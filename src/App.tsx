@@ -32,7 +32,9 @@ import {
   api,
   ApiError,
   Appointment,
+  ClientSignupPayload,
   CompleteWashPayload,
+  LoginResponse,
   ServiceStageTransitionPayload,
   StartWashPayload,
   UNAUTHORIZED_SESSION_EVENT,
@@ -1563,8 +1565,7 @@ export default function App() {
     performClientLogout();
   };
 
-  const handleLogin = async (identifier: string, password: string) => {
-    const response = await api.login(identifier, password);
+  const startAuthenticatedSession = async (response: LoginResponse) => {
     isIntentionalLogoutRef.current = false;
     isRecoveringSessionRef.current = false;
     setCurrentUser(response.user);
@@ -1572,6 +1573,29 @@ export default function App() {
     setSelectedBase(response.user.role === 'Clientes' ? (response.user.allowedBaseIds?.[0] || null) : null);
     setCurrentScreen(getHomeScreenForUser(response.user));
     await loadBootstrap();
+  };
+
+  const handleLogin = async (identifier: string, password: string) => {
+    const response = await api.login(identifier, password);
+    await startAuthenticatedSession(response);
+  };
+
+  const handleClientSignup = async (payload: ClientSignupPayload) => {
+    const response = await api.registerClient(payload);
+    if (Array.isArray(response.vehicles) && response.vehicles.length > 0) {
+      setVehicleDb((current) => {
+        const nextByPlate = new Map(current.map((vehicle) => [normalizePlateKey(vehicle.plate), vehicle]));
+        response.vehicles.forEach((vehicle) => {
+          nextByPlate.set(normalizePlateKey(vehicle.plate), vehicle);
+        });
+        const next = Array.from(nextByPlate.values());
+        vehicleDbRef.current = next;
+        vehicleDbMutationVersionRef.current += 1;
+        return next;
+      });
+      setHasLoadedVehicleDbFromApi(true);
+    }
+    await startAuthenticatedSession(response);
   };
 
   const activeService = services.find((service) => service.id === activeServiceId) || null;
@@ -1644,7 +1668,7 @@ export default function App() {
 
   const renderScreen = () => {
     if (!isSessionResolved || isBootstrapping) return <div className="min-h-screen flex items-center justify-center text-slate-500 font-bold">Carregando dados persistentes...</div>;
-    if (!isAuthenticated) return <Login onLogin={handleLogin} />;
+    if (!isAuthenticated) return <Login onLogin={handleLogin} onClientSignup={handleClientSignup} />;
     if (backendError) return <div className="min-h-screen flex items-center justify-center p-6 text-center text-rose-600 font-bold">{backendError}</div>;
     if (activeServiceId && !activeService && isActiveServiceLoading && ['inspection-pre', 'inspection-post', 'payment', 'history', 'customer-history'].includes(currentScreen)) {
       return <div className="min-h-screen flex items-center justify-center text-slate-500 font-bold">Carregando servico...</div>;

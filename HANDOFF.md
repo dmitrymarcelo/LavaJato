@@ -6,7 +6,7 @@ Atualizado em: 2026-05-26
 
 - Repositorio: `https://github.com/dmitrymarcelo/LavaJato`
 - Branch principal: `main`
-- Commit atual: `570b8c3643164710ae1fe4097828ba05c8b75d6f`
+- Commit atual: `b18edd54978a11c9cbdbd24b6d7dd0fe76c167f5`
 - Producao AWS atual: `https://3-145-153-19.sslip.io/` (hostname publico com certificado HTTPS confiavel)
 - Regiao AWS: `us-east-2`
 - Instancia usada no deploy: `i-0ba1477cbbe3d986d`
@@ -145,6 +145,7 @@ Observacao:
 
 - A autenticacao do frontend deixou de usar `sessionStorage` para token.
 - O backend agora cria sessao em `auth_sessions` e devolve cookie `HttpOnly`.
+- A tela de login agora possui autocadastro de cliente: cria role `Clientes`, exige senha forte, base autorizada e pelo menos `1` veiculo, abre sessao imediatamente e rejeita placa ja existente para nao sobrescrever dados.
 - Requisicoes mutantes em `/api` validam origem confiavel via `Origin`/`Referer` antes de alterar estado.
 - O `bootstrap` agora entrega ao frontend o conjunto de permissoes do usuario autenticado.
 - A matriz `access_rules` passou a fazer enforcement real no backend para:
@@ -243,6 +244,7 @@ Observacao:
 
 ## Commits recentes relevantes
 
+- `b18edd5` `Taruma: bloquear caminhao as 17:00`
 - `570b8c3` `UI: titulo centralizado, remover dica inteligente e melhorar clima`
 - `f828689` `feat: clima real (Open-Meteo) na sidebar`
 - `3fdbb41` `ui: melhorar tipografia e remover embaçado`
@@ -250,7 +252,6 @@ Observacao:
 - `85f6c4d` `feat: dica inteligente com previsao interativa`
 - `9ab71fa` `feat: dica inteligente interativa no header`
 - `91dd190` `fix: lint no scheduling taruma capacity label`
-- `c7c04f2` `feat: taruma regras caminhao + painel total geral`
 
 ## Arquivos centrais
 
@@ -367,7 +368,7 @@ Com isso, qualquer alteracao publicada em `main` dispara o deploy via SSM no EC2
   - os precos de servico no modal e no seletor passaram a usar formatacao monetaria `pt-BR`, evitando textos como `80.75,00`
 - A tela `Configuracoes > Cadastros de Clientes` trocou `alert/confirm` por feedback visual interno, leve e mais amigavel para smartphone, sem adicionar polling ou dependencias pesadas.
 - O GitHub e a fonte principal da continuidade.
-- Se mudar de computador, o ideal e continuar a partir do commit `570b8c3` ou posterior.
+- Se mudar de computador, o ideal e continuar a partir do commit `b18edd5` ou posterior.
 - Imagens enviadas ficam em `server/storage/uploads` (persistidas via volume Docker).
 - Em producao, altere a senha do administrador imediatamente.
 

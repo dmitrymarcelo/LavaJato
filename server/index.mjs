@@ -9,6 +9,11 @@ import compression from 'compression';
 import { pool, query, withTransaction } from './db.mjs';
 import { seedDatabase } from './seed.mjs';
 import { getAssistantTips, getAssistantWeather, getAssistantWeatherForecast } from './assistant.mjs';
+import {
+  buildClientMemberFromSignup,
+  buildClientVehicleFromSignup,
+  normalizeClientSignupPayload,
+} from './client-registration.mjs';
 import { mapSourceVehicleTypeToCategory, normalizeSourceVehicleType } from './vehicle-type.mjs';
 import {
   TARUMA_ACTIVE_APPOINTMENT_STATUSES,
@@ -1893,7 +1898,12 @@ app.use(async (req, res, next) => {
     return next();
   }
 
-  if (req.path === '/api/health' || req.path === '/api/auth/login' || req.path === '/api/auth/logout') {
+  if (
+    req.path === '/api/health'
+    || req.path === '/api/auth/login'
+    || req.path === '/api/auth/logout'
+    || req.path === '/api/auth/register-client'
+  ) {
     return next();
   }
 
@@ -1962,6 +1972,63 @@ app.post('/api/auth/login', async (req, res) => {
   const session = await createAuthSession(member.id);
   setSessionCookie(res, session.token, session.expiresAt, req);
   res.json({ user: toCamelTeam(member), expiresAt: session.expiresAt });
+});
+
+app.post('/api/auth/register-client', async (req, res) => {
+  const signup = normalizeClientSignupPayload(req.body || {}, { availableBaseIds: ALL_BASE_IDS });
+
+  if (!isValidEmailAddress(signup.email)) {
+    return res.status(400).json({ error: 'Email invalido.' });
+  }
+
+  const passwordError = getStrongPasswordError(signup.password);
+  if (passwordError) {
+    return res.status(400).json({ error: passwordError });
+  }
+
+  const { member, vehicles } = await withTransaction(async (client) => {
+    const executor = (text, params = []) => client.query(text, params);
+
+    for (const vehicle of signup.vehicles) {
+      const existingVehicle = await executor(
+        'SELECT plate FROM vehicles WHERE UPPER(plate) = UPPER($1) LIMIT 1',
+        [vehicle.plate]
+      );
+
+      if (existingVehicle.rows[0]) {
+        const error = new Error(`O veiculo ${vehicle.plate} ja esta cadastrado. Entre com o acesso existente ou fale com a equipe.`);
+        error.statusCode = 409;
+        throw error;
+      }
+    }
+
+    const now = Date.now();
+    const memberPayload = buildClientMemberFromSignup(signup, {
+      id: `client-${now}-${randomBytes(4).toString('hex')}`,
+      registration: `CLI-${now}-${randomBytes(3).toString('hex')}`,
+    });
+
+    await upsertTeamMemberRow(memberPayload, executor);
+
+    for (const vehicle of signup.vehicles) {
+      await upsertVehicleRow(buildClientVehicleFromSignup(vehicle, signup), executor);
+    }
+
+    const memberResult = await executor('SELECT * FROM team_members WHERE id = $1 LIMIT 1', [memberPayload.id]);
+    const vehicleResult = await executor(
+      'SELECT * FROM vehicles WHERE UPPER(plate) = ANY($1::text[]) ORDER BY plate',
+      [signup.vehicles.map((vehicle) => vehicle.plate)]
+    );
+
+    return {
+      member: memberResult.rows[0],
+      vehicles: vehicleResult.rows.map(toCamelVehicle),
+    };
+  });
+
+  const session = await createAuthSession(member.id);
+  setSessionCookie(res, session.token, session.expiresAt, req);
+  res.status(201).json({ user: toCamelTeam(member), expiresAt: session.expiresAt, vehicles });
 });
 
 app.post('/api/auth/logout', async (req, res) => {

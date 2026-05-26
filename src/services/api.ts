@@ -36,6 +36,25 @@ export interface LoginResponse {
   expiresAt: string;
 }
 
+export interface ClientSignupVehiclePayload {
+  plate: string;
+  model: string;
+  type: VehicleType;
+}
+
+export interface ClientSignupPayload {
+  name: string;
+  email: string;
+  password: string;
+  confirmPassword: string;
+  baseId: string;
+  vehicles: ClientSignupVehiclePayload[];
+}
+
+export interface ClientSignupResponse extends LoginResponse {
+  vehicles: VehicleRegistration[];
+}
+
 export interface SchedulingBookingPayload {
   appointment: Appointment;
   service: Service;
@@ -209,7 +228,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
       }
     }
 
-    if (response.status === 401 && path !== '/auth/login') {
+    if (response.status === 401 && path !== '/auth/login' && path !== '/auth/register-client') {
       dispatchUnauthorizedSession(message);
     }
 
@@ -232,6 +251,11 @@ export const api = {
   logout: () =>
     request<void>('/auth/logout', {
       method: 'POST',
+    }),
+  registerClient: (payload: ClientSignupPayload) =>
+    request<ClientSignupResponse>('/auth/register-client', {
+      method: 'POST',
+      body: JSON.stringify(payload),
     }),
   bootstrap: () => request<BootstrapPayload>('/bootstrap'),
   getVehicles: () =>

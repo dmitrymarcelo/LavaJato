@@ -1,7 +1,7 @@
 # SKILLS.md - Lava Jato Norte Tech
 
 Atualizado em: 2026-05-26
-Commit de referencia: `570b8c3643164710ae1fe4097828ba05c8b75d6f`
+Commit de referencia: `b18edd54978a11c9cbdbd24b6d7dd0fe76c167f5`
 
 ## Objetivo
 
@@ -89,6 +89,16 @@ Ele complementa o `AGENTS.md`:
 - Dependencias: `CheckIn.tsx`, `Settings.tsx`, `vehicle-type.mjs`, `POST /api/vehicles/bulk-upsert`
 - Falha esperada: placa ou tipo inconsistente
 - Resposta esperada: bloquear cadastro incompleto antes da persistencia, consolidar importacoes em lote sem perder o estado apos refresh, permitir cadastro unitario pelo acesso de cliente sem abrir permissao administrativa ampla e exibir precos com formatacao monetaria brasileira consistente
+
+### S04B. `client-self-registration`
+
+- Tipo: governanca
+- Objetivo: liberar cadastro imediato de clientes a partir da tela de login
+- Entradas: nome, email, senha forte, base escolhida e lista inicial de veiculos
+- Saidas: usuario `Clientes`, sessao autenticada por cookie e veiculos vinculados ao nome do cliente
+- Dependencias: `src/components/Login.tsx`, `src/services/api.ts`, `src/App.tsx`, `server/client-registration.mjs`, `server/index.mjs`
+- Falha esperada: email ja cadastrado, senha fraca, base invalida, placa duplicada ou veiculo incompleto
+- Resposta esperada: bloquear a criacao antes de qualquer sobrescrita, criar usuario e veiculos na mesma transacao e abrir a agenda imediatamente apos o cadastro
 
 ### S05. `scheduling-rules-engine`
 
