@@ -46,6 +46,6 @@
 
 - [x] Run local tests and build.
 - [x] Update persistent docs.
-- [ ] Commit and push.
-- [ ] Validate GitHub Actions deploy.
-- [ ] Validate production health and public SHA.
+- [x] Commit and push.
+- [x] Validate GitHub Actions deploy.
+- [x] Validate production health and public SHA.

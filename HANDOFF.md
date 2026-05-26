@@ -6,7 +6,7 @@ Atualizado em: 2026-05-26
 
 - Repositorio: `https://github.com/dmitrymarcelo/LavaJato`
 - Branch principal: `main`
-- Commit atual: `8b45b78242b8e1c94c1e9e69451afcf881657884`
+- Commit atual: `bb76e4c0c82ae0a1a65e034f5fb31551841f7f41`
 - Producao AWS atual: `https://3-145-153-19.sslip.io/` (hostname publico com certificado HTTPS confiavel)
 - Regiao AWS: `us-east-2`
 - Instancia usada no deploy: `i-0ba1477cbbe3d986d`
@@ -240,6 +240,7 @@ Observacao:
 
 ## Commits recentes relevantes
 
+- `bb76e4c` `fix: update taruma scheduling capacity`
 - `8b45b78` `fix: align deploy pnpm setup`
 - `f418020` `fix: pin pnpm for docker deploy`
 - `69cd367` `feat: improve dashboard operations view`
@@ -247,7 +248,6 @@ Observacao:
 - `7494555` `fix: allow client vehicle registration flow`
 - `051fba4` `fix: move public https to sslip hostname`
 - `bcba705` `fix: force renew expiring direct-ip https certs`
-- `6e53676` `fix: renew direct-ip https certificates every 6 hours`
 
 ## Arquivos centrais
 
@@ -364,7 +364,7 @@ Com isso, qualquer alteracao publicada em `main` dispara o deploy via SSM no EC2
   - os precos de servico no modal e no seletor passaram a usar formatacao monetaria `pt-BR`, evitando textos como `80.75,00`
 - A tela `Configuracoes > Cadastros de Clientes` trocou `alert/confirm` por feedback visual interno, leve e mais amigavel para smartphone, sem adicionar polling ou dependencias pesadas.
 - O GitHub e a fonte principal da continuidade.
-- Se mudar de computador, o ideal e continuar a partir do commit `8b45b78` ou posterior.
+- Se mudar de computador, o ideal e continuar a partir do commit `bb76e4c` ou posterior.
 - Imagens enviadas ficam em `server/storage/uploads` (persistidas via volume Docker).
 - Em producao, altere a senha do administrador imediatamente.
 
