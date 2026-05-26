@@ -8,19 +8,16 @@ import {
   BarChart3,
   Car,
   CheckCircle2,
-  CloudSun,
   Clock,
   DollarSign,
   Droplets,
   Gauge,
-  Sparkles,
   Target,
   TrendingUp,
 } from 'lucide-react';
 import { Screen, Service, TeamMember } from '../types';
 import { addDays, getElapsedMinutes, getTodayDate } from '../utils/app';
 import { getLifetimeWashSummary } from '../utils/dashboardMetrics.js';
-import { getWeatherRecommendation } from '../services/geminiService';
 import { BASES } from '../data/bases';
 import { Appointment } from '../services/api';
 import { getSafeAvatarImage, getSafeServiceImage } from '../lib/placeholders';
@@ -32,8 +29,6 @@ const currencyFormatter = new Intl.NumberFormat('pt-BR', {
 });
 
 const integerFormatter = new Intl.NumberFormat('pt-BR');
-const WEATHER_ADVICE_CACHE_KEY = 'dashboardWeatherAdviceV1';
-const WEATHER_ADVICE_CACHE_TTL_MS = 30 * 60 * 1000;
 
 const getServiceDateKey = (service: Service) =>
   service.scheduledDate || service.endTime?.slice(0, 10) || service.startTime?.slice(0, 10) || null;
@@ -57,38 +52,6 @@ const formatAverageMinutes = (minutes: number) => {
   return `${minutes.toFixed(1)} min`;
 };
 
-const readCachedWeatherAdvice = () => {
-  if (typeof window === 'undefined') return null;
-
-  try {
-    const cached = window.sessionStorage.getItem(WEATHER_ADVICE_CACHE_KEY);
-    if (!cached) return null;
-
-    const parsed = JSON.parse(cached) as { text?: string; expiresAt?: number };
-    if (!parsed.text || !parsed.expiresAt || parsed.expiresAt <= Date.now()) {
-      window.sessionStorage.removeItem(WEATHER_ADVICE_CACHE_KEY);
-      return null;
-    }
-
-    return parsed.text;
-  } catch (error) {
-    return null;
-  }
-};
-
-const writeCachedWeatherAdvice = (text: string) => {
-  if (typeof window === 'undefined') return;
-
-  try {
-    window.sessionStorage.setItem(
-      WEATHER_ADVICE_CACHE_KEY,
-      JSON.stringify({ text, expiresAt: Date.now() + WEATHER_ADVICE_CACHE_TTL_MS })
-    );
-  } catch (error) {
-    // Cache is optional; dashboard advice should never block operations.
-  }
-};
-
 export default function Dashboard({
   onNavigate,
   services,
@@ -104,28 +67,7 @@ export default function Dashboard({
   team?: TeamMember[];
   canManageSettings?: boolean;
 }) {
-  const [weatherAdvice, setWeatherAdvice] = useState<string>(() => readCachedWeatherAdvice() || 'Carregando recomendacao...');
   const [timeframe, setTimeframe] = useState<'today' | 'week' | 'month' | 'all'>('today');
-
-  useEffect(() => {
-    const fetchWeather = async () => {
-      const cachedAdvice = readCachedWeatherAdvice();
-      if (cachedAdvice) {
-        setWeatherAdvice(cachedAdvice);
-        return;
-      }
-
-      try {
-        const advice = await getWeatherRecommendation();
-        writeCachedWeatherAdvice(advice);
-        setWeatherAdvice(advice);
-      } catch (error) {
-        setWeatherAdvice('Mantenha panos secos e priorize a fila por horario para evitar atrasos entre as lavagens.');
-      }
-    };
-
-    void fetchWeather();
-  }, []);
 
   const todayKey = currentDateKey || getTodayDate();
   const windowDays = timeframe === 'today' ? 1 : timeframe === 'week' ? 7 : timeframe === 'month' ? 30 : null;
@@ -368,7 +310,7 @@ export default function Dashboard({
         </section>
       </div>
 
-      <div className="px-4 grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div className="px-4">
         <section className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
           <div className="flex justify-between items-center mb-6">
             <h3 className="text-slate-900 font-black text-lg tracking-tight">Top lavadores</h3>
@@ -399,21 +341,6 @@ export default function Dashboard({
             )}
           </div>
         </section>
-
-        <div className="space-y-6">
-          <div className="bg-gradient-to-br from-primary to-blue-700 rounded-2xl p-6 text-white shadow-xl shadow-primary/20 flex items-center gap-5">
-            <div className="bg-white/20 p-4 rounded-2xl shrink-0">
-              <CloudSun className="w-10 h-10" />
-            </div>
-            <div className="flex-1">
-              <div className="flex items-center gap-2 mb-1.5">
-                <Sparkles className="w-3.5 h-3.5 text-amber-300" />
-                <p className="text-[10px] font-black uppercase tracking-widest opacity-80">Dica Inteligente</p>
-              </div>
-              <p className="text-sm font-bold leading-relaxed">{weatherAdvice}</p>
-            </div>
-          </div>
-        </div>
       </div>
 
       <div className="px-4">
@@ -481,14 +408,14 @@ function MetricCard({
   return (
     <div
       onClick={onClick}
-      className={`bg-white border border-slate-100 p-4 rounded-2xl shadow-sm ${interactive ? 'cursor-pointer active:scale-95 transition-transform' : ''}`}
+      className={`bg-white border border-slate-100 p-4 rounded-2xl shadow-sm flex flex-col justify-between min-h-[98px] ${interactive ? 'cursor-pointer active:scale-95 transition-transform' : ''}`}
     >
       <div className="flex items-center gap-1.5 mb-1">
         {icon}
-        <span className="text-slate-500 text-[10px] font-bold uppercase tracking-wider">{label}</span>
+        <span className="text-slate-500 text-[10px] font-bold uppercase tracking-wider truncate">{label}</span>
       </div>
       <span className="text-slate-900 text-xl font-black block">{value}</span>
-      <span className={`${secondaryClassName || 'text-slate-400'} text-[10px] font-bold mt-1 uppercase flex items-center gap-1`}>
+      <span className={`${secondaryClassName || 'text-slate-400'} text-[10px] font-bold mt-1 uppercase flex items-center gap-1 truncate`}>
         {secondaryClassName === 'text-emerald-500' && <TrendingUp className="w-3 h-3" />}
         {secondary}
       </span>

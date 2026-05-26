@@ -209,7 +209,7 @@ Ele complementa o `AGENTS.md`:
 - Dependencias: `server/assistant.mjs`, `server/index.mjs`, `src/services/geminiService.ts` (fallback), `src/components/Sidebar.tsx`
 - Falha esperada: indisponibilidade do modelo ou timeout externo
 - Resposta esperada: fallback deterministico e nunca bloquear o app
-- Exposicao atual: a previsao do clima na sidebar usa fonte real quando disponivel (`GET /api/weather/forecast`) e recorre ao Bedrock apenas como fallback
+- Exposicao atual: a previsao do clima na sidebar usa fonte real quando disponivel (`GET /api/weather/forecast`, com chuva/probabilidade/vento) e recorre ao Bedrock apenas como fallback
 
 ### S17. `handoff-sync`
 

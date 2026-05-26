@@ -2013,7 +2013,9 @@ app.get('/api/weather/forecast', async (req, res) => {
     url.searchParams.set('longitude', String(longitude));
     url.searchParams.set('timezone', timezone);
     url.searchParams.set('forecast_days', String(clampedDays));
-    url.searchParams.set('daily', 'temperature_2m_max,temperature_2m_min,precipitation_sum,weathercode');
+    url.searchParams.set('daily', 'temperature_2m_max,temperature_2m_min,precipitation_sum,precipitation_probability_max,windspeed_10m_max,weathercode');
+    url.searchParams.set('current_weather', 'true');
+    url.searchParams.set('hourly', 'temperature_2m,apparent_temperature,relative_humidity_2m,precipitation_probability,precipitation,weathercode,windspeed_10m,winddirection_10m');
 
     const response = await fetch(url.toString(), { headers: { accept: 'application/json' } });
     if (!response.ok) {
@@ -2026,6 +2028,8 @@ app.get('/api/weather/forecast', async (req, res) => {
     const max = Array.isArray(daily?.temperature_2m_max) ? daily.temperature_2m_max : [];
     const min = Array.isArray(daily?.temperature_2m_min) ? daily.temperature_2m_min : [];
     const rain = Array.isArray(daily?.precipitation_sum) ? daily.precipitation_sum : [];
+    const rainProbability = Array.isArray(daily?.precipitation_probability_max) ? daily.precipitation_probability_max : [];
+    const wind = Array.isArray(daily?.windspeed_10m_max) ? daily.windspeed_10m_max : [];
     const code = Array.isArray(daily?.weathercode) ? daily.weathercode : [];
 
     const payload = dates.map((date, index) => ({
@@ -2033,8 +2037,55 @@ app.get('/api/weather/forecast', async (req, res) => {
       minC: Number(min[index]),
       maxC: Number(max[index]),
       rainMm: Number(rain[index]),
+      rainProbability: Number(rainProbability[index]),
+      windKph: Number(wind[index]),
       weatherCode: Number(code[index]),
     }));
+
+    const hourly = data?.hourly || {};
+    const hourlyTimes = Array.isArray(hourly?.time) ? hourly.time : [];
+    const hourlyTemp = Array.isArray(hourly?.temperature_2m) ? hourly.temperature_2m : [];
+    const hourlyFeels = Array.isArray(hourly?.apparent_temperature) ? hourly.apparent_temperature : [];
+    const hourlyHumidity = Array.isArray(hourly?.relative_humidity_2m) ? hourly.relative_humidity_2m : [];
+    const hourlyRainProb = Array.isArray(hourly?.precipitation_probability) ? hourly.precipitation_probability : [];
+    const hourlyRainMm = Array.isArray(hourly?.precipitation) ? hourly.precipitation : [];
+    const hourlyCode = Array.isArray(hourly?.weathercode) ? hourly.weathercode : [];
+    const hourlyWind = Array.isArray(hourly?.windspeed_10m) ? hourly.windspeed_10m : [];
+    const hourlyWindDir = Array.isArray(hourly?.winddirection_10m) ? hourly.winddirection_10m : [];
+
+    const referenceTime = typeof data?.current_weather?.time === 'string' ? data.current_weather.time : null;
+    const hourIndex = referenceTime ? hourlyTimes.indexOf(referenceTime) : -1;
+    const startIndex = Math.max(0, hourIndex >= 0 ? hourIndex : 0);
+    const endIndex = Math.min(hourlyTimes.length, startIndex + 10);
+
+    const current = hourlyTimes[startIndex]
+      ? {
+          time: String(hourlyTimes[startIndex]),
+          temperatureC: Number(hourlyTemp[startIndex]),
+          apparentC: Number(hourlyFeels[startIndex]),
+          humidity: Number(hourlyHumidity[startIndex]),
+          precipitationProbability: Number(hourlyRainProb[startIndex]),
+          precipitationMm: Number(hourlyRainMm[startIndex]),
+          windKph: Number(hourlyWind[startIndex]),
+          windDirectionDeg: Number(hourlyWindDir[startIndex]),
+          weatherCode: Number(hourlyCode[startIndex]),
+          isDay: typeof data?.current_weather?.is_day === 'number' ? Boolean(data.current_weather.is_day) : undefined,
+        }
+      : null;
+
+    const hours = hourlyTimes
+      .slice(startIndex, endIndex)
+      .map((time, indexOffset) => {
+        const idx = startIndex + indexOffset;
+        return {
+          time: String(time),
+          temperatureC: Number(hourlyTemp[idx]),
+          precipitationProbability: Number(hourlyRainProb[idx]),
+          precipitationMm: Number(hourlyRainMm[idx]),
+          windKph: Number(hourlyWind[idx]),
+          weatherCode: Number(hourlyCode[idx]),
+        };
+      });
 
     res.json({
       source: 'open-meteo',
@@ -2042,6 +2093,8 @@ app.get('/api/weather/forecast', async (req, res) => {
       longitude,
       timezone,
       generatedAt: new Date().toISOString(),
+      current,
+      hours,
       days: payload,
     });
   } catch (error) {

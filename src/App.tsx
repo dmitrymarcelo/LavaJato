@@ -75,6 +75,22 @@ const formatNotificationTime = (date = new Date()) =>
   }).format(date);
 
 export default function App() {
+  const getScreenTitle = (screen: Screen) => {
+    if (screen === 'dashboard') return 'Painel';
+    if (screen === 'checkin') return 'Check-in';
+    if (screen === 'queue' || screen === 'scheduling') return 'Agenda & Fila';
+    if (screen === 'inspection-pre') return 'Inspeção Pré';
+    if (screen === 'inspection-post') return 'Inspeção Pós';
+    if (screen === 'payment') return 'Pagamento';
+    if (screen === 'history') return 'Histórico';
+    if (screen === 'customer-history') return 'Histórico Clientes';
+    if (screen === 'vehicle-history') return 'Histórico de Veículos';
+    if (screen === 'vehicle-history-detail') return 'Detalhe do Veículo';
+    if (screen === 'inventory') return 'Estoque';
+    if (screen === 'settings') return 'Configurações';
+    return screen.replace('-', ' ');
+  };
+
   const normalizeScreen = (screen: Screen): Screen => screen === 'queue' ? 'scheduling' : screen;
   const mergeServiceTypes = (next?: Partial<Record<VehicleType, VehicleCategory>> | null): Record<VehicleType, VehicleCategory> => {
     const merged = {
@@ -1728,36 +1744,23 @@ export default function App() {
         <div className="flex-1 flex flex-col min-h-screen relative overflow-hidden">
           {/* Header */}
           {isAuthenticated && (
-            <header className="sticky top-0 z-40 bg-white border-b border-slate-100 px-4 py-4 flex items-center justify-between transition-colors">
-              <div className="flex items-center gap-3 lg:hidden">
+            <header className="sticky top-0 z-40 bg-white border-b border-slate-100 px-4 py-4 grid grid-cols-3 items-center transition-colors">
+              <div className="flex items-center gap-3">
                 <img 
                   src={getSafeLogoSrc()} 
                   alt="Norte Tech Logo" 
                   className="w-8 h-8 object-contain"
                   referrerPolicy="no-referrer"
                 />
-                <h1 className="text-lg font-black text-slate-900 tracking-tight">Norte Tech</h1>
               </div>
               
-              <div className="hidden lg:block">
-                <h2 className="text-xl font-black text-slate-900 tracking-tight capitalize">
-                  {currentScreen === 'dashboard' ? 'Painel' : 
-                   currentScreen === 'checkin' ? 'Check-in' :
-                   currentScreen === 'queue' || currentScreen === 'scheduling' ? 'Agenda & Fila' :
-                   currentScreen === 'inspection-pre' ? 'Inspeção Pré' :
-                   currentScreen === 'inspection-post' ? 'Inspeção Pós' :
-                   currentScreen === 'payment' ? 'Pagamento' :
-                   currentScreen === 'history' ? 'Histórico' :
-                   currentScreen === 'customer-history' ? 'Histórico Clientes' :
-                   currentScreen === 'vehicle-history' ? 'Histórico de Veículos' :
-                   currentScreen === 'vehicle-history-detail' ? 'Detalhe do Veículo' :
-                   currentScreen === 'inventory' ? 'Estoque' :
-                   currentScreen === 'settings' ? 'Configurações' : currentScreen.replace('-', ' ')}
+              <div className="text-center">
+                <h2 className="text-lg sm:text-xl font-black text-slate-900 tracking-tight capitalize">
+                  {getScreenTitle(currentScreen)}
                 </h2>
-                <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-0.5">Gestão de Estética Automotiva</p>
               </div>
 
-              <div />
+              <div className="flex justify-end" />
             </header>
           )}
 

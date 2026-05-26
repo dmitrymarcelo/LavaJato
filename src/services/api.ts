@@ -116,6 +116,30 @@ export interface RealWeatherForecastDay {
   minC: number;
   maxC: number;
   rainMm: number;
+  rainProbability: number;
+  windKph: number;
+  weatherCode: number;
+}
+
+export interface RealWeatherForecastCurrent {
+  time: string;
+  temperatureC: number;
+  apparentC: number;
+  humidity: number;
+  precipitationProbability: number;
+  precipitationMm: number;
+  windKph: number;
+  windDirectionDeg: number;
+  weatherCode: number;
+  isDay?: boolean;
+}
+
+export interface RealWeatherForecastHour {
+  time: string;
+  temperatureC: number;
+  precipitationProbability: number;
+  precipitationMm: number;
+  windKph: number;
   weatherCode: number;
 }
 
@@ -125,6 +149,8 @@ export interface RealWeatherForecastResponse {
   longitude: number;
   timezone: string;
   generatedAt: string;
+  current: RealWeatherForecastCurrent | null;
+  hours: RealWeatherForecastHour[];
   days: RealWeatherForecastDay[];
 }
 

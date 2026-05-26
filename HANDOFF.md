@@ -106,7 +106,8 @@ Observacao:
 - O `Painel` passou a exibir `Lavados ate hoje`, com total vitalicio de lavagens e quantidade de placas unicas no historico.
 - A regra de contagem foi isolada em `src/utils/dashboardMetrics.js` e coberta por `pnpm run test:dashboard`.
 - O `Painel` passou a ter filtro `Total Geral` junto de `Hoje`, `Semana` e `Mes`.
-- A previsao de clima passou a ficar fixa na sidebar, em formato empilhado, com dados reais via `Open-Meteo` e fallback consultivo via `Assistente`, atualizando automaticamente.
+- A previsao de clima passou a ficar fixa na sidebar, em formato empilhado e mais detalhado (chuva, probabilidade e vento), com dados reais via `Open-Meteo` e fallback consultivo via `Assistente`, atualizando automaticamente.
+- Titulos das paginas foram centralizados no header e os subtitulos foram removidos.
 - Arquivos locais de chaves `*accessKeys*.csv` e `*access-keys*.csv` foram protegidos no `.gitignore` para reduzir risco de commit acidental.
 - Foi criada memoria Obsidian em `C:\Users\dmitry.santos\Downloads\Lembranças\Lava Jato Norte Tech.md`, registrando infraestrutura, deploy, comandos e guardrails sem copiar segredos em texto puro.
 

@@ -17,7 +17,6 @@ import { motion } from '../lib/motion';
 import { Screen, TeamMember } from '../types';
 import { getSafeLogoSrc } from '../lib/placeholders';
 import { getRealWeatherForecast, getWeatherForecast } from '../services/geminiService';
-import { WeatherForecastResponse } from '../services/api';
 
 const SMART_TIP_WEATHER_CACHE_KEY = 'smartTipWeatherForecastV1';
 const SMART_TIP_WEATHER_CACHE_TTL_MS = 10 * 60 * 1000;
@@ -60,16 +59,52 @@ const mapOpenMeteoCodeToCondition = (code: number): WeatherCondition => {
   return 'partly_cloudy';
 };
 
-const buildOperationalNote = (rainMm: number) => {
-  if (Number.isFinite(rainMm) && rainMm >= 1) {
-    return 'Risco de chuva: priorize interna e entrega por horario.';
+const buildOperationalNote = (rainMm: number, rainProbability?: number) => {
+  const hasRainRisk = (Number.isFinite(rainMm) && rainMm >= 1)
+    || (Number.isFinite(rainProbability) && rainProbability >= 50);
+  if (hasRainRisk) {
+    return 'Risco de chuva: priorize interna e entregas por horario.';
   }
   return 'Dia bom: acelere a fila e finalize com secagem completa.';
+};
+
+const formatHourLabel = (isoTime: string) => {
+  const date = new Date(isoTime);
+  if (Number.isNaN(date.getTime())) return isoTime.slice(11, 16);
+  return new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-digit' }).format(date);
+};
+
+const formatWindDirection = (deg: number) => {
+  if (!Number.isFinite(deg)) return '—';
+  const directions = ['N', 'NE', 'E', 'SE', 'S', 'SO', 'O', 'NO'];
+  const index = Math.round(((deg % 360) / 45)) % 8;
+  return directions[index];
 };
 
 type WeatherWidget = {
   source: 'open-meteo' | 'assistant';
   generatedAt: string;
+  current?: {
+    time: string;
+    condition: WeatherCondition;
+    temperatureC: number;
+    apparentC: number;
+    humidity: number;
+    precipitationProbability: number;
+    precipitationMm: number;
+    windKph: number;
+    windDirectionDeg: number;
+  } | null;
+  hours?: Array<{
+    key: string;
+    time: string;
+    label: string;
+    condition: WeatherCondition;
+    temperatureC: number;
+    precipitationProbability: number;
+    precipitationMm: number;
+    windKph: number;
+  }>;
   days: Array<{
     key: string;
     label: string;
@@ -77,6 +112,8 @@ type WeatherWidget = {
     minC: number;
     maxC: number;
     rainMm: number;
+    rainProbability?: number;
+    windKph?: number;
     note: string;
   }>;
 };
@@ -145,6 +182,29 @@ export default function Sidebar({
         const widget: WeatherWidget = {
           source: 'open-meteo',
           generatedAt: real.generatedAt,
+          current: real.current
+            ? {
+                time: real.current.time,
+                condition: mapOpenMeteoCodeToCondition(real.current.weatherCode),
+                temperatureC: real.current.temperatureC,
+                apparentC: real.current.apparentC,
+                humidity: real.current.humidity,
+                precipitationProbability: real.current.precipitationProbability,
+                precipitationMm: real.current.precipitationMm,
+                windKph: real.current.windKph,
+                windDirectionDeg: real.current.windDirectionDeg,
+              }
+            : null,
+          hours: (real.hours || []).slice(0, 8).map((hour) => ({
+            key: hour.time,
+            time: hour.time,
+            label: formatHourLabel(hour.time),
+            condition: mapOpenMeteoCodeToCondition(hour.weatherCode),
+            temperatureC: hour.temperatureC,
+            precipitationProbability: hour.precipitationProbability,
+            precipitationMm: hour.precipitationMm,
+            windKph: hour.windKph,
+          })),
           days: real.days.slice(0, 7).map((day) => ({
             key: day.date,
             label: getWeekdayLabelFromDate(day.date),
@@ -152,7 +212,9 @@ export default function Sidebar({
             minC: day.minC,
             maxC: day.maxC,
             rainMm: day.rainMm,
-            note: buildOperationalNote(day.rainMm),
+            rainProbability: day.rainProbability,
+            windKph: day.windKph,
+            note: buildOperationalNote(day.rainMm, day.rainProbability),
           })),
         };
         if (isCancelled) return;
@@ -286,33 +348,180 @@ export default function Sidebar({
                 </div>
               </div>
 
-              <div className="px-4 pb-4 space-y-2">
+              <div className="px-4 pb-4 space-y-3">
                 {forecast?.days?.length ? (
-                  forecast.days.slice(0, 7).map((day) => (
-                    <div key={day.key} className="rounded-2xl border border-white/10 bg-white/5 px-3 py-3">
-                      <div className="flex items-center justify-between gap-3">
-                        <div className="flex items-center gap-3 min-w-0">
-                          <div className="w-7 h-7 flex items-center justify-center rounded-xl bg-white/10 border border-white/10 shrink-0">
-                            {renderConditionIcon(day.condition)}
-                          </div>
-                          <div className="min-w-0">
-                            <p className="text-[10px] font-black uppercase tracking-widest text-white/85">
-                              {day.label}
+                  <>
+                    {(() => {
+                      const today = forecast.days[0];
+                      if (!today) return null;
+                      const rainP = Number.isFinite(today.rainProbability) ? Math.round(today.rainProbability as number) : null;
+                      const wind = Number.isFinite(today.windKph) ? Math.round(today.windKph as number) : null;
+                      const current = forecast.current;
+                      const currentTemp = current && Number.isFinite(current.temperatureC) ? Math.round(current.temperatureC) : null;
+                      const currentFeels = current && Number.isFinite(current.apparentC) ? Math.round(current.apparentC) : null;
+                      const currentHumidity = current && Number.isFinite(current.humidity) ? Math.round(current.humidity) : null;
+                      const currentRainP = current && Number.isFinite(current.precipitationProbability) ? Math.round(current.precipitationProbability) : null;
+                      const currentWind = current && Number.isFinite(current.windKph) ? Math.round(current.windKph) : null;
+                      const currentWindDir = current ? formatWindDirection(current.windDirectionDeg) : '—';
+                      return (
+                        <>
+                          {forecast.current && (
+                            <div className="rounded-3xl border border-white/10 bg-white/5 px-4 py-4">
+                              <div className="flex items-start justify-between gap-3">
+                                <div className="flex items-center gap-3">
+                                  <div className="w-12 h-12 rounded-2xl bg-white/10 border border-white/10 flex items-center justify-center">
+                                    {renderConditionIcon(current?.condition ?? today.condition)}
+                                  </div>
+                                  <div>
+                                    <p className="text-[10px] font-black uppercase tracking-widest text-white/70">Agora</p>
+                                    <p className="text-2xl font-black text-white leading-tight">
+                                      {currentTemp === null ? '—' : `${currentTemp}°`}
+                                    </p>
+                                    <p className="mt-0.5 text-[10px] font-bold uppercase tracking-widest text-white/60">
+                                      {forecast.current?.time ? formatHourLabel(forecast.current.time) : '—'}
+                                    </p>
+                                  </div>
+                                </div>
+                                <div className="text-right">
+                                  <p className="text-[10px] font-black uppercase tracking-widest text-white/60">Sensação</p>
+                                  <p className="text-sm font-black text-white">{currentFeels === null ? '—' : `${currentFeels}°`}</p>
+                                </div>
+                              </div>
+
+                              <div className="mt-3 grid grid-cols-3 gap-2">
+                                <div className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2">
+                                  <p className="text-[10px] font-black uppercase tracking-widest text-white/60">Umid.</p>
+                                  <p className="text-sm font-black text-white">{currentHumidity === null ? '—' : `${currentHumidity}%`}</p>
+                                </div>
+                                <div className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2">
+                                  <p className="text-[10px] font-black uppercase tracking-widest text-white/60">Chuva</p>
+                                  <p className="text-sm font-black text-white">{currentRainP === null ? '—' : `${currentRainP}%`}</p>
+                                </div>
+                                <div className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2">
+                                  <p className="text-[10px] font-black uppercase tracking-widest text-white/60">Vento</p>
+                                  <p className="text-sm font-black text-white">{currentWind === null ? '—' : `${currentWind} km/h`}</p>
+                                  <p className="mt-0.5 text-[9px] font-black text-white/60">{currentWindDir}</p>
+                                </div>
+                              </div>
+
+                              {forecast.hours?.length ? (
+                                <div className="mt-3">
+                                  <p className="text-[10px] font-black uppercase tracking-widest text-white/60">Próximas horas</p>
+                                  <div className="mt-2 flex gap-2 overflow-x-auto pb-1">
+                                    {forecast.hours.slice(0, 8).map((hour) => {
+                                      const hourRainP = Number.isFinite(hour.precipitationProbability) ? Math.round(hour.precipitationProbability) : null;
+                                      return (
+                                        <div key={hour.key} className="shrink-0 w-[92px] rounded-2xl border border-white/10 bg-white/5 px-3 py-2">
+                                          <div className="flex items-center justify-between gap-2">
+                                            <p className="text-[10px] font-black text-white/80">{hour.label}</p>
+                                            <div className="w-5 h-5 flex items-center justify-center rounded-xl bg-white/10 border border-white/10">
+                                              {renderConditionIcon(hour.condition)}
+                                            </div>
+                                          </div>
+                                          <p className="mt-1 text-sm font-black text-white">{Math.round(hour.temperatureC)}°</p>
+                                          <div className="mt-1 h-1.5 w-full rounded-full bg-white/10 overflow-hidden">
+                                            <div
+                                              className="h-full rounded-full bg-sky-300"
+                                              style={{ width: `${Math.max(0, Math.min(100, hourRainP ?? 0))}%` }}
+                                            />
+                                          </div>
+                                          <p className="mt-1 text-[9px] font-black text-white/60">
+                                            {hourRainP === null ? 'Chuva —' : `Chuva ${hourRainP}%`}
+                                          </p>
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+                              ) : null}
+                            </div>
+                          )}
+
+                          <div className="rounded-3xl border border-white/10 bg-white/5 px-4 py-4">
+                            <div className="flex items-center justify-between gap-3">
+                              <div className="flex items-center gap-3">
+                                <div className="w-12 h-12 rounded-2xl bg-white/10 border border-white/10 flex items-center justify-center">
+                                  {renderConditionIcon(today.condition)}
+                                </div>
+                                <div>
+                                  <p className="text-[10px] font-black uppercase tracking-widest text-white/70">Hoje</p>
+                                  <p className="text-lg font-black text-white leading-tight">
+                                    {Math.round(today.maxC)}° <span className="text-white/60 text-sm font-black">/ {Math.round(today.minC)}°</span>
+                                  </p>
+                                </div>
+                              </div>
+                              <div className="text-right">
+                                <p className="text-[10px] font-black uppercase tracking-widest text-white/60">Chuva</p>
+                                <p className="text-sm font-black text-white">{formatRain(today.rainMm)}</p>
+                              </div>
+                            </div>
+
+                            <div className="mt-3 grid grid-cols-2 gap-2">
+                              <div className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2">
+                                <p className="text-[10px] font-black uppercase tracking-widest text-white/60">Prob.</p>
+                                <p className="text-sm font-black text-white">{rainP === null ? '—' : `${rainP}%`}</p>
+                                <div className="mt-2 h-1.5 w-full rounded-full bg-white/10 overflow-hidden">
+                                  <div
+                                    className="h-full rounded-full bg-sky-300"
+                                    style={{ width: `${Math.max(0, Math.min(100, rainP ?? 0))}%` }}
+                                  />
+                                </div>
+                              </div>
+                              <div className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2">
+                                <p className="text-[10px] font-black uppercase tracking-widest text-white/60">Vento</p>
+                                <p className="text-sm font-black text-white">{wind === null ? '—' : `${wind} km/h`}</p>
+                                <p className="mt-1 text-[10px] font-bold text-white/60">Máx. do dia</p>
+                              </div>
+                            </div>
+
+                            <p className="mt-3 text-[10px] font-bold text-white/80">
+                              {today.note}
                             </p>
-                            <p className="text-xs font-black text-white">
-                              {formatTemperature(day.minC, day.maxC)}
+                          </div>
+                        </>
+                      );
+                    })()}
+
+                    <div className="space-y-2">
+                      {forecast.days.slice(0, 7).map((day) => {
+                        const rainP = Number.isFinite(day.rainProbability) ? Math.round(day.rainProbability as number) : null;
+                        const wind = Number.isFinite(day.windKph) ? Math.round(day.windKph as number) : null;
+                        return (
+                          <div key={day.key} className="rounded-2xl border border-white/10 bg-white/5 px-3 py-3">
+                            <div className="flex items-center justify-between gap-3">
+                              <div className="flex items-center gap-3 min-w-0">
+                                <div className="w-7 h-7 flex items-center justify-center rounded-xl bg-white/10 border border-white/10 shrink-0">
+                                  {renderConditionIcon(day.condition)}
+                                </div>
+                                <div className="min-w-0">
+                                  <p className="text-[10px] font-black uppercase tracking-widest text-white/85">
+                                    {day.label}
+                                  </p>
+                                  <p className="text-xs font-black text-white">
+                                    {formatTemperature(day.minC, day.maxC)}
+                                  </p>
+                                  <div className="mt-1 flex flex-wrap gap-1">
+                                    <span className="inline-flex items-center rounded-lg border border-white/10 bg-white/5 px-2 py-1 text-[9px] font-black text-white/80">
+                                      {formatRain(day.rainMm)}
+                                    </span>
+                                    <span className="inline-flex items-center rounded-lg border border-white/10 bg-white/5 px-2 py-1 text-[9px] font-black text-white/80">
+                                      {rainP === null ? 'Prob. —' : `Prob. ${rainP}%`}
+                                    </span>
+                                    <span className="inline-flex items-center rounded-lg border border-white/10 bg-white/5 px-2 py-1 text-[9px] font-black text-white/80">
+                                      {wind === null ? 'Vento —' : `Vento ${wind}km/h`}
+                                    </span>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                            <p className="mt-2 text-[10px] font-bold text-white/80">
+                              {day.note}
                             </p>
                           </div>
-                        </div>
-                        <p className="text-[10px] font-bold text-white/70 shrink-0">
-                          {formatRain(day.rainMm)}
-                        </p>
-                      </div>
-                      <p className="mt-2 text-[10px] font-bold text-white/80">
-                        {day.note}
-                      </p>
+                        );
+                      })}
                     </div>
-                  ))
+                  </>
                 ) : (
                   <div className="rounded-2xl border border-white/10 bg-white/5 px-3 py-4 text-center text-xs font-bold text-white/70">
                     Sem previsao no momento.
@@ -329,7 +538,9 @@ export default function Sidebar({
                   className="w-12 h-12 rounded-2xl bg-slate-50 border border-slate-100 flex flex-col items-center justify-center text-slate-900 shadow-sm"
                 >
                   <div className="text-slate-900">{renderConditionIcon(day.condition)}</div>
-                  <span className="text-[9px] font-black leading-none -mt-1">{Math.round(day.maxC)}°</span>
+                  <span className="text-[9px] font-black leading-none -mt-1">
+                    {forecast?.current && Number.isFinite(forecast.current.temperatureC) ? `${Math.round(forecast.current.temperatureC)}°` : `${Math.round(day.maxC)}°`}
+                  </span>
                 </div>
               ))}
             </div>

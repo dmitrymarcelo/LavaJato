@@ -209,7 +209,7 @@ Este projeto adota os seguintes principios, alinhados a boas praticas publicadas
 - Entradas: contexto basico do negocio, parametros climaticos e prompts internos
 - Saidas: recomendacoes textuais para apoiar decisao humana
 - Guardrails: o assistente e consultivo, nunca fonte de verdade para status, faturamento, estoque ou autorizacao
-- Estado atual da UI: a previsao exibida na sidebar prioriza fonte real (`GET /api/weather/forecast` via Open-Meteo) e usa o assistente apenas como fallback consultivo
+- Estado atual da UI: a previsao exibida na sidebar prioriza fonte real (`GET /api/weather/forecast` via Open-Meteo, com chuva/probabilidade/vento) e usa o assistente apenas como fallback consultivo
 - Owner sugerido: produto + backend
 
 ### A12. Agente de Deploy e Memoria Operacional
