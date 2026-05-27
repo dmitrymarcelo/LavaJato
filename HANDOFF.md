@@ -6,7 +6,7 @@ Atualizado em: 2026-05-27
 
 - Repositorio: `https://github.com/dmitrymarcelo/LavaJato`
 - Branch principal: `main`
-- Commit atual: `0bad58f80290d25535747b9641b2f573870bcdf8`
+- Commit atual: `1e91000b535f3bb326a9b7ea502b96c84e441dea`
 - Producao AWS atual: `https://3-145-153-19.sslip.io/` (hostname publico com certificado HTTPS confiavel)
 - Regiao AWS: `us-east-2`
 - Instancia usada no deploy: `i-0ba1477cbbe3d986d`
@@ -196,6 +196,7 @@ Observacao:
   - tempo de espera, pagamento e tempo total
 - O CSV detalhado por veiculo tambem passou a incluir cliente, tipo de veiculo, responsaveis, terceiro, observacoes e tempos operacionais completos.
 - O `Painel` agora tem `Periodo livre` alem de `Hoje`, `Semana`, `Mes` e `Total geral`; faturamento, volume, lavados, bases, ranking e recentes passam a respeitar o intervalo escolhido.
+- O `Painel` foi reorganizado para remover o espaco vazio causado por cards esticados: demanda, resumo gerencial e top lavadores ficam em uma coluna independente, bases ficam na coluna lateral, e existe o botao `Relatorio completo` com indicadores prontos para apresentacao/print.
 - `Historico de Veiculos` agora tambem tem `Periodo livre`; o filtro e enviado para a API, entao resumos, detalhes e CSVs usam o mesmo intervalo.
 - Endpoints `PUT` em lote deixaram de usar `TRUNCATE` direto e passaram a usar substituicao transacional.
 - Isso vale para:
@@ -256,14 +257,14 @@ Observacao:
 
 ## Commits recentes relevantes
 
-- `0bad58f` `feat: filtros avancados e reset de senha`
+- `1e91000` `ui: reorganizar painel gerencial`
+- `5b4dbca` `feat: filtros avancados e reset de senha`
 - `fc9a0d4` `fix: isolar placas por cliente`
 - `2bacc0a` `feat: cadastro publico de clientes`
 - `b18edd5` `Taruma: bloquear caminhao as 17:00`
 - `570b8c3` `UI: titulo centralizado, remover dica inteligente e melhorar clima`
 - `f828689` `feat: clima real (Open-Meteo) na sidebar`
 - `3fdbb41` `ui: melhorar tipografia e remover embaçado`
-- `c72a97b` `ui: mover clima para sidebar e limpar header`
 
 ## Arquivos centrais
 
@@ -380,7 +381,7 @@ Com isso, qualquer alteracao publicada em `main` dispara o deploy via SSM no EC2
   - os precos de servico no modal e no seletor passaram a usar formatacao monetaria `pt-BR`, evitando textos como `80.75,00`
 - A tela `Configuracoes > Cadastros de Clientes` trocou `alert/confirm` por feedback visual interno, leve e mais amigavel para smartphone, sem adicionar polling ou dependencias pesadas.
 - O GitHub e a fonte principal da continuidade.
-- Se mudar de computador, o ideal e continuar a partir do commit `0bad58f` ou posterior.
+- Se mudar de computador, o ideal e continuar a partir do commit `1e91000` ou posterior.
 - Imagens enviadas ficam em `server/storage/uploads` (persistidas via volume Docker).
 - Em producao, altere a senha do administrador imediatamente.
 
