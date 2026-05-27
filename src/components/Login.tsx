@@ -5,6 +5,7 @@ import {
   Building2,
   Car,
   CheckCircle2,
+  KeyRound,
   Lock,
   Mail,
   MapPin,
@@ -16,7 +17,7 @@ import {
 import { getSafeLogoSrc } from '../lib/placeholders';
 import { BASES } from '../data/bases';
 import { VehicleType } from '../types';
-import { ClientSignupPayload } from '../services/api';
+import { api, ClientSignupPayload } from '../services/api';
 
 interface LoginProps {
   onLogin: (identifier: string, password: string) => Promise<void>;
@@ -58,6 +59,10 @@ export default function Login({ onLogin, onClientSignup }: LoginProps) {
   const [clientBaseId, setClientBaseId] = useState(BASES[0]?.id || '');
   const [clientVehicles, setClientVehicles] = useState<SignupVehicleForm[]>([createVehicleRow()]);
   const [isLoading, setIsLoading] = useState(false);
+  const [isForgotOpen, setIsForgotOpen] = useState(false);
+  const [forgotEmail, setForgotEmail] = useState('');
+  const [isSendingForgot, setIsSendingForgot] = useState(false);
+  const [forgotMessage, setForgotMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const switchMode = (nextMode: AuthMode) => {
@@ -93,6 +98,35 @@ export default function Login({ onLogin, onClientSignup }: LoginProps) {
       setError(err.message || 'Falha ao autenticar.');
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const openForgotPassword = () => {
+    setForgotEmail(identifier.includes('@') ? identifier.trim() : '');
+    setForgotMessage(null);
+    setError(null);
+    setIsForgotOpen(true);
+  };
+
+  const handleForgotSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
+
+    if (!forgotEmail.trim()) {
+      setForgotMessage(null);
+      setError('Informe o email cadastrado.');
+      return;
+    }
+
+    setIsSendingForgot(true);
+    setError(null);
+    setForgotMessage(null);
+    try {
+      const response = await api.forgotPassword(forgotEmail.trim());
+      setForgotMessage(response.message || 'Se este email estiver cadastrado, enviaremos uma senha temporaria.');
+    } catch (err: any) {
+      setError(err.message || 'Nao foi possivel solicitar a senha temporaria.');
+    } finally {
+      setIsSendingForgot(false);
     }
   };
 
@@ -218,6 +252,7 @@ export default function Login({ onLogin, onClientSignup }: LoginProps) {
           </div>
 
           {mode === 'login' ? (
+            <>
             <form onSubmit={handleLoginSubmit} className="space-y-6">
               <div>
                 <h2 className="text-3xl font-black text-slate-900 tracking-tight">Bem-vindo de volta</h2>
@@ -244,7 +279,16 @@ export default function Login({ onLogin, onClientSignup }: LoginProps) {
               </div>
 
               <div className="space-y-2">
-                <label className="text-[10px] font-bold uppercase tracking-widest text-slate-500 ml-1">Senha</label>
+                <div className="flex items-center justify-between gap-3">
+                  <label className="text-[10px] font-bold uppercase tracking-widest text-slate-500 ml-1">Senha</label>
+                  <button
+                    type="button"
+                    onClick={openForgotPassword}
+                    className="text-[10px] font-black uppercase tracking-widest text-amber-600 hover:text-amber-700"
+                  >
+                    Esqueceu senha?
+                  </button>
+                </div>
                 <div className="relative">
                   <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
                   <input
@@ -283,6 +327,52 @@ export default function Login({ onLogin, onClientSignup }: LoginProps) {
                 )}
               </button>
             </form>
+            {isForgotOpen && (
+              <form onSubmit={handleForgotSubmit} className="mt-5 rounded-2xl border border-amber-100 bg-amber-50/70 p-4 space-y-3">
+                <div className="flex items-start gap-3">
+                  <div className="mt-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-amber-500 text-slate-950">
+                    <KeyRound className="w-4 h-4" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-black text-slate-900">Receber senha temporaria</p>
+                    <p className="mt-0.5 text-xs font-medium text-slate-600">
+                      Enviaremos uma senha temporaria para o email cadastrado, se ele existir no sistema.
+                    </p>
+                  </div>
+                </div>
+                <input
+                  type="email"
+                  required
+                  value={forgotEmail}
+                  onChange={(event) => setForgotEmail(event.target.value)}
+                  placeholder="cliente@empresa.com"
+                  autoComplete="email"
+                  className="w-full rounded-2xl border border-amber-100 bg-white px-4 py-3 text-sm font-bold text-slate-900 outline-none focus:border-amber-500"
+                />
+                {forgotMessage && (
+                  <div className="rounded-xl border border-emerald-100 bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-700">
+                    {forgotMessage}
+                  </div>
+                )}
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setIsForgotOpen(false)}
+                    className="flex-1 rounded-xl border border-amber-100 bg-white px-3 py-3 text-xs font-black uppercase tracking-widest text-slate-600"
+                  >
+                    Fechar
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isSendingForgot}
+                    className="flex-1 rounded-xl bg-amber-500 px-3 py-3 text-xs font-black uppercase tracking-widest text-slate-950 disabled:opacity-70"
+                  >
+                    {isSendingForgot ? 'Enviando...' : 'Enviar'}
+                  </button>
+                </div>
+              </form>
+            )}
+            </>
           ) : (
             <form onSubmit={handleSignupSubmit} className="space-y-5">
               <div>

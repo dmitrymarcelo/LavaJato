@@ -22,6 +22,8 @@ import { BASES } from '../data/bases';
 import { Appointment } from '../services/api';
 import { getSafeAvatarImage, getSafeServiceImage } from '../lib/placeholders';
 
+type DashboardTimeframe = 'today' | 'week' | 'month' | 'all' | 'custom';
+
 const currencyFormatter = new Intl.NumberFormat('pt-BR', {
   style: 'currency',
   currency: 'BRL',
@@ -34,6 +36,13 @@ const getServiceDateKey = (service: Service) =>
   service.scheduledDate || service.endTime?.slice(0, 10) || service.startTime?.slice(0, 10) || null;
 
 const isWithinRange = (dateKey: string | null, start: string, end: string) => !!dateKey && dateKey >= start && dateKey <= end;
+
+const getDateSpanDays = (start: string, end: string) => {
+  const startDate = new Date(`${start}T00:00:00`);
+  const endDate = new Date(`${end}T00:00:00`);
+  const diffMs = endDate.getTime() - startDate.getTime();
+  return Number.isFinite(diffMs) ? Math.max(1, Math.round(diffMs / 86_400_000) + 1) : 1;
+};
 
 const formatGrowth = (current: number, previous: number) => {
   if (previous <= 0) {
@@ -67,20 +76,34 @@ export default function Dashboard({
   team?: TeamMember[];
   canManageSettings?: boolean;
 }) {
-  const [timeframe, setTimeframe] = useState<'today' | 'week' | 'month' | 'all'>('today');
-
   const todayKey = currentDateKey || getTodayDate();
-  const windowDays = timeframe === 'today' ? 1 : timeframe === 'week' ? 7 : timeframe === 'month' ? 30 : null;
-  const currentStartKey = windowDays ? addDays(todayKey, -(windowDays - 1)) : null;
+  const [timeframe, setTimeframe] = useState<DashboardTimeframe>('today');
+  const [customStartKey, setCustomStartKey] = useState(addDays(todayKey, -6));
+  const [customEndKey, setCustomEndKey] = useState(todayKey);
+  const fixedWindowDays = timeframe === 'today' ? 1 : timeframe === 'week' ? 7 : timeframe === 'month' ? 30 : null;
+  const normalizedCustomStartKey = customStartKey <= customEndKey ? customStartKey : customEndKey;
+  const normalizedCustomEndKey = customStartKey <= customEndKey ? customEndKey : customStartKey;
+  const windowDays = timeframe === 'custom'
+    ? getDateSpanDays(normalizedCustomStartKey, normalizedCustomEndKey)
+    : fixedWindowDays;
+  const currentStartKey = timeframe === 'custom'
+    ? normalizedCustomStartKey
+    : windowDays
+      ? addDays(todayKey, -(windowDays - 1))
+      : null;
+  const currentEndKey = timeframe === 'custom' ? normalizedCustomEndKey : todayKey;
   const previousStartKey = windowDays && currentStartKey ? addDays(currentStartKey, -windowDays) : null;
   const previousEndKey = windowDays && currentStartKey ? addDays(currentStartKey, -1) : null;
 
   const servicesInCurrentWindow = windowDays && currentStartKey
-    ? services.filter(service => isWithinRange(getServiceDateKey(service), currentStartKey, todayKey))
+    ? services.filter(service => isWithinRange(getServiceDateKey(service), currentStartKey, currentEndKey))
     : services.filter((service) => {
       const dateKey = getServiceDateKey(service);
       return !dateKey || dateKey <= todayKey;
     });
+  const appointmentsInCurrentWindow = windowDays && currentStartKey
+    ? appointments.filter(appointment => isWithinRange(appointment.date, currentStartKey, currentEndKey))
+    : appointments.filter((appointment) => !appointment.date || appointment.date <= todayKey);
   const servicesInPreviousWindow = windowDays && previousStartKey && previousEndKey
     ? services.filter(service => isWithinRange(getServiceDateKey(service), previousStartKey, previousEndKey))
     : [];
@@ -103,6 +126,7 @@ export default function Dashboard({
 
   const pendingPayments = services.filter(service => service.status === 'waiting_payment').length;
   const lifetimeWashSummary = getLifetimeWashSummary(services);
+  const selectedWashSummary = timeframe === 'all' ? lifetimeWashSummary : getLifetimeWashSummary(servicesInCurrentWindow);
   const growthLabel = timeframe === 'all' ? 'Total geral' : formatGrowth(currentRevenue, previousRevenue);
   const demandByBase = [...BASES, { id: 'sem-base', name: 'Sem base', responsible: '', vehicles: 0, budget: '0', spent: '0', status: 'warning' as const }]
     .map(base => ({
@@ -113,21 +137,17 @@ export default function Dashboard({
     .filter(base => base.id !== 'sem-base' || base.value > 0);
   const maxDemandValue = Math.max(1, ...demandByBase.map(item => item.value));
   const baseSummaries = BASES.map((base) => {
-    const servicesToday = services.filter(
-      (service) => service.baseId === base.id && getServiceDateKey(service) === todayKey
-    );
-    const appointmentsToday = appointments.filter(
-      (appointment) => appointment.baseId === base.id && appointment.date === todayKey
-    );
+    const servicesForBase = servicesInCurrentWindow.filter((service) => service.baseId === base.id);
+    const appointmentsForBase = appointmentsInCurrentWindow.filter((appointment) => appointment.baseId === base.id);
 
     return {
       id: base.id,
       name: base.name,
-      scheduled: appointmentsToday.filter((appointment) => ['confirmed', 'pending'].includes(appointment.status)).length,
-      waiting: servicesToday.filter((service) => service.status === 'pending').length,
-      washing: servicesToday.filter((service) => service.status === 'in_progress').length,
-      completed: servicesToday.filter((service) => ['waiting_payment', 'completed'].includes(service.status)).length,
-      noShow: servicesToday.filter((service) => service.status === 'no_show').length,
+      scheduled: appointmentsForBase.filter((appointment) => ['confirmed', 'pending'].includes(appointment.status)).length,
+      waiting: servicesForBase.filter((service) => service.status === 'pending').length,
+      washing: servicesForBase.filter((service) => service.status === 'in_progress').length,
+      completed: servicesForBase.filter((service) => ['waiting_payment', 'completed'].includes(service.status)).length,
+      noShow: servicesForBase.filter((service) => service.status === 'no_show').length,
     };
   });
 
@@ -140,7 +160,11 @@ export default function Dashboard({
         service.timeline?.washStartedAt?.slice(0, 10)
         || service.startTime?.slice(0, 10)
         || null;
-      return washDateKey === todayKey;
+      if (timeframe === 'all') {
+        return Boolean(washDateKey);
+      }
+
+      return currentStartKey ? isWithinRange(washDateKey, currentStartKey, currentEndKey) : washDateKey === todayKey;
     })
     .flatMap((service) => {
       const washerNames = service.washers?.length
@@ -171,7 +195,7 @@ export default function Dashboard({
     .sort((left, right) => right.washes - left.washes)
     .slice(0, 3);
 
-  const recentServices = [...services]
+  const recentServices = [...servicesInCurrentWindow]
     .sort((left, right) => {
       const leftKey = `${left.endTime || left.startTime || `${left.scheduledDate || ''}T${left.scheduledTime || '00:00'}`}`;
       const rightKey = `${right.endTime || right.startTime || `${right.scheduledDate || ''}T${right.scheduledTime || '00:00'}`}`;
@@ -182,7 +206,7 @@ export default function Dashboard({
   return (
     <div className="flex flex-col gap-6 pb-8 bg-white transition-colors">
       <div className="px-4 pt-4">
-        <div className="flex h-10 w-full items-center justify-center rounded-xl bg-slate-100 p-1">
+        <div className="grid h-auto w-full grid-cols-2 gap-1 rounded-xl bg-slate-100 p-1 sm:grid-cols-5">
           <button
             onClick={() => setTimeframe('today')}
             className={`flex-1 h-full rounded-lg text-xs font-bold uppercase tracking-wider active:scale-95 transition-all ${timeframe === 'today' ? 'bg-white shadow-sm text-primary' : 'text-slate-500'}`}
@@ -207,7 +231,38 @@ export default function Dashboard({
           >
             Total geral
           </button>
+          <button
+            onClick={() => setTimeframe('custom')}
+            className={`flex-1 h-10 rounded-lg text-xs font-bold uppercase tracking-wider active:scale-95 transition-all ${timeframe === 'custom' ? 'bg-white shadow-sm text-primary' : 'text-slate-500'}`}
+          >
+            Periodo livre
+          </button>
         </div>
+        {timeframe === 'custom' && (
+          <div className="mt-3 grid gap-3 rounded-2xl border border-slate-100 bg-white p-3 shadow-sm sm:grid-cols-[1fr_1fr_auto] sm:items-end">
+            <label className="space-y-1">
+              <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Data inicial</span>
+              <input
+                type="date"
+                value={customStartKey}
+                onChange={(event) => setCustomStartKey(event.target.value)}
+                className="h-11 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm font-bold text-slate-900 outline-none focus:border-primary"
+              />
+            </label>
+            <label className="space-y-1">
+              <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Data final</span>
+              <input
+                type="date"
+                value={customEndKey}
+                onChange={(event) => setCustomEndKey(event.target.value)}
+                className="h-11 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm font-bold text-slate-900 outline-none focus:border-primary"
+              />
+            </label>
+            <div className="rounded-xl bg-primary/5 px-3 py-2 text-xs font-black uppercase tracking-widest text-primary">
+              {windowDays} dia{windowDays === 1 ? '' : 's'}
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="px-4">
@@ -229,9 +284,9 @@ export default function Dashboard({
           />
           <MetricCard
             icon={<CheckCircle2 className="text-emerald-500 w-3.5 h-3.5" />}
-            label="Lavados ate hoje"
-            value={integerFormatter.format(lifetimeWashSummary.totalWashed)}
-            secondary={`${integerFormatter.format(lifetimeWashSummary.uniqueVehicles)} placas unicas`}
+            label={timeframe === 'all' ? 'Lavados ate hoje' : 'Lavados no periodo'}
+            value={integerFormatter.format(selectedWashSummary.totalWashed)}
+            secondary={`${integerFormatter.format(selectedWashSummary.uniqueVehicles)} placas unicas`}
             secondaryClassName="text-emerald-500"
             interactive
             onClick={() => onNavigate('vehicle-history')}
@@ -280,7 +335,7 @@ export default function Dashboard({
 
         <section className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
           <div className="flex justify-between items-center mb-6">
-            <h3 className="text-slate-900 font-black text-lg tracking-tight">Bases Hoje</h3>
+            <h3 className="text-slate-900 font-black text-lg tracking-tight">{timeframe === 'today' ? 'Bases Hoje' : 'Bases no periodo'}</h3>
             <Target className="w-5 h-5 text-slate-300" />
           </div>
           <div className="space-y-4">
@@ -325,7 +380,9 @@ export default function Dashboard({
           </div>
           <div className="space-y-3">
             {topWashersList.length === 0 ? (
-              <p className="text-xs text-slate-400 font-medium">Nenhum lavador com producao registrada hoje.</p>
+              <p className="text-xs text-slate-400 font-medium">
+                Nenhum lavador com producao registrada {timeframe === 'today' ? 'hoje' : 'no periodo'}.
+              </p>
             ) : (
               topWashersList.map((member, index) => (
                 <div key={member.id}>

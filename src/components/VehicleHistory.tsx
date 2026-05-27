@@ -15,9 +15,10 @@ import {
 import { Screen, Service, VehicleType } from '../types';
 import { api } from '../services/api';
 import type { VehicleHistoryDetail as VehicleHistoryDetailData, VehicleHistorySummary } from '../services/api';
-import { formatDateTimeValue, formatElapsedMinutes, getDurationMinutes } from '../utils/app';
+import { addDays, formatDateTimeValue, formatElapsedMinutes, getDurationMinutes, getTodayDate, normalizeDateKey } from '../utils/app';
 
 type VehicleHistoryScope = 'history' | 'all';
+type VehicleHistoryDateMode = 'all' | 'custom';
 
 const getRecordEventDate = (record: Service) =>
   record.timeline?.completedAt
@@ -65,9 +66,17 @@ export default function VehicleHistory({
 }) {
   const [query, setQuery] = useState('');
   const [scope, setScope] = useState<VehicleHistoryScope>('history');
+  const todayKey = getTodayDate();
+  const [dateMode, setDateMode] = useState<VehicleHistoryDateMode>('all');
+  const [customStartKey, setCustomStartKey] = useState(addDays(todayKey, -29));
+  const [customEndKey, setCustomEndKey] = useState(todayKey);
   const [groups, setGroups] = useState<VehicleHistorySummary[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const safeCustomStartKey = normalizeDateKey(customStartKey) || todayKey;
+  const safeCustomEndKey = normalizeDateKey(customEndKey) || todayKey;
+  const normalizedCustomStartKey = safeCustomStartKey <= safeCustomEndKey ? safeCustomStartKey : safeCustomEndKey;
+  const normalizedCustomEndKey = safeCustomStartKey <= safeCustomEndKey ? safeCustomEndKey : safeCustomStartKey;
 
   useEffect(() => {
     let cancelled = false;
@@ -76,7 +85,11 @@ export default function VehicleHistory({
       setIsLoading(true);
       setError(null);
       try {
-        const response = await api.getVehicleHistory();
+        const response = await api.getVehicleHistory(
+          dateMode === 'custom'
+            ? { startDate: normalizedCustomStartKey, endDate: normalizedCustomEndKey }
+            : undefined
+        );
         if (!cancelled) {
           setGroups(response);
         }
@@ -96,7 +109,7 @@ export default function VehicleHistory({
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [dateMode, normalizedCustomEndKey, normalizedCustomStartKey]);
 
   const filteredGroups = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
@@ -115,10 +128,10 @@ export default function VehicleHistory({
     });
   }, [groups, query, scope]);
 
-  const totalVehiclesWithHistory = groups.filter((group) => group.recordCount > 0).length;
-  const totalRecords = groups.reduce((total, group) => total + group.recordCount, 0);
-  const totalCompleted = groups.reduce((total, group) => total + group.completedCount, 0);
-  const totalNoShow = groups.reduce((total, group) => total + group.noShowCount, 0);
+  const totalVehiclesWithHistory = filteredGroups.filter((group) => group.recordCount > 0).length;
+  const totalRecords = filteredGroups.reduce((total, group) => total + group.recordCount, 0);
+  const totalCompleted = filteredGroups.reduce((total, group) => total + group.completedCount, 0);
+  const totalNoShow = filteredGroups.reduce((total, group) => total + group.noShowCount, 0);
 
   const canExport = !isLoading && !error && filteredGroups.length > 0;
 
@@ -224,10 +237,14 @@ export default function VehicleHistory({
               className="w-full h-12 rounded-2xl border border-slate-200 bg-slate-50 pl-11 pr-4 text-sm font-medium text-slate-900 outline-none focus:border-primary"
             />
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-2">
             <div className="inline-flex rounded-2xl bg-slate-100 p-1">
               <ScopeButton active={scope === 'history'} onClick={() => setScope('history')} label="Com historico" />
               <ScopeButton active={scope === 'all'} onClick={() => setScope('all')} label="Todos os veiculos" />
+            </div>
+            <div className="inline-flex rounded-2xl bg-amber-50 p-1">
+              <ScopeButton active={dateMode === 'all'} onClick={() => setDateMode('all')} label="Todo periodo" />
+              <ScopeButton active={dateMode === 'custom'} onClick={() => setDateMode('custom')} label="Periodo livre" />
             </div>
             <button
               type="button"
@@ -241,6 +258,16 @@ export default function VehicleHistory({
             </button>
           </div>
         </div>
+        {dateMode === 'custom' && (
+          <DateRangeControls
+            startKey={customStartKey}
+            endKey={customEndKey}
+            normalizedStartKey={normalizedCustomStartKey}
+            normalizedEndKey={normalizedCustomEndKey}
+            onStartChange={setCustomStartKey}
+            onEndChange={setCustomEndKey}
+          />
+        )}
 
         {isLoading ? (
           <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-8 text-center text-slate-400 font-medium">
@@ -320,6 +347,14 @@ export function VehicleHistoryDetail({
   const [group, setGroup] = useState<VehicleHistoryDetailData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const todayKey = getTodayDate();
+  const [dateMode, setDateMode] = useState<VehicleHistoryDateMode>('all');
+  const [customStartKey, setCustomStartKey] = useState(addDays(todayKey, -29));
+  const [customEndKey, setCustomEndKey] = useState(todayKey);
+  const safeCustomStartKey = normalizeDateKey(customStartKey) || todayKey;
+  const safeCustomEndKey = normalizeDateKey(customEndKey) || todayKey;
+  const normalizedCustomStartKey = safeCustomStartKey <= safeCustomEndKey ? safeCustomStartKey : safeCustomEndKey;
+  const normalizedCustomEndKey = safeCustomStartKey <= safeCustomEndKey ? safeCustomEndKey : safeCustomStartKey;
 
   useEffect(() => {
     if (!plate) {
@@ -334,7 +369,12 @@ export function VehicleHistoryDetail({
       setIsLoading(true);
       setError(null);
       try {
-        const response = await api.getVehicleHistoryDetail(plate);
+        const response = await api.getVehicleHistoryDetail(
+          plate,
+          dateMode === 'custom'
+            ? { startDate: normalizedCustomStartKey, endDate: normalizedCustomEndKey }
+            : undefined
+        );
         if (!cancelled) {
           setGroup(response);
         }
@@ -354,7 +394,7 @@ export function VehicleHistoryDetail({
     return () => {
       cancelled = true;
     };
-  }, [plate]);
+  }, [dateMode, normalizedCustomEndKey, normalizedCustomStartKey, plate]);
 
   if (!plate) {
     return (
@@ -545,6 +585,33 @@ export function VehicleHistoryDetail({
           </div>
         </div>
 
+        <div className="rounded-3xl border border-slate-100 bg-white p-4 shadow-sm space-y-3">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-widest text-amber-600">Periodo analisado</p>
+              <p className="text-sm font-bold text-slate-900">
+                {dateMode === 'all'
+                  ? 'Todo o historico do veiculo'
+                  : `${normalizedCustomStartKey} ate ${normalizedCustomEndKey}`}
+              </p>
+            </div>
+            <div className="inline-flex rounded-2xl bg-amber-50 p-1">
+              <ScopeButton active={dateMode === 'all'} onClick={() => setDateMode('all')} label="Todo periodo" />
+              <ScopeButton active={dateMode === 'custom'} onClick={() => setDateMode('custom')} label="Periodo livre" />
+            </div>
+          </div>
+          {dateMode === 'custom' && (
+            <DateRangeControls
+              startKey={customStartKey}
+              endKey={customEndKey}
+              normalizedStartKey={normalizedCustomStartKey}
+              normalizedEndKey={normalizedCustomEndKey}
+              onStartChange={setCustomStartKey}
+              onEndChange={setCustomEndKey}
+            />
+          )}
+        </div>
+
         <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
           <MetricCard label="Total de registros" value={String(group.records.length)} icon={<History className="w-4 h-4 text-primary" />} compact />
           <MetricCard label="Finalizados" value={String(group.completedCount)} icon={<WashingMachine className="w-4 h-4 text-emerald-500" />} compact />
@@ -554,7 +621,9 @@ export function VehicleHistoryDetail({
 
         {group.records.length === 0 ? (
           <div className="rounded-2xl border border-dashed border-slate-200 bg-white p-8 text-center text-slate-400 font-medium">
-            Este veiculo esta cadastrado, mas ainda nao possui historico operacional registrado.
+            {dateMode === 'custom'
+              ? 'Nenhum registro encontrado para este veiculo no periodo selecionado.'
+              : 'Este veiculo esta cadastrado, mas ainda nao possui historico operacional registrado.'}
           </div>
         ) : (
           <div className="space-y-4">
@@ -612,6 +681,49 @@ export function VehicleHistoryDetail({
             })}
           </div>
         )}
+      </div>
+    </div>
+  );
+}
+
+function DateRangeControls({
+  startKey,
+  endKey,
+  normalizedStartKey,
+  normalizedEndKey,
+  onStartChange,
+  onEndChange,
+}: {
+  startKey: string;
+  endKey: string;
+  normalizedStartKey: string;
+  normalizedEndKey: string;
+  onStartChange: (value: string) => void;
+  onEndChange: (value: string) => void;
+}) {
+  return (
+    <div className="grid gap-3 rounded-2xl border border-amber-100 bg-amber-50/70 p-3 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
+      <label className="space-y-1">
+        <span className="text-[10px] font-black uppercase tracking-widest text-amber-700">Inicio</span>
+        <input
+          type="date"
+          value={startKey}
+          onChange={(event) => onStartChange(event.target.value)}
+          className="h-11 w-full rounded-xl border border-amber-100 bg-white px-3 text-sm font-bold text-slate-900 outline-none focus:border-amber-400"
+        />
+      </label>
+      <label className="space-y-1">
+        <span className="text-[10px] font-black uppercase tracking-widest text-amber-700">Fim</span>
+        <input
+          type="date"
+          value={endKey}
+          onChange={(event) => onEndChange(event.target.value)}
+          className="h-11 w-full rounded-xl border border-amber-100 bg-white px-3 text-sm font-bold text-slate-900 outline-none focus:border-amber-400"
+        />
+      </label>
+      <div className="rounded-xl border border-amber-100 bg-white px-3 py-2">
+        <p className="text-[9px] font-black uppercase tracking-widest text-amber-700">Selecionado</p>
+        <p className="text-xs font-black text-slate-900">{normalizedStartKey} ate {normalizedEndKey}</p>
       </div>
     </div>
   );

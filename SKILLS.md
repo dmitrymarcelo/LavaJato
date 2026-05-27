@@ -1,7 +1,7 @@
 # SKILLS.md - Lava Jato Norte Tech
 
 Atualizado em: 2026-05-27
-Commit de referencia: `2bacc0a51772095fd30f4a57b9e5e129cb94bb5e`
+Commit de referencia: `0bad58f80290d25535747b9641b2f573870bcdf8`
 
 ## Objetivo
 
@@ -99,6 +99,16 @@ Ele complementa o `AGENTS.md`:
 - Dependencias: `src/components/Login.tsx`, `src/services/api.ts`, `src/App.tsx`, `server/client-registration.mjs`, `server/index.mjs`
 - Falha esperada: email ja cadastrado, senha fraca, base invalida, placa duplicada ou veiculo incompleto
 - Resposta esperada: bloquear a criacao antes de qualquer sobrescrita, criar usuario e veiculos na mesma transacao e abrir a agenda imediatamente apos o cadastro
+
+### S04C. `temporary-password-reset`
+
+- Tipo: governanca
+- Objetivo: resetar senhas sem depender de atendimento manual em todas as situacoes
+- Entradas: email cadastrado no login ou usuario selecionado por administrador em `Configuracoes`
+- Saidas: senha temporaria forte, invalidacao de sessoes antigas e envio por AWS SES quando configurado
+- Dependencias: `src/components/Login.tsx`, `src/components/Settings.tsx`, `server/password-reset.mjs`, `server/index.mjs`, AWS SES
+- Falha esperada: email ausente, remetente SES nao configurado ou falha do provedor de email
+- Resposta esperada: no fluxo automatico, nao revelar se o email existe; no reset manual, mostrar a senha temporaria ao administrador e indicar se o email foi enviado
 
 ### S05. `scheduling-rules-engine`
 
@@ -198,14 +208,14 @@ Ele complementa o `AGENTS.md`:
 - Saidas: cards, metricas e CSV enriquecido com tipo de lavagem, responsaveis, ticket medio e tempos operacionais
 - Dependencias: `VehicleHistory.tsx`, `GET /api/vehicle-history`
 - Falha esperada: historico incompleto ou filtro incorreto
-- Resposta esperada: manter consulta segura e rastreavel
+- Resposta esperada: manter consulta segura e rastreavel, com filtro de periodo livre aplicado na API para que cards, detalhes e CSV reflitam o mesmo intervalo
 
 ### S15. `dashboard-analytics`
 
 - Tipo: consultiva
 - Objetivo: fornecer visao executiva de operacao e faturamento
 - Entradas: servicos, equipe, produtos, agenda
-- Saidas: KPIs, rankings, comparativos e total vitalicio de lavagens realizadas ate hoje
+- Saidas: KPIs, rankings, comparativos, filtro de periodo livre e total vitalicio de lavagens realizadas ate hoje
 - Dependencias: `Dashboard.tsx`, `src/utils/dashboardMetrics.js`
 - Falha esperada: leituras parciais ou bootstrap incompleto
 - Resposta esperada: apresentar tendencia sem virar fonte unica de auditoria, contando como lavado apenas servicos `completed`, `waiting_payment` ou com marco de conclusao de lavagem/pos-inspecao/pagamento na timeline, excluindo `no_show`, e reutilizar cache curto para dicas consultivas que nao alteram estado operacional

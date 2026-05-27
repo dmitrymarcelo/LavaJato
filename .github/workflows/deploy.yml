@@ -15,6 +15,10 @@ jobs:
       AWS_ACCESS_KEY_ID_VALUE: ${{ secrets.AWS_ACCESS_KEY_ID }}
       AWS_SECRET_ACCESS_KEY_VALUE: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
       HTTPS_CERT_EMAIL_VALUE: ${{ secrets.HTTPS_CERT_EMAIL }}
+      PASSWORD_RESET_FROM_EMAIL_VALUE: ${{ secrets.PASSWORD_RESET_FROM_EMAIL }}
+      PASSWORD_RESET_FROM_NAME_VALUE: ${{ secrets.PASSWORD_RESET_FROM_NAME }}
+      PASSWORD_RESET_REPLY_TO_VALUE: ${{ secrets.PASSWORD_RESET_REPLY_TO }}
+      AWS_SES_REGION_VALUE: ${{ secrets.AWS_SES_REGION }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -85,6 +89,10 @@ jobs:
         env:
           DEPLOY_SHA: ${{ github.sha }}
           HTTPS_CERT_EMAIL: ${{ env.HTTPS_CERT_EMAIL_VALUE }}
+          PASSWORD_RESET_FROM_EMAIL: ${{ env.PASSWORD_RESET_FROM_EMAIL_VALUE }}
+          PASSWORD_RESET_FROM_NAME: ${{ env.PASSWORD_RESET_FROM_NAME_VALUE }}
+          PASSWORD_RESET_REPLY_TO: ${{ env.PASSWORD_RESET_REPLY_TO_VALUE }}
+          AWS_SES_REGION: ${{ env.AWS_SES_REGION_VALUE }}
         run: |
           SSM_PARAMETERS=$(node scripts/build-ssm-deploy-command.mjs)
           CMD_ID=$(aws ssm send-command \

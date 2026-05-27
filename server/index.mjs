@@ -20,6 +20,12 @@ import {
   rowBelongsToClientUser,
   rowIsVisibleToUser,
 } from './client-scope.mjs';
+import {
+  generateTemporaryPassword,
+  getForgotPasswordResponseMessage,
+  getPasswordResetEmailConfig,
+  sendTemporaryPasswordEmail,
+} from './password-reset.mjs';
 import { mapSourceVehicleTypeToCategory, normalizeSourceVehicleType } from './vehicle-type.mjs';
 import {
   TARUMA_ACTIVE_APPOINTMENT_STATUSES,
@@ -52,6 +58,8 @@ const authSessionDays = Number(process.env.AUTH_SESSION_DAYS || 7);
 const trustProxyHops = Math.max(1, Number(process.env.TRUST_PROXY_HOPS || 1));
 const loginRateLimitWindowMs = Math.max(60_000, Number(process.env.LOGIN_RATE_LIMIT_WINDOW_MS || 15 * 60 * 1000));
 const loginRateLimitMaxAttempts = Math.max(3, Number(process.env.LOGIN_RATE_LIMIT_MAX_ATTEMPTS || 6));
+const passwordResetRateLimitWindowMs = Math.max(60_000, Number(process.env.PASSWORD_RESET_RATE_LIMIT_WINDOW_MS || 15 * 60 * 1000));
+const passwordResetRateLimitMaxAttempts = Math.max(2, Number(process.env.PASSWORD_RESET_RATE_LIMIT_MAX_ATTEMPTS || 4));
 const sessionCookieName = String(process.env.SESSION_COOKIE_NAME || 'lavajato_session').trim() || 'lavajato_session';
 const sessionCookieSameSite = ['strict', 'lax', 'none'].includes(String(process.env.SESSION_COOKIE_SAME_SITE || 'lax').trim().toLowerCase())
   ? String(process.env.SESSION_COOKIE_SAME_SITE || 'lax').trim().toLowerCase()
@@ -87,6 +95,7 @@ const APP_PERMISSION_IDS = [
 ];
 const APP_PERMISSION_SET = new Set(APP_PERMISSION_IDS);
 const loginAttemptBuckets = new Map();
+const passwordResetAttemptBuckets = new Map();
 let accessRulesCache = [];
 
 app.disable('x-powered-by');
@@ -453,6 +462,32 @@ function buildLoginRateLimitKey(req, identifier) {
     .trim()
     .toLowerCase();
   return `${clientIp}:${normalizeEmail(identifier) || String(identifier || '').trim().toLowerCase()}`;
+}
+
+function getPasswordResetAttemptBucket(key) {
+  const now = Date.now();
+  const bucket = passwordResetAttemptBuckets.get(key) || { attempts: 0, windowStartedAt: now, blockedUntil: 0 };
+
+  if (now - bucket.windowStartedAt > passwordResetRateLimitWindowMs) {
+    bucket.attempts = 0;
+    bucket.windowStartedAt = now;
+    bucket.blockedUntil = 0;
+  }
+
+  passwordResetAttemptBuckets.set(key, bucket);
+  return bucket;
+}
+
+function registerPasswordResetAttempt(key) {
+  const bucket = getPasswordResetAttemptBucket(key);
+  bucket.attempts += 1;
+
+  if (bucket.attempts >= passwordResetRateLimitMaxAttempts) {
+    bucket.blockedUntil = Date.now() + passwordResetRateLimitWindowMs;
+  }
+
+  passwordResetAttemptBuckets.set(key, bucket);
+  return bucket;
 }
 
 function isStrongPassword(value) {
@@ -994,6 +1029,28 @@ function getServiceEventDate(service) {
     || service.startTime
     || `${service.scheduledDate || ''}T${service.scheduledTime || '00:00'}`
   );
+}
+
+function getDateRangeFromQuery(queryParams) {
+  const startDate = toDateKey(queryParams?.startDate);
+  const endDate = toDateKey(queryParams?.endDate);
+
+  if (!startDate || !endDate) {
+    return null;
+  }
+
+  return startDate <= endDate
+    ? { startDate, endDate }
+    : { startDate: endDate, endDate: startDate };
+}
+
+function serviceIsWithinDateRange(service, dateRange) {
+  if (!dateRange) {
+    return true;
+  }
+
+  const eventDate = toDateKey(getServiceEventDate(service));
+  return Boolean(eventDate && eventDate >= dateRange.startDate && eventDate <= dateRange.endDate);
 }
 
 function getDurationMinutes(startValue, endValue) {
@@ -1831,6 +1888,70 @@ async function upsertTeamMemberRow(member, executor = query) {
   );
 }
 
+async function updateMemberTemporaryPassword(member, temporaryPassword, executor = query) {
+  const passwordHash = await bcrypt.hash(temporaryPassword, 10);
+  await executor(
+    'UPDATE team_members SET password_hash = $2, updated_at = NOW() WHERE id = $1',
+    [member.id, passwordHash]
+  );
+  await executor('DELETE FROM auth_sessions WHERE member_id = $1', [member.id]);
+}
+
+async function resetMemberPasswordForAdmin(member, options = {}) {
+  const temporaryPassword = generateTemporaryPassword();
+  await updateMemberTemporaryPassword(member, temporaryPassword);
+
+  let emailResult = { sent: false, reason: options.sendEmail ? 'missing_recipient' : 'not_requested' };
+  if (options.sendEmail && member.email) {
+    try {
+      emailResult = await sendTemporaryPasswordEmail({
+        toEmail: member.email,
+        name: member.name,
+        temporaryPassword,
+      });
+    } catch (error) {
+      console.error('Falha ao enviar email de reset manual:', error);
+      emailResult = { sent: false, reason: 'send_failed' };
+    }
+  }
+
+  return {
+    temporaryPassword,
+    emailSent: Boolean(emailResult.sent),
+    emailStatus: emailResult.sent ? 'sent' : emailResult.reason,
+    emailConfigured: getPasswordResetEmailConfig().configured,
+  };
+}
+
+async function sendForgotPasswordTemporaryPassword(member) {
+  const temporaryPassword = generateTemporaryPassword();
+  let emailResult = { sent: false, reason: 'not_configured' };
+
+  await withTransaction(async (client) => {
+    const executor = (text, params = []) => client.query(text, params);
+    const lockedMember = await executor('SELECT * FROM team_members WHERE id = $1 FOR UPDATE', [member.id]);
+    const row = lockedMember.rows[0];
+    if (!row?.email) {
+      return;
+    }
+
+    await updateMemberTemporaryPassword(row, temporaryPassword, executor);
+    emailResult = await sendTemporaryPasswordEmail({
+      toEmail: row.email,
+      name: row.name,
+      temporaryPassword,
+    });
+
+    if (!emailResult.sent) {
+      const error = new Error(`Email de reset nao enviado: ${emailResult.reason}`);
+      error.statusCode = 503;
+      throw error;
+    }
+  });
+
+  return emailResult;
+}
+
 async function createAuthSession(memberId) {
   const token = randomBytes(32).toString('hex');
   const result = await query(
@@ -1971,6 +2092,7 @@ app.use(async (req, res, next) => {
     req.path === '/api/health'
     || req.path === '/api/auth/login'
     || req.path === '/api/auth/logout'
+    || req.path === '/api/auth/forgot-password'
     || req.path === '/api/auth/register-client'
   ) {
     return next();
@@ -2098,6 +2220,52 @@ app.post('/api/auth/register-client', async (req, res) => {
   const session = await createAuthSession(member.id);
   setSessionCookie(res, session.token, session.expiresAt, req);
   res.status(201).json({ user: toCamelTeam(member), expiresAt: session.expiresAt, vehicles });
+});
+
+app.post('/api/auth/forgot-password', async (req, res) => {
+  const email = normalizeEmail(req.body?.email || req.body?.identifier);
+  const responseMessage = getForgotPasswordResponseMessage();
+
+  if (!email) {
+    return res.status(400).json({ error: 'Informe o email cadastrado.' });
+  }
+
+  const rateLimitKey = buildLoginRateLimitKey(req, `forgot:${email}`);
+  const currentBucket = getPasswordResetAttemptBucket(rateLimitKey);
+  const now = Date.now();
+
+  if (currentBucket.blockedUntil && currentBucket.blockedUntil > now) {
+    const retryAfterSeconds = Math.max(1, Math.ceil((currentBucket.blockedUntil - now) / 1000));
+    res.setHeader('Retry-After', String(retryAfterSeconds));
+    return res.status(429).json({ error: 'Muitas solicitacoes de reset. Aguarde alguns minutos e tente novamente.' });
+  }
+
+  registerPasswordResetAttempt(rateLimitKey);
+
+  if (!isValidEmailAddress(email)) {
+    return res.json({ message: responseMessage });
+  }
+
+  const result = await query(
+    `
+    SELECT *
+    FROM team_members
+    WHERE LOWER(COALESCE(email, '')) = $1
+    LIMIT 1
+    `,
+    [email]
+  );
+  const member = result.rows[0];
+
+  if (member) {
+    try {
+      await sendForgotPasswordTemporaryPassword(member);
+    } catch (error) {
+      console.error('Falha no reset automatico de senha:', error);
+    }
+  }
+
+  res.json({ message: responseMessage });
 });
 
 app.post('/api/auth/logout', async (req, res) => {
@@ -2282,6 +2450,7 @@ app.get('/api/bootstrap', async (req, res) => {
 app.get('/api/vehicle-history', async (req, res) => {
   assertUserHasPermission(req.user, 'view_analytics', 'Voce nao tem permissao para visualizar o historico de veiculos.');
   const baseFilter = getBaseFilterForUser(req.user);
+  const dateRange = getDateRangeFromQuery(req.query);
   const [vehiclesResult, servicesResult] = await Promise.all([
     query('SELECT * FROM vehicles ORDER BY plate'),
     query(
@@ -2296,7 +2465,8 @@ app.get('/api/vehicle-history', async (req, res) => {
 
   const services = servicesResult.rows
     .filter((row) => rowIsVisibleToUser(req.user, row, baseFilter))
-    .map((row) => toCamelService(row, { includePhotos: false }));
+    .map((row) => toCamelService(row, { includePhotos: false }))
+    .filter((service) => serviceIsWithinDateRange(service, dateRange));
   const vehicles = vehiclesResult.rows
     .filter((row) => clientVehicleBelongsToUser(req.user, row))
     .map(toCamelVehicle);
@@ -2337,6 +2507,7 @@ app.get('/api/vehicle-history/:plate', async (req, res) => {
   }
 
   const baseFilter = getBaseFilterForUser(req.user);
+  const dateRange = getDateRangeFromQuery(req.query);
   const [vehicleResult, servicesResult] = await Promise.all([
     query('SELECT * FROM vehicles WHERE UPPER(plate) = UPPER($1) LIMIT 1', [plate]),
     query(
@@ -2352,7 +2523,8 @@ app.get('/api/vehicle-history/:plate', async (req, res) => {
 
   const services = servicesResult.rows
     .filter((row) => rowIsVisibleToUser(req.user, row, baseFilter))
-    .map((row) => toCamelService(row, { includePhotos: false }));
+    .map((row) => toCamelService(row, { includePhotos: false }))
+    .filter((service) => serviceIsWithinDateRange(service, dateRange));
   const vehicleRow = vehicleResult.rows[0] || null;
   const vehicle = vehicleRow && clientVehicleBelongsToUser(req.user, vehicleRow) ? toCamelVehicle(vehicleRow) : null;
   const groups = buildVehicleHistoryGroups(services, vehicle ? [vehicle] : []);
@@ -2830,6 +3002,22 @@ app.post('/api/team-members/upsert', async (req, res) => {
   await upsertTeamMemberRow(member);
   const result = await query('SELECT * FROM team_members WHERE id = $1', [member.id]);
   res.json(toCamelTeam(result.rows[0]));
+});
+
+app.post('/api/team-members/:id/reset-password', async (req, res) => {
+  assertUserHasPermission(req.user, 'manage_team');
+  const result = await query('SELECT * FROM team_members WHERE id = $1 LIMIT 1', [req.params.id]);
+  const member = result.rows[0];
+
+  if (!member) {
+    return res.status(404).json({ error: 'Usuario nao encontrado.' });
+  }
+
+  const payload = await resetMemberPasswordForAdmin(member, {
+    sendEmail: Boolean(req.body?.sendEmail),
+  });
+
+  res.json(payload);
 });
 
 app.delete('/api/team-members/:id', async (req, res) => {

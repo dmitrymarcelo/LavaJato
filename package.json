@@ -12,6 +12,7 @@
     "clean": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\"",
     "test:client-registration": "node scripts/test-client-registration.mjs",
     "test:dashboard": "node scripts/test-dashboard-metrics.mjs",
+    "test:password-reset": "node scripts/test-password-reset.mjs",
     "test:taruma-rules": "node scripts/test-taruma-scheduling-rules.mjs",
     "lint": "node ./node_modules/typescript/bin/tsc --noEmit",
     "docs:update": "node scripts/update-persistence-docs.mjs",
@@ -21,6 +22,7 @@
   },
   "dependencies": {
     "@aws-sdk/client-bedrock-runtime": "^3.1021.0",
+    "@aws-sdk/client-sesv2": "^3.1054.0",
     "bcryptjs": "^3.0.2",
     "compression": "^1.8.1",
     "cors": "^2.8.5",

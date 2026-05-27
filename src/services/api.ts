@@ -55,6 +55,17 @@ export interface ClientSignupResponse extends LoginResponse {
   vehicles: VehicleRegistration[];
 }
 
+export interface ForgotPasswordResponse {
+  message: string;
+}
+
+export interface PasswordResetResponse {
+  temporaryPassword: string;
+  emailSent: boolean;
+  emailStatus: string;
+  emailConfigured: boolean;
+}
+
 export interface SchedulingBookingPayload {
   appointment: Appointment;
   service: Service;
@@ -114,6 +125,11 @@ export interface VehicleHistorySummary {
 
 export interface VehicleHistoryDetail extends VehicleHistorySummary {
   records: Service[];
+}
+
+export interface VehicleHistoryDateRange {
+  startDate?: string;
+  endDate?: string;
 }
 
 export interface WeatherForecastDay {
@@ -203,6 +219,22 @@ function dispatchUnauthorizedSession(message: string) {
   } catch (error) {}
 }
 
+function buildDateRangeQuery(dateRange?: VehicleHistoryDateRange) {
+  const startDate = String(dateRange?.startDate || '').trim();
+  const endDate = String(dateRange?.endDate || '').trim();
+
+  if (!startDate || !endDate) {
+    return '';
+  }
+
+  const params = new URLSearchParams({
+    startDate,
+    endDate,
+  });
+
+  return `?${params.toString()}`;
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const headers = new Headers(init?.headers || {});
   headers.set('Content-Type', 'application/json');
@@ -228,7 +260,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
       }
     }
 
-    if (response.status === 401 && path !== '/auth/login' && path !== '/auth/register-client') {
+    if (response.status === 401 && path !== '/auth/login' && path !== '/auth/register-client' && path !== '/auth/forgot-password') {
       dispatchUnauthorizedSession(message);
     }
 
@@ -257,6 +289,11 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(payload),
     }),
+  forgotPassword: (email: string) =>
+    request<ForgotPasswordResponse>('/auth/forgot-password', {
+      method: 'POST',
+      body: JSON.stringify({ email }),
+    }),
   bootstrap: () => request<BootstrapPayload>('/bootstrap'),
   getVehicles: () =>
     request<VehicleRegistration[]>('/vehicles'),
@@ -274,10 +311,10 @@ export const api = {
     request<void>(`/vehicles/${encodeURIComponent(plate)}`, { method: 'DELETE' }),
   getService: (id: string) =>
     request<Service>(`/services/${encodeURIComponent(id)}`),
-  getVehicleHistory: () =>
-    request<VehicleHistorySummary[]>('/vehicle-history'),
-  getVehicleHistoryDetail: (plate: string) =>
-    request<VehicleHistoryDetail>(`/vehicle-history/${encodeURIComponent(plate)}`),
+  getVehicleHistory: (dateRange?: VehicleHistoryDateRange) =>
+    request<VehicleHistorySummary[]>(`/vehicle-history${buildDateRangeQuery(dateRange)}`),
+  getVehicleHistoryDetail: (plate: string, dateRange?: VehicleHistoryDateRange) =>
+    request<VehicleHistoryDetail>(`/vehicle-history/${encodeURIComponent(plate)}${buildDateRangeQuery(dateRange)}`),
   upsertService: (service: Service) =>
     request<Service>('/services/upsert', { method: 'POST', body: JSON.stringify(service) }),
   startWash: (serviceId: string, payload: StartWashPayload) =>
@@ -332,6 +369,11 @@ export const api = {
     request<void>(`/products/${id}`, { method: 'DELETE' }),
   upsertTeamMember: (member: TeamMember) =>
     request<TeamMember>('/team-members/upsert', { method: 'POST', body: JSON.stringify(member) }),
+  resetTeamMemberPassword: (id: string, options?: { sendEmail?: boolean }) =>
+    request<PasswordResetResponse>(`/team-members/${encodeURIComponent(id)}/reset-password`, {
+      method: 'POST',
+      body: JSON.stringify({ sendEmail: Boolean(options?.sendEmail) }),
+    }),
   deleteTeamMember: (id: string) =>
     request<void>(`/team-members/${id}`, { method: 'DELETE' }),
 };

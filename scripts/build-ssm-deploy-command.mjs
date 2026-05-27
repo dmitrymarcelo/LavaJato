@@ -4,6 +4,16 @@ if (!deploySha) {
   throw new Error('DEPLOY_SHA ou GITHUB_SHA deve estar definido para gerar o payload do deploy.');
 }
 
+function shellQuote(value) {
+  return `'${String(value || '').replace(/'/g, `'\\''`)}'`;
+}
+
+const httpsCertEmail = process.env.HTTPS_CERT_EMAIL || '';
+const passwordResetFromEmail = process.env.PASSWORD_RESET_FROM_EMAIL || '';
+const passwordResetFromName = process.env.PASSWORD_RESET_FROM_NAME || '';
+const passwordResetReplyTo = process.env.PASSWORD_RESET_REPLY_TO || '';
+const awsSesRegion = process.env.AWS_SES_REGION || '';
+
 const deployScript = [
   '#!/usr/bin/env bash',
   'set -euo pipefail',
@@ -29,6 +39,11 @@ const deployScript = [
   'trap log_failure ERR',
   `DEPLOY_SHA="${deploySha}"`,
   'cd /opt/lavajato/app',
+  'if [ -f .env ]; then',
+  '  set -a',
+  '  . ./.env',
+  '  set +a',
+  'fi',
   'git checkout -- HANDOFF.md AGENTS.md SKILLS.md || true',
   'git fetch origin',
   'git checkout main',
@@ -44,7 +59,22 @@ const deployScript = [
   'PUBLIC_HOST="$(printf "%s" "${PUBLIC_IP}" | tr \'.\' \'-\').sslip.io"',
   'APP_HOST="${PUBLIC_HOST}"',
   'APP_CERT_NAME="${APP_HOST}"',
+  `HTTPS_CERT_EMAIL_SECRET=${shellQuote(httpsCertEmail)}`,
+  `PASSWORD_RESET_FROM_EMAIL_SECRET=${shellQuote(passwordResetFromEmail)}`,
+  `PASSWORD_RESET_FROM_NAME_SECRET=${shellQuote(passwordResetFromName)}`,
+  `PASSWORD_RESET_REPLY_TO_SECRET=${shellQuote(passwordResetReplyTo)}`,
+  `AWS_SES_REGION_SECRET=${shellQuote(awsSesRegion)}`,
+  'if [ -n "${HTTPS_CERT_EMAIL_SECRET}" ]; then HTTPS_CERT_EMAIL="${HTTPS_CERT_EMAIL_SECRET}"; fi',
+  'if [ -n "${PASSWORD_RESET_FROM_EMAIL_SECRET}" ]; then PASSWORD_RESET_FROM_EMAIL="${PASSWORD_RESET_FROM_EMAIL_SECRET}"; fi',
+  'if [ -n "${PASSWORD_RESET_FROM_NAME_SECRET}" ]; then PASSWORD_RESET_FROM_NAME="${PASSWORD_RESET_FROM_NAME_SECRET}"; fi',
+  'if [ -n "${PASSWORD_RESET_REPLY_TO_SECRET}" ]; then PASSWORD_RESET_REPLY_TO="${PASSWORD_RESET_REPLY_TO_SECRET}"; fi',
+  'if [ -n "${AWS_SES_REGION_SECRET}" ]; then AWS_SES_REGION="${AWS_SES_REGION_SECRET}"; fi',
   'HTTPS_CERT_EMAIL="${HTTPS_CERT_EMAIL:-}"',
+  'PASSWORD_RESET_FROM_EMAIL="${PASSWORD_RESET_FROM_EMAIL:-}"',
+  'PASSWORD_RESET_FROM_NAME="${PASSWORD_RESET_FROM_NAME:-}"',
+  'PASSWORD_RESET_REPLY_TO="${PASSWORD_RESET_REPLY_TO:-}"',
+  'AWS_SES_REGION="${AWS_SES_REGION:-}"',
+  'PUBLIC_APP_URL="https://${APP_HOST}/"',
   'echo "Canonical HTTPS host: ${APP_HOST}"',
   'CERTBOT_CONTACT_ARGS=()',
   'if printf "%s" "${HTTPS_CERT_EMAIL}" | grep -Eq "^[^[:space:]@]+@[^[:space:]@]+\\.[^[:space:]@]+$"; then',
@@ -66,6 +96,11 @@ const deployScript = [
   'export APP_BUILD_SHA="${DEPLOY_SHA}"',
   'export APP_HOST',
   'export APP_CERT_NAME',
+  'export PUBLIC_APP_URL',
+  'export PASSWORD_RESET_FROM_EMAIL',
+  'export PASSWORD_RESET_FROM_NAME',
+  'export PASSWORD_RESET_REPLY_TO',
+  'export AWS_SES_REGION',
   'docker compose build api web',
   'docker compose up -d --force-recreate api web',
   'for attempt in $(seq 1 18); do',

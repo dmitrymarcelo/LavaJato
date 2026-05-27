@@ -19,6 +19,14 @@ services:
     environment:
       DATABASE_URL: postgresql://postgres:postgres@postgres:5432/lavajato
       API_PORT: 4000
+      PUBLIC_APP_URL: ${PUBLIC_APP_URL:-https://3-145-153-19.sslip.io/}
+      AWS_REGION: ${AWS_REGION:-us-east-2}
+      AWS_SES_REGION: ${AWS_SES_REGION:-us-east-2}
+      PASSWORD_RESET_FROM_EMAIL: ${PASSWORD_RESET_FROM_EMAIL:-}
+      PASSWORD_RESET_FROM_NAME: ${PASSWORD_RESET_FROM_NAME:-Lava Jato Norte Tech}
+      PASSWORD_RESET_REPLY_TO: ${PASSWORD_RESET_REPLY_TO:-}
+      PASSWORD_RESET_RATE_LIMIT_WINDOW_MS: ${PASSWORD_RESET_RATE_LIMIT_WINDOW_MS:-900000}
+      PASSWORD_RESET_RATE_LIMIT_MAX_ATTEMPTS: ${PASSWORD_RESET_RATE_LIMIT_MAX_ATTEMPTS:-4}
     depends_on:
       - postgres
     ports:

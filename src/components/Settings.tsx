@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
-import { Shield, UserCog, CheckCircle2, XCircle, Save, Info, Lock, Eye, Edit3, Trash2, BarChart3, Users, UserPlus, Star, Clock, MoreVertical, Search, Filter, ShieldCheck, Car, Bike, Truck, Ship, Plus, Upload, FileSpreadsheet, Download, Package } from 'lucide-react';
+import { Shield, UserCog, CheckCircle2, XCircle, Save, Info, Lock, Eye, Edit3, Trash2, BarChart3, Users, UserPlus, Star, Clock, MoreVertical, Search, Filter, ShieldCheck, Car, Bike, Truck, Ship, Plus, Upload, FileSpreadsheet, Download, Package, Copy } from 'lucide-react';
 import { RoleAccessRule, Screen, TeamMember, VehicleCategory, VehicleType, ServiceTypeOption, VehicleRegistration } from '../types';
 import { motion, AnimatePresence } from '../lib/motion';
 import { digitsOnly, formatCpf, generateId, isValidCpf, isValidEmail, optimizeImageFile, validateStrongPassword } from '../utils/app';
 import { getSourceVehicleTypeLabel, mapSourceVehicleTypeToCategory, normalizeSourceVehicleType } from '../utils/vehicleType';
 import { BASES } from '../data/bases';
+import { api, PasswordResetResponse } from '../services/api';
 import ModalSurface from './ModalSurface';
 import { DEFAULT_AVATAR_IMAGE_SRC, getSafeAvatarImage } from '../lib/placeholders';
 import { getUserPermissions } from '../lib/access';
@@ -46,6 +47,12 @@ const INITIAL_RULES: RoleAccessRule[] = [
   { role: 'Lavador', permissions: [] },
   { role: 'Clientes', permissions: ['manage_b2b'] },
 ];
+
+interface PasswordResetResultState {
+  memberName: string;
+  memberEmail: string;
+  result: PasswordResetResponse;
+}
 
 export default function Settings({ 
   onNavigate, 
@@ -89,6 +96,7 @@ export default function Settings({
   const [newVehicle, setNewVehicle] = useState<Partial<VehicleRegistration>>({ type: 'car' });
   const [feedback, setFeedback] = useState<FeedbackState | null>(null);
   const [confirmation, setConfirmation] = useState<ConfirmationState | null>(null);
+  const [passwordResetResult, setPasswordResetResult] = useState<PasswordResetResultState | null>(null);
   const [isConfirmingAction, setIsConfirmingAction] = useState(false);
   const newVehicleCpfError = newVehicle.thirdPartyCpf ? (!isValidCpf(newVehicle.thirdPartyCpf) ? 'CPF invalido.' : null) : null;
   const currentPermissions = React.useMemo(() => getUserPermissions(currentUser, accessRules), [currentUser, accessRules]);
@@ -330,6 +338,43 @@ export default function Settings({
         showFeedback('Colaborador removido com sucesso.', 'success');
       },
     });
+  };
+
+  const handleResetMemberPassword = (member: TeamMember) => {
+    if (!canManageTeam) {
+      showFeedback('Voce nao tem permissao para resetar senha.');
+      return;
+    }
+
+    requestConfirmation({
+      title: 'Resetar senha',
+      message: `Gerar uma senha temporaria para ${member.name}? As sessoes antigas deste usuario serao encerradas.`,
+      confirmLabel: 'Resetar',
+      tone: 'primary',
+      onConfirm: async () => {
+        const result = await api.resetTeamMemberPassword(member.id, { sendEmail: Boolean(member.email) });
+        setPasswordResetResult({
+          memberName: member.name,
+          memberEmail: member.email || '',
+          result,
+        });
+        setOpenMenuId(null);
+        showFeedback('Senha temporaria gerada com sucesso.', 'success');
+      },
+    });
+  };
+
+  const handleCopyTemporaryPassword = async () => {
+    if (!passwordResetResult?.result.temporaryPassword) {
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(passwordResetResult.result.temporaryPassword);
+      showFeedback('Senha temporaria copiada.', 'success');
+    } catch (error) {
+      showFeedback('Nao foi possivel copiar automaticamente. Selecione e copie a senha manualmente.', 'info');
+    }
   };
 
   const handleEditMember = (member: TeamMember) => {
@@ -935,13 +980,20 @@ export default function Settings({
                             {openMenuId === member.id && (
                               <>
                                 <div className="fixed inset-0 z-10" onClick={() => setOpenMenuId(null)} />
-                                <div className="absolute right-0 top-full mt-1 w-32 bg-white rounded-xl shadow-xl border border-slate-100 z-20 overflow-hidden">
+                                <div className="absolute right-0 top-full mt-1 w-44 bg-white rounded-xl shadow-xl border border-slate-100 z-20 overflow-hidden">
                                   <button
                                     onClick={() => handleEditMember(member)}
                                     className="w-full text-left px-4 py-3 text-xs font-bold text-slate-700 hover:bg-slate-50 flex items-center gap-2"
                                   >
                                     <Edit3 className="w-3.5 h-3.5" />
                                     Editar
+                                  </button>
+                                  <button
+                                    onClick={() => handleResetMemberPassword(member)}
+                                    className="w-full text-left px-4 py-3 text-xs font-bold text-amber-700 hover:bg-amber-50 flex items-center gap-2"
+                                  >
+                                    <Lock className="w-3.5 h-3.5" />
+                                    Resetar senha
                                   </button>
                                   <button 
                                     onClick={() => handleDeleteMember(member.id)}
@@ -1191,6 +1243,57 @@ export default function Settings({
                 }`}
               >
                 {isConfirmingAction ? 'Processando...' : confirmation.confirmLabel}
+              </button>
+            </div>
+          </ModalSurface>
+        )}
+
+        {passwordResetResult && (
+          <ModalSurface onClose={() => setPasswordResetResult(null)} overlayClassName="z-[145]" panelClassName="max-w-md rounded-3xl p-6 space-y-5">
+            <div className="space-y-3">
+              <div className="inline-flex rounded-2xl bg-amber-50 p-3 text-amber-600">
+                <Lock className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-lg font-black text-slate-900">Senha temporaria gerada</h3>
+                <p className="mt-2 text-sm leading-relaxed text-slate-500">
+                  Entregue esta senha para {passwordResetResult.memberName}. O usuario deve entrar com ela no proximo login.
+                </p>
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-amber-100 bg-amber-50 px-4 py-3">
+              <p className="text-[10px] font-black uppercase tracking-widest text-amber-700">Senha temporaria</p>
+              <p className="mt-1 select-all break-all text-xl font-black text-slate-950">{passwordResetResult.result.temporaryPassword}</p>
+            </div>
+
+            <div className={`rounded-2xl border px-4 py-3 text-sm font-bold ${
+              passwordResetResult.result.emailSent
+                ? 'border-emerald-100 bg-emerald-50 text-emerald-700'
+                : 'border-slate-100 bg-slate-50 text-slate-600'
+            }`}>
+              {passwordResetResult.result.emailSent
+                ? `Email enviado para ${passwordResetResult.memberEmail}.`
+                : passwordResetResult.memberEmail
+                  ? 'Email nao enviado. Verifique se o remetente SES esta configurado; use a senha acima manualmente.'
+                  : 'Este usuario nao possui email cadastrado; use a senha acima manualmente.'}
+            </div>
+
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={() => setPasswordResetResult(null)}
+                className="flex-1 rounded-2xl border border-slate-200 px-4 py-3 text-sm font-bold text-slate-500 transition-colors hover:bg-slate-50"
+              >
+                Fechar
+              </button>
+              <button
+                type="button"
+                onClick={handleCopyTemporaryPassword}
+                className="flex-1 rounded-2xl bg-amber-500 px-4 py-3 text-sm font-black text-slate-950 transition-all active:scale-[0.98] flex items-center justify-center gap-2"
+              >
+                <Copy className="w-4 h-4" />
+                Copiar
               </button>
             </div>
           </ModalSurface>

@@ -1,7 +1,7 @@
 # AGENTS.md - Lava Jato Norte Tech
 
 Atualizado em: 2026-05-27
-Commit de referencia: `2bacc0a51772095fd30f4a57b9e5e129cb94bb5e`
+Commit de referencia: `0bad58f80290d25535747b9641b2f573870bcdf8`
 
 ## Objetivo
 
@@ -188,6 +188,7 @@ Este projeto adota os seguintes principios, alinhados a boas praticas publicadas
 - UX atual: a tela de configuracoes usa feedback visual proprio para erro, sucesso e confirmacao, evitando dialogos nativos do navegador
 - Persistencia atual: importacao de CSV da base de veiculos usa `bulk upsert` transacional no backend e lotes no frontend, com estado de carregamento explicito apos refresh
 - Correcao recente: o carregamento da base de veiculos em `Configuracoes` nao pode mais se autocancelar por mudanca da propria flag de loading; esse ciclo foi removido em `src/App.tsx`
+- Capacidade atual: administradores podem resetar senha manualmente em `Configuracoes`, copiar a senha temporaria e, quando SES estiver configurado, enviar a senha temporaria ao email cadastrado; clientes tambem podem pedir reset automatico em `Esqueceu senha?` na tela de login
 - Estado atual de seguranca: as rotas administrativas principais agora exigem `Administrador` no servidor; o risco remanescente e evoluir isso para RBAC fino alinhado a `access_rules` e mover sessao do browser para cookie `HttpOnly` quando o projeto estiver pronto para CSRF server-side
 - Owner sugerido: backend + seguranca + administracao
 
@@ -200,6 +201,7 @@ Este projeto adota os seguintes principios, alinhados a boas praticas publicadas
 - Saidas: KPIs do painel, rankings, faturamento, historico exportavel e contexto para clientes
 - Guardrails: escopo por base para clientes, consultas separadas para historico detalhado
 - Capacidade atual: o `Painel` exibe `Lavados ate hoje`, calculado de forma deterministica a partir dos servicos concluidos, em pagamento ou com marco real de conclusao de lavagem, excluindo `no_show`
+- Capacidade atual: `Painel` e `Historico de Veiculos` possuem filtro de periodo livre, com inicio/fim escolhidos pelo usuario e totais recalculados para o intervalo selecionado
 - Capacidade recente: o export de `Historico de Veiculos` passou a levar tipo de lavagem, status, responsaveis, ticket medio e tempos operacionais por resumo e por detalhe
 - Owner sugerido: produto + gestao operacional
 
