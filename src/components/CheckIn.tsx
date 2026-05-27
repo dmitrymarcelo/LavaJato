@@ -226,7 +226,7 @@ export default function CheckIn({
           <button
             type="button"
             onClick={handleVehicleLookup}
-            className="bg-primary text-white px-6 flex items-center justify-center hover:bg-blue-600 active:bg-blue-700 active:scale-95 transition-all"
+            className="bg-primary text-white px-6 flex items-center justify-center hover:bg-amber-700 active:bg-amber-800 active:scale-95 transition-all"
           >
             <Search className="w-6 h-6" />
           </button>
@@ -380,7 +380,7 @@ export default function CheckIn({
       <div className="pt-4 pb-12">
         <button
           onClick={handleStartCheckIn}
-          className="w-full bg-primary hover:bg-blue-600 text-white font-black py-5 rounded-2xl shadow-xl shadow-primary/20 active:scale-[0.98] transition-all flex items-center justify-center gap-3 uppercase tracking-widest"
+          className="w-full bg-primary hover:bg-amber-700 text-white font-black py-5 rounded-2xl shadow-xl shadow-primary/20 active:scale-[0.98] transition-all flex items-center justify-center gap-3 uppercase tracking-widest"
         >
           <span>Iniciar Check-in</span>
           <PlayCircle className="w-6 h-6" />

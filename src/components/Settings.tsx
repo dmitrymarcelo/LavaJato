@@ -1024,7 +1024,7 @@ export default function Settings({
               {canEditServices && (
                 <button
                   onClick={() => openNewServiceModal()}
-                  className="bg-primary text-white px-4 py-2 rounded-xl font-bold text-xs flex items-center gap-2 active:scale-95 transition-all shadow-sm hover:bg-blue-600"
+                  className="bg-primary text-white px-4 py-2 rounded-xl font-bold text-xs flex items-center gap-2 active:scale-95 transition-all shadow-sm hover:bg-amber-700"
                 >
                   <Plus className="w-4 h-4" />
                   <span>Adicionar Serviço</span>
@@ -1105,7 +1105,7 @@ export default function Settings({
                 <div className="flex gap-2">
                   <button 
                     onClick={() => setIsAddingVehicle(true)}
-                    className="bg-primary text-white px-4 py-2 rounded-xl font-bold text-xs flex items-center gap-2 active:scale-95 transition-all shadow-sm hover:bg-blue-600"
+                    className="bg-primary text-white px-4 py-2 rounded-xl font-bold text-xs flex items-center gap-2 active:scale-95 transition-all shadow-sm hover:bg-amber-700"
                   >
                     <Plus className="w-4 h-4" />
                     <span>Novo Cadastro</span>
@@ -1239,7 +1239,7 @@ export default function Settings({
                 className={`flex-1 rounded-2xl px-4 py-3 text-sm font-bold text-white transition-all disabled:opacity-70 ${
                   confirmation.tone === 'danger'
                     ? 'bg-rose-500 shadow-lg shadow-rose-500/20 hover:bg-rose-600'
-                    : 'bg-primary shadow-lg shadow-primary/20 hover:bg-blue-600'
+                    : 'bg-primary shadow-lg shadow-primary/20 hover:bg-amber-700'
                 }`}
               >
                 {isConfirmingAction ? 'Processando...' : confirmation.confirmLabel}

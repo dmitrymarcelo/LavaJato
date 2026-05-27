@@ -44,7 +44,7 @@ export default function ModalSurface({
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       onClick={onClose}
-      className={`fixed inset-0 z-[140] flex overflow-hidden justify-center p-3 sm:p-4 bg-slate-950/55 backdrop-blur-sm ${centered ? 'items-center' : 'items-end sm:items-center'} ${overlayClassName}`}
+      className={`fixed inset-0 z-[140] flex overflow-hidden justify-center p-3 sm:p-4 bg-slate-200/70 backdrop-blur-sm ${centered ? 'items-center' : 'items-end sm:items-center'} ${overlayClassName}`}
     >
       <motion.div
         initial={centered ? { opacity: 0, scale: 0.96 } : { y: '100%' }}

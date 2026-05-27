@@ -178,9 +178,9 @@ export default function Login({ onLogin, onClientSignup }: LoginProps) {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
-      <div className="w-full max-w-6xl overflow-hidden rounded-[28px] bg-white shadow-2xl shadow-slate-200/60 grid lg:grid-cols-[0.9fr_1.1fr]">
-        <aside className="hidden lg:flex flex-col justify-between bg-slate-950 text-white p-10">
+    <div className="min-h-screen bg-[#f8fafc] flex items-center justify-center p-4">
+      <div className="w-full max-w-6xl overflow-hidden rounded-[28px] border border-slate-200/70 bg-white shadow-2xl shadow-slate-200/70 grid lg:grid-cols-[0.92fr_1.08fr]">
+        <aside className="hidden lg:flex flex-col justify-between border-r border-amber-100 bg-amber-50/70 text-slate-900 p-10">
           <div>
             <div className="flex items-center gap-3">
               <img
@@ -189,30 +189,30 @@ export default function Login({ onLogin, onClientSignup }: LoginProps) {
                 className="w-12 h-12 object-contain"
                 referrerPolicy="no-referrer"
               />
-              <h1 className="text-2xl font-black tracking-tight">
-              Norte <span className="text-amber-300">Tech</span>
+              <h1 className="text-2xl font-black tracking-tight text-slate-950">
+              Norte <span className="text-amber-600">Tech</span>
               </h1>
             </div>
 
             <div className="mt-14 space-y-5">
-              <p className="text-sm font-bold uppercase tracking-[0.24em] text-amber-200">Acesso do cliente</p>
+              <p className="text-sm font-bold uppercase tracking-[0.24em] text-amber-700">Acesso do cliente</p>
               <h2 className="text-4xl font-black leading-tight tracking-tight">
                 Login e cadastro direto para agendar lavagens.
               </h2>
-              <p className="text-base font-medium leading-7 text-slate-300">
+              <p className="text-base font-medium leading-7 text-slate-600">
                 O cliente entra, cadastra seus veiculos e ja acessa a agenda da base liberada.
               </p>
             </div>
           </div>
 
           <div className="grid gap-3">
-            <div className="flex items-center gap-3 rounded-2xl bg-amber-400/10 px-4 py-3">
-              <ShieldCheck className="w-5 h-5 text-amber-200" />
-              <span className="text-sm font-bold text-slate-100">Permissao automatica como Clientes</span>
+            <div className="flex items-center gap-3 rounded-2xl border border-amber-100 bg-white px-4 py-3 shadow-sm">
+              <ShieldCheck className="w-5 h-5 text-amber-600" />
+              <span className="text-sm font-bold text-slate-700">Permissao automatica como Clientes</span>
             </div>
-            <div className="flex items-center gap-3 rounded-2xl bg-amber-400/10 px-4 py-3">
-              <Car className="w-5 h-5 text-amber-200" />
-              <span className="text-sm font-bold text-slate-100">Veiculos vinculados ao cadastro</span>
+            <div className="flex items-center gap-3 rounded-2xl border border-amber-100 bg-white px-4 py-3 shadow-sm">
+              <Car className="w-5 h-5 text-amber-600" />
+              <span className="text-sm font-bold text-slate-700">Veiculos vinculados ao cadastro</span>
             </div>
           </div>
         </aside>
@@ -473,7 +473,7 @@ export default function Login({ onLogin, onClientSignup }: LoginProps) {
                   <button
                     type="button"
                     onClick={addClientVehicle}
-                    className="h-10 px-3 rounded-xl bg-slate-900 text-amber-100 font-black text-xs flex items-center gap-2 active:scale-[0.98] transition-all"
+                    className="h-10 px-3 rounded-xl border border-amber-200 bg-white text-amber-700 font-black text-xs flex items-center gap-2 active:scale-[0.98] transition-all hover:bg-amber-50"
                   >
                     <Plus className="w-4 h-4" />
                     <span>Adicionar</span>

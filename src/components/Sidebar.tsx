@@ -317,7 +317,7 @@ export default function Sidebar({
                   isOpen ? 'justify-between px-4 py-3.5' : 'justify-center p-3.5'
                 } ${
                   isActive
-                    ? 'bg-primary text-white shadow-lg shadow-primary/20'
+                    ? 'bg-amber-50 text-primary ring-1 ring-amber-100 shadow-sm'
                     : 'text-slate-500 hover:bg-slate-50 hover:text-slate-900'
                 }`}
               >
@@ -331,18 +331,18 @@ export default function Sidebar({
           })}
 
           {isOpen ? (
-            <div className="mt-4 rounded-3xl overflow-hidden border border-slate-200 bg-gradient-to-br from-slate-900 via-slate-900 to-slate-800 text-white shadow-xl">
+            <div className="light-weather mt-4 rounded-3xl overflow-hidden border border-amber-100 bg-amber-50/70 text-slate-900 shadow-sm">
               <div className="px-4 pt-4 pb-3">
                 <div className="flex items-start justify-between gap-3">
                   <div>
-                    <p className="text-[10px] font-black uppercase tracking-[0.18em] text-white/75">Clima</p>
-                    <p className="mt-1 text-[10px] font-bold uppercase tracking-widest text-white/60">
+                    <p className="text-[10px] font-black uppercase tracking-[0.18em] text-amber-700">Clima</p>
+                    <p className="mt-1 text-[10px] font-bold uppercase tracking-widest text-slate-500">
                       {forecast?.generatedAt
                         ? `Atualizado ${new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-digit' }).format(new Date(forecast.generatedAt))}`
                         : 'Carregando...'}
                     </p>
                   </div>
-                  <p className="text-[10px] font-bold uppercase tracking-widest text-white/55">
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
                     {forecast?.source === 'open-meteo' ? 'Open-Meteo' : 'Assistente'}
                   </p>
                 </div>
@@ -366,18 +366,18 @@ export default function Sidebar({
                       return (
                         <>
                           {forecast.current && (
-                            <div className="rounded-3xl border border-white/10 bg-white/5 px-4 py-4">
+                            <div className="rounded-3xl border border-amber-100 bg-white px-4 py-4 shadow-sm">
                               <div className="flex items-start justify-between gap-3">
                                 <div className="flex items-center gap-3">
-                                  <div className="w-12 h-12 rounded-2xl bg-white/10 border border-white/10 flex items-center justify-center">
+                                  <div className="w-12 h-12 rounded-2xl bg-amber-100 border border-amber-100 flex items-center justify-center">
                                     {renderConditionIcon(current?.condition ?? today.condition)}
                                   </div>
                                   <div>
-                                    <p className="text-[10px] font-black uppercase tracking-widest text-white/70">Agora</p>
-                                    <p className="text-2xl font-black text-white leading-tight">
+                                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">Agora</p>
+                                    <p className="text-2xl font-black text-slate-900 leading-tight">
                                       {currentTemp === null ? '—' : `${currentTemp}°`}
                                     </p>
-                                    <p className="mt-0.5 text-[10px] font-bold uppercase tracking-widest text-white/60">
+                                    <p className="mt-0.5 text-[10px] font-bold uppercase tracking-widest text-slate-500">
                                       {forecast.current?.time ? formatHourLabel(forecast.current.time) : '—'}
                                     </p>
                                   </div>

@@ -6,7 +6,7 @@ Atualizado em: 2026-05-27
 
 - Repositorio: `https://github.com/dmitrymarcelo/LavaJato`
 - Branch principal: `main`
-- Commit atual: `1e91000b535f3bb326a9b7ea502b96c84e441dea`
+- Commit atual: `2013e24d4cccf83852da3ad3dd56f23faaaeeaa8`
 - Producao AWS atual: `https://3-145-153-19.sslip.io/` (hostname publico com certificado HTTPS confiavel)
 - Regiao AWS: `us-east-2`
 - Instancia usada no deploy: `i-0ba1477cbbe3d986d`
@@ -105,8 +105,16 @@ Observacao:
 - Os cards da fila possuem menu de `Editar` e `Excluir`.
 - A foto `Frente` do checklist vira imagem principal do card do veiculo.
 - `Inspecao Pre` e `Inspecao Pos` exigem no minimo `1` foto.
+- Regra visual permanente: criar telas em tons claros, com branco/cinza suave como base e ambar da marca como acento; evitar fundos escuros ou preto/navy pesado porque a gestao prefere uma experiencia leve e harmoniosa.
 
 ## Correcoes estruturais recentes
+
+### Identidade visual clara
+
+- A tela de login deixou o visual escuro e passou a usar superficies brancas, painel institucional claro, chips com borda ambar e acoes mais harmonicas com a logomarca.
+- A sidebar, clima, modais e acoes principais foram ajustados para tons claros com ambar controlado, reduzindo o peso visual do sistema.
+- `src/index.css` passou a centralizar a cor primaria em ambar e a corrigir classes legadas do card de clima para manter contraste sobre fundo claro.
+- Botoes que ainda puxavam azul escuro ou slate pesado foram trocados para estados ambar, preservando foco visual sem deixar a interface pesada.
 
 ### Painel e memoria operacional
 
@@ -257,7 +265,7 @@ Observacao:
 
 ## Commits recentes relevantes
 
-- `1e91000` `ui: reorganizar painel gerencial`
+- `2013e24` `ui: reorganizar painel gerencial`
 - `5b4dbca` `feat: filtros avancados e reset de senha`
 - `fc9a0d4` `fix: isolar placas por cliente`
 - `2bacc0a` `feat: cadastro publico de clientes`
@@ -374,6 +382,7 @@ Com isso, qualquer alteracao publicada em `main` dispara o deploy via SSM no EC2
 - `SKILLS.md` passa a ser a referencia persistente de capacidades reutilizaveis e contratos tecnicos do projeto.
 - O botao flutuante do assistente IA foi removido da UI principal; a integracao Bedrock segue existente no backend, mas sem CTA visivel no app.
 - A logomarca oficial da empresa voltou para o login e para o canto superior esquerdo do sistema, mas agora empacotada localmente em `public/brand/nortetech-circle.png`, sem dependencia externa em runtime.
+- A diretriz visual atual e `light-first`: branco, cinza muito suave e ambar; tons escuros devem ficar restritos a texto/contraste pontual, nunca como bloco dominante.
 - O cadastro de `Novo Veiculo` no acesso de cliente foi corrigido:
   - o backend agora aceita o `upsert` unitario desse fluxo sem liberar importacao/listagem administrativa
   - clientes nao podem sobrescrever veiculo ja pertencente a outro cadastro
@@ -381,7 +390,7 @@ Com isso, qualquer alteracao publicada em `main` dispara o deploy via SSM no EC2
   - os precos de servico no modal e no seletor passaram a usar formatacao monetaria `pt-BR`, evitando textos como `80.75,00`
 - A tela `Configuracoes > Cadastros de Clientes` trocou `alert/confirm` por feedback visual interno, leve e mais amigavel para smartphone, sem adicionar polling ou dependencias pesadas.
 - O GitHub e a fonte principal da continuidade.
-- Se mudar de computador, o ideal e continuar a partir do commit `1e91000` ou posterior.
+- Se mudar de computador, o ideal e continuar a partir do commit `2013e24` ou posterior.
 - Imagens enviadas ficam em `server/storage/uploads` (persistidas via volume Docker).
 - Em producao, altere a senha do administrador imediatamente.
 

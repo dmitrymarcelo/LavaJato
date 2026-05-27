@@ -278,7 +278,7 @@ export default function Dashboard({
           <button
             type="button"
             onClick={() => setIsReportOpen(true)}
-            className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 text-xs font-black uppercase tracking-widest text-white shadow-sm transition-all hover:bg-slate-800 active:scale-95"
+            className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-amber-500 px-4 text-xs font-black uppercase tracking-widest text-slate-950 shadow-sm shadow-amber-500/20 transition-all hover:bg-amber-600 active:scale-95"
           >
             <FileText className="h-4 w-4" />
             Relatorio completo
@@ -419,14 +419,14 @@ export default function Dashboard({
             </div>
             <div className="grid grid-cols-2 gap-3">
               {executiveCards.map((card) => (
-                <React.Fragment key={card.label}>
+                <div key={card.label}>
                   <ExecutiveCard
                     icon={card.icon}
                     label={card.label}
                     value={card.value}
                     note={card.note}
                   />
-                </React.Fragment>
+                </div>
               ))}
             </div>
             <div className="mt-4 rounded-2xl border border-slate-100 bg-slate-50 p-4">
@@ -725,7 +725,7 @@ function ManagerReportModal({
           <button
             type="button"
             onClick={() => window.print()}
-            className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 text-xs font-black uppercase tracking-widest text-white transition-all hover:bg-slate-800 active:scale-95"
+            className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-amber-500 px-4 text-xs font-black uppercase tracking-widest text-slate-950 transition-all hover:bg-amber-600 active:scale-95"
           >
             <Printer className="h-4 w-4" />
             Imprimir / PDF

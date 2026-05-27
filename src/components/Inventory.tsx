@@ -390,7 +390,7 @@ export default function Inventory({
               onClick={() => setFilterStatus(status)}
               className={`px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider border transition-all whitespace-nowrap ${
                 filterStatus === status
-                  ? 'bg-slate-900 text-white border-slate-900'
+                  ? 'bg-amber-50 text-primary border-amber-200 shadow-sm'
                   : 'bg-white text-slate-500 border-slate-100 hover:border-slate-300'
               }`}
             >
@@ -881,7 +881,7 @@ export default function Inventory({
 
                 <button
                   type="submit"
-                  className="w-full bg-slate-900 text-white font-bold py-4 rounded-2xl shadow-lg active:scale-[0.98] transition-all flex items-center justify-center gap-2"
+                  className="w-full bg-amber-500 text-slate-950 font-bold py-4 rounded-2xl shadow-lg shadow-amber-500/20 active:scale-[0.98] transition-all flex items-center justify-center gap-2"
                 >
                   <MinusCircle className="w-5 h-5" />
                   <span>Registrar Baixa</span>

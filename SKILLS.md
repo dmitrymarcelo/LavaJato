@@ -1,7 +1,7 @@
 # SKILLS.md - Lava Jato Norte Tech
 
 Atualizado em: 2026-05-27
-Commit de referencia: `1e91000b535f3bb326a9b7ea502b96c84e441dea`
+Commit de referencia: `2013e24d4cccf83852da3ad3dd56f23faaaeeaa8`
 
 ## Objetivo
 
@@ -20,6 +20,7 @@ Ele complementa o `AGENTS.md`:
 - skills criticas de operacao devem sobreviver a rede instavel
 - skills administrativas nunca podem depender apenas do frontend para seguranca
 - assets de identidade visual que impactam confianca do usuario devem ficar versionados localmente no projeto
+- qualquer tela nova deve nascer em tema claro, com branco/cinza suave como base e ambar da marca como acento principal
 - skills generativas sao consultivas, nao autoritativas, salvo regra explicitamente aprovada (ex.: clima exibido na sidebar)
 
 ## Classificacao
@@ -300,6 +301,16 @@ Ele complementa o `AGENTS.md`:
 - Dependencias: `src/App.tsx`, `src/components/Notifications.tsx`, `src/components/Payment.tsx`
 - Falha esperada: evento repetido por retentativa, clique ambiguuo no sino ou sincronizacao silenciosa demais
 - Resposta esperada: deduplicar por `id`, usar toggle explicito no botao de notificacoes, exibir feedback leve no topo sem interromper o redirecionamento para `Pagamento` e evitar `alert` bloqueante no mobile
+
+### S24. `visual-light-system`
+
+- Tipo: governanca
+- Objetivo: manter o sistema com aparencia profissional, clara e harmoniosa com a logomarca Norte Tech
+- Entradas: telas novas, refino de componentes, botoes, cards, modais, sidebar e login
+- Saidas: UI com superficies brancas, cinzas leves, bordas discretas, sombras suaves e ambar como acento controlado
+- Dependencias: `src/index.css`, `src/components/Login.tsx`, `src/components/Sidebar.tsx`, `src/components/ModalSurface.tsx`, componentes principais do app
+- Falha esperada: retorno de fundos escuros, azul pesado, gradientes fortes ou contraste visual desalinhado com a marca
+- Resposta esperada: substituir blocos escuros por superficies claras, preservar texto em alto contraste e usar ambar apenas para foco, estado ativo e chamadas principais
 
 ## Procedimento operacional
 

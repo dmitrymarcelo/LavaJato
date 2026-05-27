@@ -152,7 +152,7 @@ export default function Payment({
               className={`w-full font-bold py-4 rounded-xl shadow-lg shadow-primary/20 flex items-center justify-center gap-2 transition-transform ${
                 isSubmitting
                   ? 'bg-primary/70 text-white cursor-wait'
-                  : 'bg-primary hover:bg-blue-600 text-white active:scale-[0.98]'
+                  : 'bg-primary hover:bg-amber-700 text-white active:scale-[0.98]'
               }`}
             >
               <CheckCircle2 className="w-5 h-5" />

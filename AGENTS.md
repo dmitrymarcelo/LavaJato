@@ -1,7 +1,7 @@
 # AGENTS.md - Lava Jato Norte Tech
 
 Atualizado em: 2026-05-27
-Commit de referencia: `1e91000b535f3bb326a9b7ea502b96c84e441dea`
+Commit de referencia: `2013e24d4cccf83852da3ad3dd56f23faaaeeaa8`
 
 ## Objetivo
 
@@ -56,6 +56,7 @@ O sistema precisa garantir cinco resultados de negocio sem ambiguidade:
 - persistencia mobile resiliente usando fila local para fotos e transicoes operacionais
 - endurecimento recente de seguranca no backend com rate limit de login, CORS restritivo por mesmo-origem/allowlist, validacao de origem para mutacoes, cookie de sessao `HttpOnly` e enforcement real por permissao nas rotas mais sensiveis
 - deploy automatico em `main`, com memoria operacional sincronizada em `HANDOFF.md` e validacao de SHA real do frontend servido pela EC2
+- identidade visual atual em tons claros: priorizar branco, cinzas suaves e ambar alinhado a logomarca; evitar fundos escuros, preto/navy pesado e gradientes dominantes nas novas telas
 
 ### Hotspots tecnicos
 
@@ -185,6 +186,7 @@ Este projeto adota os seguintes principios, alinhados a boas praticas publicadas
 - Saidas: sessao autenticada, usuarios atualizados, configuracoes persistidas
 - Guardrails: sessoes persistidas em `auth_sessions` com cookie `HttpOnly`, filtro por base para clientes, validacoes de senha e email no frontend e no backend, rate limit de login por IP + identificador, validacao de origem para mutacoes, enforcement por permissao (`manage_access`, `manage_team`, `edit_services`, `manage_inventory`, `delete_services`, `view_analytics`, `bypass_inspection`), seed administrativo configuravel por `ADMIN_INITIAL_PASSWORD` e bloqueio de URL remota arbitraria em imagens persistidas
 - Alinhamento de UX recente: `Configuracoes` deixou de aparecer para perfis nao administrativos na navegacao principal
+- Alinhamento visual atual: login, sidebar, modais e acoes principais seguem tema claro com ambar como cor de marca, mantendo leitura profissional sem tons escuros pesados
 - UX atual: a tela de configuracoes usa feedback visual proprio para erro, sucesso e confirmacao, evitando dialogos nativos do navegador
 - Persistencia atual: importacao de CSV da base de veiculos usa `bulk upsert` transacional no backend e lotes no frontend, com estado de carregamento explicito apos refresh
 - Correcao recente: o carregamento da base de veiculos em `Configuracoes` nao pode mais se autocancelar por mudanca da propria flag de loading; esse ciclo foi removido em `src/App.tsx`
@@ -203,6 +205,7 @@ Este projeto adota os seguintes principios, alinhados a boas praticas publicadas
 - Capacidade atual: o `Painel` exibe `Lavados ate hoje`, calculado de forma deterministica a partir dos servicos concluidos, em pagamento ou com marco real de conclusao de lavagem, excluindo `no_show`
 - Capacidade atual: `Painel` e `Historico de Veiculos` possuem filtro de periodo livre, com inicio/fim escolhidos pelo usuario e totais recalculados para o intervalo selecionado
 - UX atual: o `Painel` organiza demanda, resumo gerencial, lavadores e bases em colunas independentes, evitando cards esticados e incluindo `Relatorio completo` para apresentacao gerencial
+- Diretriz visual atual: indicadores executivos devem usar superficie branca, bordas suaves e destaque ambar controlado, preservando alta leitura para apresentacao gerencial
 - Capacidade recente: o export de `Historico de Veiculos` passou a levar tipo de lavagem, status, responsaveis, ticket medio e tempos operacionais por resumo e por detalhe
 - Owner sugerido: produto + gestao operacional
 
@@ -253,6 +256,7 @@ Definicao adotada neste documento: `SKILL` e uma capacidade reutilizavel, docume
 | `dashboard-analytics` | Gera KPIs de volume, faturamento, tempo medio e ranking | gestao diaria e analise de produtividade | `Dashboard.tsx` | ver melhor lavador e base mais demandada |
 | `operational-notification-feedback` | Traduz eventos de lavagem, pagamento e sincronizacao em notificacoes leves e popup de conclusao | operacao diaria, retomada offline, fechamento de lavagem | `src/App.tsx`, `src/components/Notifications.tsx` | operador finaliza a lavagem e recebe `Concluido` sem interromper o fluxo |
 | `security-hardening-baseline` | Endurece autenticacao, autorizacao, CORS, uploads e hygiene de dependencias | producao, revisao de seguranca, correcoes inspiradas em abuse cases reais | `server/index.mjs`, `src/components/Login.tsx`, `package.json`, `.env.example` | bloquear brute force, impedir bypass admin e recusar imagem remota arbitraria |
+| `visual-light-system` | Mantem UI clara, profissional e alinhada a logomarca com ambar controlado | login, painel, sidebar, modais e novos componentes | `src/index.css`, `Login.tsx`, `Sidebar.tsx`, componentes de tela | evitar visual escuro/pesado e manter harmonia branca/ambar |
 | `bedrock-advisory` | Gera dicas consultivas de clima e operacao | apoio a decisao, leitura do painel | `server/assistant.mjs` | sugerir reforco de equipe por chuva |
 | `handoff-sync` | Atualiza memoria operacional com data, commit e historico | qualquer entrega relevante | `scripts/update-handoff.mjs` | registrar contexto para outro computador |
 | `deploy-aws-ssm` | Publica build, sincroniza docs, provisiona HTTPS e valida o SHA real servido pela EC2 | push em `main` | `.github/workflows/deploy.yml`, `scripts/build-ssm-deploy-command.mjs`, `scripts/run-vite-build.mjs`, `infra/aws/renew-https.sh` | deploy automatico apos merge com dominio seguro para mobile |
@@ -280,6 +284,7 @@ Definicao adotada neste documento: `SKILL` e uma capacidade reutilizavel, docume
 ### Regras de UX operacional
 
 - no smartphone, feedback local imediato vale mais que espera silenciosa por rede
+- novas telas devem seguir tema claro, com branco como base e ambar como acento; tons escuros so podem aparecer em texto, nunca como identidade dominante
 - pendencia de sincronizacao deve ser visivel para o time
 - erros nao devem apagar o progresso ja feito pelo usuario
 - formularios devem bloquear duplicidade de acao quando isso gera dano operacional

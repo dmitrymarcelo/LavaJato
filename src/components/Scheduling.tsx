@@ -1727,7 +1727,7 @@ export function QueueSection({
                     </div>
                   )}
 
-                  <div className="absolute top-2 left-2 bg-slate-900/90 backdrop-blur-md text-white px-2 py-1 rounded-lg shadow-lg border border-white/20">
+                  <div className="absolute top-2 left-2 bg-white/90 backdrop-blur-md text-slate-900 px-2 py-1 rounded-lg shadow-lg border border-amber-100">
                     <p className="text-[8px] uppercase font-bold tracking-widest opacity-70 leading-none">Placa</p>
                     <p className="text-sm font-black tracking-tighter mt-0.5">{service.plate}</p>
                   </div>
