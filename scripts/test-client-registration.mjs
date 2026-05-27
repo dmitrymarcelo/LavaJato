@@ -4,6 +4,11 @@ import {
   buildClientVehicleFromSignup,
   normalizeClientSignupPayload,
 } from '../server/client-registration.mjs';
+import {
+  clientVehicleBelongsToUser,
+  rowBelongsToClientUser,
+  rowIsVisibleToUser,
+} from '../server/client-scope.mjs';
 
 const validPayload = {
   name: '  Cliente   Novo  ',
@@ -73,5 +78,18 @@ assert.throws(
   }, { availableBaseIds: ['taruma'] }),
   /duplicadas/
 );
+
+const clientUser = {
+  role: 'Clientes',
+  name: 'Cliente Novo',
+  allowedBaseIds: ['taruma'],
+};
+
+assert.equal(rowBelongsToClientUser(clientUser, { customer: ' Cliente   Novo ' }), true);
+assert.equal(rowBelongsToClientUser(clientUser, { customer: 'Outro Cliente' }), false);
+assert.equal(rowIsVisibleToUser(clientUser, { customer: 'Cliente Novo', base_id: 'taruma' }, ['taruma']), true);
+assert.equal(rowIsVisibleToUser(clientUser, { customer: 'Cliente Novo', base_id: 'flores' }, ['taruma']), false);
+assert.equal(clientVehicleBelongsToUser(clientUser, { customer: 'Outro Cliente' }), false);
+assert.equal(rowIsVisibleToUser({ role: 'Administrador' }, { customer: 'Outro Cliente', base_id: 'flores' }, null), true);
 
 console.log('client registration tests passed');

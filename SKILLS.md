@@ -1,7 +1,7 @@
 # SKILLS.md - Lava Jato Norte Tech
 
-Atualizado em: 2026-05-26
-Commit de referencia: `b18edd54978a11c9cbdbd24b6d7dd0fe76c167f5`
+Atualizado em: 2026-05-27
+Commit de referencia: `2bacc0a51772095fd30f4a57b9e5e129cb94bb5e`
 
 ## Objetivo
 
@@ -63,12 +63,12 @@ Ele complementa o `AGENTS.md`:
 ### S03. `base-scoping`
 
 - Tipo: governanca
-- Objetivo: restringir visibilidade por base para clientes
-- Entradas: usuario autenticado, `allowedBaseIds`, consultas de servico/agendamento
-- Saidas: payload filtrado por base
-- Dependencias: `server/index.mjs`, `src/data/bases.ts`
-- Falha esperada: base ausente ou fora da lista permitida
-- Resposta esperada: erro `403` ou resultado vazio seguro
+- Objetivo: restringir visibilidade por base e por dono do cadastro para clientes
+- Entradas: usuario autenticado, `allowedBaseIds`, nome/email do cliente, consultas de servico/agendamento/placa
+- Saidas: payload filtrado por base e por `customer` vinculado ao login
+- Dependencias: `server/index.mjs`, `server/client-scope.mjs`, `src/data/bases.ts`
+- Falha esperada: base ausente, fora da lista permitida ou placa pertencente a outro cliente
+- Resposta esperada: erro `403`/`404` ou resultado vazio seguro, sem expor placas de terceiros
 
 ### S03B. `permission-enforcement`
 

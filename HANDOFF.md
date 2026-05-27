@@ -1,12 +1,12 @@
 # Handoff Lava Jato - Norte Tech
 
-Atualizado em: 2026-05-26
+Atualizado em: 2026-05-27
 
 ## Estado atual
 
 - Repositorio: `https://github.com/dmitrymarcelo/LavaJato`
 - Branch principal: `main`
-- Commit atual: `b18edd54978a11c9cbdbd24b6d7dd0fe76c167f5`
+- Commit atual: `2bacc0a51772095fd30f4a57b9e5e129cb94bb5e`
 - Producao AWS atual: `https://3-145-153-19.sslip.io/` (hostname publico com certificado HTTPS confiavel)
 - Regiao AWS: `us-east-2`
 - Instancia usada no deploy: `i-0ba1477cbbe3d986d`
@@ -146,6 +146,7 @@ Observacao:
 - A autenticacao do frontend deixou de usar `sessionStorage` para token.
 - O backend agora cria sessao em `auth_sessions` e devolve cookie `HttpOnly`.
 - A tela de login agora possui autocadastro de cliente: cria role `Clientes`, exige senha forte, base autorizada e pelo menos `1` veiculo, abre sessao imediatamente e rejeita placa ja existente para nao sobrescrever dados.
+- O acesso `Clientes` agora filtra bootstrap, listas, historico e consulta de placa pelo dono do cadastro, impedindo que um cliente visualize placas/agendamentos de outros clientes na mesma base.
 - Requisicoes mutantes em `/api` validam origem confiavel via `Origin`/`Referer` antes de alterar estado.
 - O `bootstrap` agora entrega ao frontend o conjunto de permissoes do usuario autenticado.
 - A matriz `access_rules` passou a fazer enforcement real no backend para:
@@ -244,6 +245,7 @@ Observacao:
 
 ## Commits recentes relevantes
 
+- `2bacc0a` `feat: cadastro publico de clientes`
 - `b18edd5` `Taruma: bloquear caminhao as 17:00`
 - `570b8c3` `UI: titulo centralizado, remover dica inteligente e melhorar clima`
 - `f828689` `feat: clima real (Open-Meteo) na sidebar`
@@ -251,7 +253,6 @@ Observacao:
 - `c72a97b` `ui: mover clima para sidebar e limpar header`
 - `85f6c4d` `feat: dica inteligente com previsao interativa`
 - `9ab71fa` `feat: dica inteligente interativa no header`
-- `91dd190` `fix: lint no scheduling taruma capacity label`
 
 ## Arquivos centrais
 
@@ -368,7 +369,7 @@ Com isso, qualquer alteracao publicada em `main` dispara o deploy via SSM no EC2
   - os precos de servico no modal e no seletor passaram a usar formatacao monetaria `pt-BR`, evitando textos como `80.75,00`
 - A tela `Configuracoes > Cadastros de Clientes` trocou `alert/confirm` por feedback visual interno, leve e mais amigavel para smartphone, sem adicionar polling ou dependencias pesadas.
 - O GitHub e a fonte principal da continuidade.
-- Se mudar de computador, o ideal e continuar a partir do commit `b18edd5` ou posterior.
+- Se mudar de computador, o ideal e continuar a partir do commit `2bacc0a` ou posterior.
 - Imagens enviadas ficam em `server/storage/uploads` (persistidas via volume Docker).
 - Em producao, altere a senha do administrador imediatamente.
 

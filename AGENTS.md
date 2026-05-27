@@ -1,7 +1,7 @@
 # AGENTS.md - Lava Jato Norte Tech
 
-Atualizado em: 2026-05-26
-Commit de referencia: `b18edd54978a11c9cbdbd24b6d7dd0fe76c167f5`
+Atualizado em: 2026-05-27
+Commit de referencia: `2bacc0a51772095fd30f4a57b9e5e129cb94bb5e`
 
 ## Objetivo
 
@@ -77,7 +77,7 @@ O sistema precisa garantir cinco resultados de negocio sem ambiguidade:
 - o cadastro publico sempre cria role `Clientes` e nunca sobrescreve placa ja existente
 - `Inspecao Pre` e `Inspecao Pos` exigem no minimo `1` foto
 - a foto `Frente` pode virar imagem principal do card
-- cliente e filtrado por bases autorizadas
+- cliente e filtrado por bases autorizadas e pelo dono do cadastro, sem listar placas ou agendamentos de outros clientes
 - a Base Taruma exige roteamento por area de lavagem
 
 ## Principios operacionais para agentes
@@ -111,7 +111,7 @@ Este projeto adota os seguintes principios, alinhados a boas praticas publicadas
 - Missao: gerenciar agenda, fila operacional, validacao de vagas, lotacao e regras por base
 - Entradas: placa, base, data, horario, tipo do veiculo, status do servico
 - Saidas: agendamentos validos, cards de fila, historico operacional e consultas por placa
-- Guardrails: bloqueio de domingo, sabado reduzido, capacidade por faixa, unicidade de placa/slot, Base Taruma em fila unica de `Dique Leve` com limite especial as `17:00` e abertura do `Novo Agendamento` sempre ancorada na data selecionada pelo operador na agenda
+- Guardrails: bloqueio de domingo, sabado reduzido, capacidade por faixa, unicidade de placa/slot, Base Taruma em fila unica de `Dique Leve` com limite especial as `17:00`, abertura do `Novo Agendamento` sempre ancorada na data selecionada pelo operador e cliente restrito as proprias placas
 - Owner sugerido: produto operacional + backend
 
 ### A03. Agente de Check-in e Cadastro Inicial
@@ -235,7 +235,7 @@ Definicao adotada neste documento: `SKILL` e uma capacidade reutilizavel, docume
 | --- | --- | --- | --- | --- |
 | `auth-session-management` | Recupera token, propaga `Bearer`, trata expiracao e logout | login, refresh, erro `401` | `src/services/api.ts`, `src/App.tsx`, `server/index.mjs` | usuario volta ao app e retoma sessao ativa |
 | `bootstrap-hydration` | Carrega estado inicial do app com servicos sem fotos pesadas | abertura do sistema, recarga, troca de usuario | `GET /api/bootstrap`, `src/App.tsx` | painel abre rapido sem baixar todas as fotos |
-| `base-scoping` | Filtra dados por bases autorizadas para usuarios `Clientes` | agenda do cliente, historico, bootstrap | `server/index.mjs`, `src/data/bases.ts` | cliente so enxerga Taruma e Flores |
+| `base-scoping` | Filtra dados por bases autorizadas e dono do cadastro para usuarios `Clientes` | agenda do cliente, historico, bootstrap, lookup de placa | `server/index.mjs`, `server/client-scope.mjs`, `src/data/bases.ts` | cliente so enxerga bases liberadas e proprias placas |
 | `vehicle-normalization` | Normaliza placa, tipo de veiculo e dados de cadastro | check-in, agenda, importacao de frota | `CheckIn.tsx`, `Settings.tsx`, `vehicle-type.mjs` | placa `abc-1234` vira chave canonica |
 | `scheduling-rules-engine` | Aplica regras de domingo, sabado, capacidade e conflito de placa | criar ou editar agendamento | `Scheduling.tsx`, `server/schema.sql` | sistema bloqueia slot lotado |
 | `taruma-zone-routing` | Normaliza a Base Taruma para `Dique Leve` e aplica capacidade unica por horario | agenda e fila da Taruma | `Scheduling.tsx`, `server/index.mjs`, `src/utils/tarumaSchedulingRules.js` | qualquer categoria conta no mesmo limite do horario |

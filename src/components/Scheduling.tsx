@@ -1332,7 +1332,11 @@ export default function Scheduling({
                       <button
                         type="submit"
                         disabled={isSavingAppointment}
-                        className="w-full bg-primary text-white font-bold py-4 rounded-2xl shadow-lg shadow-primary/20 active:scale-[0.98] transition-all flex items-center justify-center gap-2"
+                        className={`w-full font-bold py-4 rounded-2xl shadow-lg active:scale-[0.98] transition-all flex items-center justify-center gap-2 ${
+                          isClientUser
+                            ? 'bg-amber-500 text-slate-950 shadow-amber-500/20'
+                            : 'bg-primary text-white shadow-primary/20'
+                        }`}
                       >
                         <CheckCircle2 className="w-5 h-5" />
                         <span>{isSavingAppointment ? 'Salvando...' : 'Confirmar Agendamento'}</span>
@@ -1421,7 +1425,7 @@ export default function Scheduling({
                 type="button"
                 onClick={handleRegisterClientVehicle}
                 disabled={isSavingClientVehicle}
-                className="w-full bg-primary text-white font-bold py-4 rounded-2xl shadow-lg shadow-primary/20 active:scale-[0.98] transition-all flex items-center justify-center gap-2 disabled:opacity-70"
+                className="w-full bg-amber-500 text-slate-950 font-bold py-4 rounded-2xl shadow-lg shadow-amber-500/20 active:scale-[0.98] transition-all flex items-center justify-center gap-2 disabled:opacity-70"
               >
                 <CheckCircle2 className="w-5 h-5" />
                 <span>{isSavingClientVehicle ? 'Salvando veiculo...' : 'Salvar Veiculo e Continuar'}</span>

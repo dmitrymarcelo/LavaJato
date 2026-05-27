@@ -14,6 +14,12 @@ import {
   buildClientVehicleFromSignup,
   normalizeClientSignupPayload,
 } from './client-registration.mjs';
+import {
+  clientVehicleBelongsToUser,
+  getClientCustomerLabel,
+  rowBelongsToClientUser,
+  rowIsVisibleToUser,
+} from './client-scope.mjs';
 import { mapSourceVehicleTypeToCategory, normalizeSourceVehicleType } from './vehicle-type.mjs';
 import {
   TARUMA_ACTIVE_APPOINTMENT_STATUSES,
@@ -680,7 +686,7 @@ async function sanitizeVehiclePayloadForUser(user, vehicle, executor = query) {
   }
 
   const plate = String(vehicle?.plate || '').toUpperCase().trim();
-  const customerLabel = String(user?.name || user?.email || 'Cliente').trim() || 'Cliente';
+  const customerLabel = getClientCustomerLabel(user);
   const normalizedModel = String(vehicle?.model || '').trim();
 
   if (!plate) {
@@ -714,6 +720,57 @@ async function sanitizeVehiclePayloadForUser(user, vehicle, executor = query) {
     lastService: '',
     thirdPartyName: '',
     thirdPartyCpf: '',
+  };
+}
+
+async function getVehicleRowVisibleToUser(user, plate, executor = query) {
+  const result = await executor('SELECT * FROM vehicles WHERE UPPER(plate) = UPPER($1) LIMIT 1', [plate]);
+  const row = result.rows[0] || null;
+
+  if (!row || !clientVehicleBelongsToUser(user, row)) {
+    return null;
+  }
+
+  return row;
+}
+
+async function sanitizeSchedulingPayloadForUser(user, appointment, service, executor = query) {
+  if (!isClientRole(user)) {
+    return { appointment, service };
+  }
+
+  const requestedPlate = String(appointment?.plate || service?.plate || '').toUpperCase().trim();
+  if (!requestedPlate) {
+    const error = new Error('Informe a placa do veiculo para agendar.');
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const vehicleRow = await getVehicleRowVisibleToUser(user, requestedPlate, executor);
+  if (!vehicleRow) {
+    const error = new Error('Esta placa nao esta vinculada ao seu cadastro.');
+    error.statusCode = 403;
+    throw error;
+  }
+
+  const customerLabel = getClientCustomerLabel(user);
+  const vehicle = toCamelVehicle(vehicleRow);
+
+  return {
+    appointment: {
+      ...appointment,
+      customer: customerLabel,
+      vehicle: vehicle.model,
+      plate: vehicle.plate,
+      vehicleType: vehicle.type,
+    },
+    service: {
+      ...service,
+      customer: customerLabel,
+      model: vehicle.model,
+      plate: vehicle.plate,
+      type: vehicle.type,
+    },
   };
 }
 
@@ -755,6 +812,18 @@ function assertUserCanAccessBase(user, baseId) {
     error.statusCode = 403;
     throw error;
   }
+}
+
+function assertUserCanAccessRecordRow(user, row, message = 'Voce nao tem acesso a este registro.') {
+  assertUserCanAccessBase(user, row?.base_id || null);
+
+  if (rowBelongsToClientUser(user, row)) {
+    return;
+  }
+
+  const error = new Error(message);
+  error.statusCode = 403;
+  throw error;
 }
 
 function assertUserIsAdmin(user) {
@@ -2193,10 +2262,10 @@ app.get('/api/bootstrap', async (req, res) => {
   ]);
 
   const services = servicesResult.rows
-    .filter((row) => !baseFilter || baseFilter.includes(row.base_id))
+    .filter((row) => rowIsVisibleToUser(req.user, row, baseFilter))
     .map((row) => toCamelService(row, { includePhotos: false }));
   const appointments = appointmentsResult.rows
-    .filter((row) => !baseFilter || baseFilter.includes(row.base_id))
+    .filter((row) => rowIsVisibleToUser(req.user, row, baseFilter))
     .map(toCamelAppointment);
 
   res.json({
@@ -2226,11 +2295,14 @@ app.get('/api/vehicle-history', async (req, res) => {
   ]);
 
   const services = servicesResult.rows
-    .filter((row) => !baseFilter || baseFilter.includes(row.base_id))
+    .filter((row) => rowIsVisibleToUser(req.user, row, baseFilter))
     .map((row) => toCamelService(row, { includePhotos: false }));
+  const vehicles = vehiclesResult.rows
+    .filter((row) => clientVehicleBelongsToUser(req.user, row))
+    .map(toCamelVehicle);
 
   res.json(
-    buildVehicleHistoryGroups(services, vehiclesResult.rows.map(toCamelVehicle)).map((group) => ({
+    buildVehicleHistoryGroups(services, vehicles).map((group) => ({
       plate: group.plate,
       customer: group.customer,
       model: group.model,
@@ -2279,9 +2351,10 @@ app.get('/api/vehicle-history/:plate', async (req, res) => {
   ]);
 
   const services = servicesResult.rows
-    .filter((row) => !baseFilter || baseFilter.includes(row.base_id))
+    .filter((row) => rowIsVisibleToUser(req.user, row, baseFilter))
     .map((row) => toCamelService(row, { includePhotos: false }));
-  const vehicle = vehicleResult.rows[0] ? toCamelVehicle(vehicleResult.rows[0]) : null;
+  const vehicleRow = vehicleResult.rows[0] || null;
+  const vehicle = vehicleRow && clientVehicleBelongsToUser(req.user, vehicleRow) ? toCamelVehicle(vehicleRow) : null;
   const groups = buildVehicleHistoryGroups(services, vehicle ? [vehicle] : []);
   const detail = groups.find((group) => group.plate === plate);
 
@@ -2357,8 +2430,7 @@ app.get('/api/vehicles/lookup', async (req, res) => {
     return res.status(400).json({ error: 'Informe a placa para consulta.' });
   }
 
-  const result = await query('SELECT * FROM vehicles WHERE UPPER(plate) = UPPER($1) LIMIT 1', [plate]);
-  const row = result.rows[0];
+  const row = await getVehicleRowVisibleToUser(req.user, plate);
 
   if (!row) {
     return res.status(404).json({ error: 'Placa nao encontrada na base cadastrada.' });
@@ -2423,7 +2495,7 @@ app.get('/api/services', async (req, res) => {
   const baseFilter = getBaseFilterForUser(req.user);
   res.json(
     result.rows
-      .filter((row) => !baseFilter || baseFilter.includes(row.base_id))
+      .filter((row) => rowIsVisibleToUser(req.user, row, baseFilter))
       .map((row) => toCamelService(row, { includePhotos: false }))
   );
 });
@@ -2436,7 +2508,7 @@ app.get('/api/services/:id', async (req, res) => {
     return res.status(404).json({ error: 'Servico nao encontrado.' });
   }
 
-  assertUserCanAccessBase(req.user, row.base_id);
+  assertUserCanAccessRecordRow(req.user, row);
 
   res.json(toCamelService(row));
 });
@@ -2454,42 +2526,42 @@ app.post('/api/services/:id/inspection-photo', async (req, res) => {
     return res.status(400).json({ error: 'Foto e identificador sao obrigatorios.' });
   }
 
-  const existing = await query('SELECT base_id FROM services WHERE id = $1', [req.params.id]);
+  const existing = await query('SELECT base_id, customer FROM services WHERE id = $1', [req.params.id]);
   const row = existing.rows[0];
 
   if (!row) {
     return res.status(404).json({ error: 'Servico nao encontrado.' });
   }
 
-  assertUserCanAccessBase(req.user, row.base_id);
+  assertUserCanAccessRecordRow(req.user, row);
 
   const updatedService = await saveInspectionPhoto(req.params.id, stage, photoId, imageData);
   res.json(updatedService);
 });
 
 app.post('/api/services/:id/start-wash', async (req, res) => {
-  const serviceResult = await query('SELECT base_id FROM services WHERE id = $1', [req.params.id]);
+  const serviceResult = await query('SELECT base_id, customer FROM services WHERE id = $1', [req.params.id]);
   const serviceRow = serviceResult.rows[0];
 
   if (!serviceRow) {
     return res.status(404).json({ error: 'Servico nao encontrado.' });
   }
 
-  assertUserCanAccessBase(req.user, serviceRow.base_id);
+  assertUserCanAccessRecordRow(req.user, serviceRow);
 
   const payload = await transitionServiceStage(req.params.id, 'start_wash', req.body || {}, req.user);
   res.json(payload);
 });
 
 app.post('/api/services/:id/complete-wash', async (req, res) => {
-  const serviceResult = await query('SELECT base_id FROM services WHERE id = $1', [req.params.id]);
+  const serviceResult = await query('SELECT base_id, customer FROM services WHERE id = $1', [req.params.id]);
   const serviceRow = serviceResult.rows[0];
 
   if (!serviceRow) {
     return res.status(404).json({ error: 'Servico nao encontrado.' });
   }
 
-  assertUserCanAccessBase(req.user, serviceRow.base_id);
+  assertUserCanAccessRecordRow(req.user, serviceRow);
 
   const payload = await transitionServiceStage(req.params.id, 'complete_wash', req.body || {}, req.user);
   res.json(payload);
@@ -2520,7 +2592,7 @@ app.post('/api/services/:id/complete-payment', async (req, res) => {
       throw error;
     }
 
-    assertUserCanAccessBase(req.user, serviceRow.base_id);
+    assertUserCanAccessRecordRow(req.user, serviceRow);
 
     const currentService = toCamelService(serviceRow);
     const nowIso = new Date().toISOString();
@@ -2571,13 +2643,14 @@ app.post('/api/scheduling/book', async (req, res) => {
 
   const payload = await withTransaction(async (client) => {
     const executor = (text, params = []) => client.query(text, params);
+    const sanitized = await sanitizeSchedulingPayloadForUser(req.user, appointment, service, executor);
 
-    await upsertAppointmentRow(appointment, executor);
-    await upsertServiceRow(service, executor);
+    await upsertAppointmentRow(sanitized.appointment, executor);
+    await upsertServiceRow(sanitized.service, executor);
 
     const [appointmentResult, serviceResult] = await Promise.all([
-      client.query('SELECT * FROM appointments WHERE id = $1', [appointment.id]),
-      client.query('SELECT * FROM services WHERE id = $1', [service.id]),
+      client.query('SELECT * FROM appointments WHERE id = $1', [sanitized.appointment.id]),
+      client.query('SELECT * FROM services WHERE id = $1', [sanitized.service.id]),
     ]);
 
     return {
@@ -2690,7 +2763,7 @@ app.get('/api/appointments', async (req, res) => {
   await cleanupOrphanActiveAppointments();
   const result = await query('SELECT * FROM appointments ORDER BY date DESC, time DESC');
   const baseFilter = getBaseFilterForUser(req.user);
-  res.json(result.rows.filter((row) => !baseFilter || baseFilter.includes(row.base_id)).map(toCamelAppointment));
+  res.json(result.rows.filter((row) => rowIsVisibleToUser(req.user, row, baseFilter)).map(toCamelAppointment));
 });
 
 app.post('/api/appointments/upsert', async (req, res) => {

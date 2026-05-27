@@ -156,12 +156,12 @@ export default function Login({ onLogin, onClientSignup }: LoginProps) {
                 referrerPolicy="no-referrer"
               />
               <h1 className="text-2xl font-black tracking-tight">
-                Norte <span className="text-sky-300">Tech</span>
+              Norte <span className="text-amber-300">Tech</span>
               </h1>
             </div>
 
             <div className="mt-14 space-y-5">
-              <p className="text-sm font-bold uppercase tracking-[0.24em] text-sky-200">Acesso do cliente</p>
+              <p className="text-sm font-bold uppercase tracking-[0.24em] text-amber-200">Acesso do cliente</p>
               <h2 className="text-4xl font-black leading-tight tracking-tight">
                 Login e cadastro direto para agendar lavagens.
               </h2>
@@ -172,12 +172,12 @@ export default function Login({ onLogin, onClientSignup }: LoginProps) {
           </div>
 
           <div className="grid gap-3">
-            <div className="flex items-center gap-3 rounded-2xl bg-white/8 px-4 py-3">
-              <ShieldCheck className="w-5 h-5 text-sky-200" />
+            <div className="flex items-center gap-3 rounded-2xl bg-amber-400/10 px-4 py-3">
+              <ShieldCheck className="w-5 h-5 text-amber-200" />
               <span className="text-sm font-bold text-slate-100">Permissao automatica como Clientes</span>
             </div>
-            <div className="flex items-center gap-3 rounded-2xl bg-white/8 px-4 py-3">
-              <Car className="w-5 h-5 text-sky-200" />
+            <div className="flex items-center gap-3 rounded-2xl bg-amber-400/10 px-4 py-3">
+              <Car className="w-5 h-5 text-amber-200" />
               <span className="text-sm font-bold text-slate-100">Veiculos vinculados ao cadastro</span>
             </div>
           </div>
@@ -196,7 +196,7 @@ export default function Login({ onLogin, onClientSignup }: LoginProps) {
               referrerPolicy="no-referrer"
             />
             <h1 className="text-2xl font-black text-slate-900 tracking-tight">
-              Norte <span className="text-primary">Tech</span>
+              Norte <span className="text-amber-500">Tech</span>
             </h1>
           </div>
 
@@ -238,7 +238,7 @@ export default function Login({ onLogin, onClientSignup }: LoginProps) {
                     placeholder="1001 ou cliente@empresa.com"
                     autoComplete="username"
                     inputMode="text"
-                    className="w-full bg-slate-50 border border-slate-100 rounded-2xl py-4 pl-12 pr-4 text-slate-900 focus:bg-white focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all"
+                    className="w-full bg-slate-50 border border-slate-100 rounded-2xl py-4 pl-12 pr-4 text-slate-900 focus:bg-white focus:ring-2 focus:ring-amber-200 focus:border-amber-500 outline-none transition-all"
                   />
                 </div>
               </div>
@@ -254,7 +254,7 @@ export default function Login({ onLogin, onClientSignup }: LoginProps) {
                     onChange={(event) => setPassword(event.target.value)}
                     placeholder="Digite sua senha"
                     autoComplete="current-password"
-                    className="w-full bg-slate-50 border border-slate-100 rounded-2xl py-4 pl-12 pr-4 text-slate-900 focus:bg-white focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all"
+                    className="w-full bg-slate-50 border border-slate-100 rounded-2xl py-4 pl-12 pr-4 text-slate-900 focus:bg-white focus:ring-2 focus:ring-amber-200 focus:border-amber-500 outline-none transition-all"
                   />
                 </div>
               </div>
@@ -262,7 +262,7 @@ export default function Login({ onLogin, onClientSignup }: LoginProps) {
               <label className="flex items-center gap-3 cursor-pointer group w-fit">
                 <div className="relative flex items-center justify-center">
                   <input type="checkbox" className="peer sr-only" />
-                  <div className="w-5 h-5 border-2 border-slate-300 rounded-md peer-checked:bg-primary peer-checked:border-primary transition-all" />
+                  <div className="w-5 h-5 border-2 border-slate-300 rounded-md peer-checked:bg-amber-500 peer-checked:border-amber-500 transition-all" />
                   <CheckCircle2 className="absolute w-3.5 h-3.5 text-white opacity-0 peer-checked:opacity-100 transition-opacity" />
                 </div>
                 <span className="text-sm font-medium text-slate-600 group-hover:text-slate-900 transition-colors">Manter conectado</span>
@@ -271,7 +271,7 @@ export default function Login({ onLogin, onClientSignup }: LoginProps) {
               <button
                 type="submit"
                 disabled={isLoading}
-                className="w-full bg-primary hover:bg-blue-600 text-white font-black py-4 rounded-2xl flex items-center justify-center gap-3 transition-all active:scale-[0.98] shadow-xl shadow-primary/20 disabled:opacity-70"
+                className="w-full bg-amber-500 hover:bg-amber-600 text-slate-950 font-black py-4 rounded-2xl flex items-center justify-center gap-3 transition-all active:scale-[0.98] shadow-xl shadow-amber-500/20 disabled:opacity-70"
               >
                 {isLoading ? (
                   <div className="w-6 h-6 border-2 border-white/30 border-t-white rounded-full animate-spin" />
@@ -302,7 +302,7 @@ export default function Login({ onLogin, onClientSignup }: LoginProps) {
                       onChange={(event) => setClientName(event.target.value)}
                       placeholder="Ex: Transportes Norte"
                       autoComplete="organization"
-                      className="w-full bg-slate-50 border border-slate-100 rounded-2xl py-4 pl-12 pr-4 text-slate-900 focus:bg-white focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all"
+                      className="w-full bg-slate-50 border border-slate-100 rounded-2xl py-4 pl-12 pr-4 text-slate-900 focus:bg-white focus:ring-2 focus:ring-amber-200 focus:border-amber-500 outline-none transition-all"
                     />
                   </div>
                 </div>
@@ -318,7 +318,7 @@ export default function Login({ onLogin, onClientSignup }: LoginProps) {
                       onChange={(event) => setClientEmail(event.target.value)}
                       placeholder="cliente@empresa.com"
                       autoComplete="email"
-                      className="w-full bg-slate-50 border border-slate-100 rounded-2xl py-4 pl-12 pr-4 text-slate-900 focus:bg-white focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all"
+                      className="w-full bg-slate-50 border border-slate-100 rounded-2xl py-4 pl-12 pr-4 text-slate-900 focus:bg-white focus:ring-2 focus:ring-amber-200 focus:border-amber-500 outline-none transition-all"
                     />
                   </div>
                 </div>
@@ -336,7 +336,7 @@ export default function Login({ onLogin, onClientSignup }: LoginProps) {
                       onChange={(event) => setClientPassword(event.target.value)}
                       placeholder="Senha forte"
                       autoComplete="new-password"
-                      className="w-full bg-slate-50 border border-slate-100 rounded-2xl py-4 pl-12 pr-4 text-slate-900 focus:bg-white focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all"
+                      className="w-full bg-slate-50 border border-slate-100 rounded-2xl py-4 pl-12 pr-4 text-slate-900 focus:bg-white focus:ring-2 focus:ring-amber-200 focus:border-amber-500 outline-none transition-all"
                     />
                   </div>
                 </div>
@@ -352,7 +352,7 @@ export default function Login({ onLogin, onClientSignup }: LoginProps) {
                       onChange={(event) => setClientPasswordConfirm(event.target.value)}
                       placeholder="Repita a senha"
                       autoComplete="new-password"
-                      className="w-full bg-slate-50 border border-slate-100 rounded-2xl py-4 pl-12 pr-4 text-slate-900 focus:bg-white focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all"
+                      className="w-full bg-slate-50 border border-slate-100 rounded-2xl py-4 pl-12 pr-4 text-slate-900 focus:bg-white focus:ring-2 focus:ring-amber-200 focus:border-amber-500 outline-none transition-all"
                     />
                   </div>
                 </div>
@@ -365,7 +365,7 @@ export default function Login({ onLogin, onClientSignup }: LoginProps) {
                   <select
                     value={clientBaseId}
                     onChange={(event) => setClientBaseId(event.target.value)}
-                    className="w-full bg-slate-50 border border-slate-100 rounded-2xl py-4 pl-12 pr-4 text-slate-900 focus:bg-white focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all appearance-none"
+                    className="w-full bg-slate-50 border border-slate-100 rounded-2xl py-4 pl-12 pr-4 text-slate-900 focus:bg-white focus:ring-2 focus:ring-amber-200 focus:border-amber-500 outline-none transition-all appearance-none"
                   >
                     {BASES.map((base) => (
                       <option key={base.id} value={base.id}>{base.name}</option>
@@ -383,7 +383,7 @@ export default function Login({ onLogin, onClientSignup }: LoginProps) {
                   <button
                     type="button"
                     onClick={addClientVehicle}
-                    className="h-10 px-3 rounded-xl bg-slate-900 text-white font-black text-xs flex items-center gap-2 active:scale-[0.98] transition-all"
+                    className="h-10 px-3 rounded-xl bg-slate-900 text-amber-100 font-black text-xs flex items-center gap-2 active:scale-[0.98] transition-all"
                   >
                     <Plus className="w-4 h-4" />
                     <span>Adicionar</span>
@@ -401,7 +401,7 @@ export default function Login({ onLogin, onClientSignup }: LoginProps) {
                           value={vehicle.plate}
                           onChange={(event) => updateClientVehicle(index, { plate: normalizePlate(event.target.value) })}
                           placeholder="Placa"
-                          className="w-full h-12 bg-white border border-slate-100 rounded-xl pl-10 pr-3 font-black uppercase text-slate-900 focus:border-primary outline-none"
+                          className="w-full h-12 bg-white border border-slate-100 rounded-xl pl-10 pr-3 font-black uppercase text-slate-900 focus:border-amber-500 outline-none"
                         />
                       </div>
 
@@ -411,13 +411,13 @@ export default function Login({ onLogin, onClientSignup }: LoginProps) {
                         value={vehicle.model}
                         onChange={(event) => updateClientVehicle(index, { model: event.target.value })}
                         placeholder="Modelo"
-                        className="w-full h-12 bg-white border border-slate-100 rounded-xl px-3 font-bold text-slate-900 focus:border-primary outline-none"
+                        className="w-full h-12 bg-white border border-slate-100 rounded-xl px-3 font-bold text-slate-900 focus:border-amber-500 outline-none"
                       />
 
                       <select
                         value={vehicle.type}
                         onChange={(event) => updateClientVehicle(index, { type: event.target.value as VehicleType })}
-                        className="w-full h-12 bg-white border border-slate-100 rounded-xl px-3 font-bold text-slate-900 focus:border-primary outline-none appearance-none"
+                        className="w-full h-12 bg-white border border-slate-100 rounded-xl px-3 font-bold text-slate-900 focus:border-amber-500 outline-none appearance-none"
                       >
                         {VEHICLE_TYPE_OPTIONS.map((option) => (
                           <option key={option.value} value={option.value}>{option.label}</option>
@@ -440,7 +440,7 @@ export default function Login({ onLogin, onClientSignup }: LoginProps) {
               <button
                 type="submit"
                 disabled={isLoading}
-                className="w-full bg-primary hover:bg-blue-600 text-white font-black py-4 rounded-2xl flex items-center justify-center gap-3 transition-all active:scale-[0.98] shadow-xl shadow-primary/20 disabled:opacity-70"
+                className="w-full bg-amber-500 hover:bg-amber-600 text-slate-950 font-black py-4 rounded-2xl flex items-center justify-center gap-3 transition-all active:scale-[0.98] shadow-xl shadow-amber-500/20 disabled:opacity-70"
               >
                 {isLoading ? (
                   <div className="w-6 h-6 border-2 border-white/30 border-t-white rounded-full animate-spin" />
