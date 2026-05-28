@@ -6,7 +6,7 @@ Atualizado em: 2026-05-28
 
 - Repositorio: `https://github.com/dmitrymarcelo/LavaJato`
 - Branch principal: `main`
-- Commit atual: `5bf684890b9cadc4218dff2f2f097d02f9159601`
+- Commit atual: `bcea8510027fbbb42d6a860a5f910f05487432c1`
 - Producao AWS atual: `https://3-145-153-19.sslip.io/` (hostname publico com certificado HTTPS confiavel)
 - Regiao AWS: `us-east-2`
 - Instancia usada no deploy: `i-0ba1477cbbe3d986d`
@@ -117,6 +117,8 @@ Observacao:
 - `Clientes` fica travado em `Agendamento do Cliente`, sem virar perfil administrativo por acidente.
 - `Lavador` recebe `Ver Agenda & Fila` e `Operar Lavagens` na migracao das regras antigas para nao perder acesso operacional apos o deploy.
 - A aba `Cadastros de Clientes` foi renomeada para `Base de Veiculos`, alinhando o nome ao conteudo real da tela.
+- `Novo Colaborador` agora tambem mostra `Bases Permitidas`; colaboradores com bases marcadas ficam limitados a essas bases nas consultas e mutacoes por base, enquanto sem marcacao continuam com acesso geral.
+- Novos agendamentos passam a gravar `created_by_id` e `created_by_name`; `Agenda & Fila` mostra `Agendado por ...` no card do agendamento.
 
 ### Identidade visual clara
 
@@ -274,6 +276,7 @@ Observacao:
 
 ## Commits recentes relevantes
 
+- `bcea851` `feat: separar colaboradores e permissoes`
 - `5bf6848` `ui: aplicar tema claro com ambar`
 - `2013e24` `ui: reorganizar painel gerencial`
 - `5b4dbca` `feat: filtros avancados e reset de senha`
@@ -281,7 +284,6 @@ Observacao:
 - `2bacc0a` `feat: cadastro publico de clientes`
 - `b18edd5` `Taruma: bloquear caminhao as 17:00`
 - `570b8c3` `UI: titulo centralizado, remover dica inteligente e melhorar clima`
-- `f828689` `feat: clima real (Open-Meteo) na sidebar`
 
 ## Arquivos centrais
 
@@ -399,7 +401,7 @@ Com isso, qualquer alteracao publicada em `main` dispara o deploy via SSM no EC2
   - os precos de servico no modal e no seletor passaram a usar formatacao monetaria `pt-BR`, evitando textos como `80.75,00`
 - A tela `Configuracoes > Cadastros de Clientes` trocou `alert/confirm` por feedback visual interno, leve e mais amigavel para smartphone, sem adicionar polling ou dependencias pesadas.
 - O GitHub e a fonte principal da continuidade.
-- Se mudar de computador, o ideal e continuar a partir do commit `5bf6848` ou posterior.
+- Se mudar de computador, o ideal e continuar a partir do commit `bcea851` ou posterior.
 - Imagens enviadas ficam em `server/storage/uploads` (persistidas via volume Docker).
 - Em producao, altere a senha do administrador imediatamente.
 

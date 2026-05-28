@@ -19,6 +19,8 @@ export interface Appointment {
   photo?: string;
   thirdPartyName?: string;
   thirdPartyCpf?: string;
+  createdById?: string;
+  createdByName?: string;
 }
 
 export interface BootstrapPayload {

@@ -1,7 +1,7 @@
 # AGENTS.md - Lava Jato Norte Tech
 
 Atualizado em: 2026-05-28
-Commit de referencia: `5bf684890b9cadc4218dff2f2f097d02f9159601`
+Commit de referencia: `bcea8510027fbbb42d6a860a5f910f05487432c1`
 
 ## Objetivo
 
@@ -114,6 +114,7 @@ Este projeto adota os seguintes principios, alinhados a boas praticas publicadas
 - Entradas: placa, base, data, horario, tipo do veiculo, status do servico
 - Saidas: agendamentos validos, cards de fila, historico operacional e consultas por placa
 - Guardrails: bloqueio de domingo, sabado reduzido, capacidade por faixa, unicidade de placa/slot, Base Taruma em fila unica de `Dique Leve` com limite especial as `17:00`, abertura do `Novo Agendamento` sempre ancorada na data selecionada pelo operador e cliente restrito as proprias placas
+- Rastreabilidade atual: novos agendamentos registram `created_by_id` e `created_by_name`, e a tela `Agenda & Fila` exibe quem criou o agendamento
 - Owner sugerido: produto operacional + backend
 
 ### A03. Agente de Check-in e Cadastro Inicial
@@ -190,6 +191,7 @@ Este projeto adota os seguintes principios, alinhados a boas praticas publicadas
 - Alinhamento visual atual: login, sidebar, modais e acoes principais seguem tema claro com ambar como cor de marca, mantendo leitura profissional sem tons escuros pesados
 - UX atual: a tela de configuracoes usa feedback visual proprio para erro, sucesso e confirmacao, evitando dialogos nativos do navegador
 - Capacidade atual: `Acesso & Equipe` separa `Colaboradores` de `Administrador`; clientes ficam travados em agendamento, e a aba antes chamada `Cadastros de Clientes` agora se chama `Base de Veiculos`
+- Capacidade atual: `Novo Colaborador` permite selecionar `Bases Permitidas`; quando houver bases marcadas, o colaborador fica limitado a elas em consultas e mutacoes operacionais por base
 - Persistencia atual: importacao de CSV da base de veiculos usa `bulk upsert` transacional no backend e lotes no frontend, com estado de carregamento explicito apos refresh
 - Correcao recente: o carregamento da base de veiculos em `Configuracoes` nao pode mais se autocancelar por mudanca da propria flag de loading; esse ciclo foi removido em `src/App.tsx`
 - Capacidade atual: administradores podem resetar senha manualmente em `Configuracoes`, copiar a senha temporaria e, quando SES estiver configurado, enviar a senha temporaria ao email cadastrado; clientes tambem podem pedir reset automatico em `Esqueceu senha?` na tela de login

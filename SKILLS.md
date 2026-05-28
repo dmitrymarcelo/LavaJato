@@ -1,7 +1,7 @@
 # SKILLS.md - Lava Jato Norte Tech
 
 Atualizado em: 2026-05-28
-Commit de referencia: `5bf684890b9cadc4218dff2f2f097d02f9159601`
+Commit de referencia: `bcea8510027fbbb42d6a860a5f910f05487432c1`
 
 ## Objetivo
 
@@ -79,7 +79,7 @@ Ele complementa o `AGENTS.md`:
 - Saidas: `403` seguro ou execucao autorizada
 - Dependencias: `server/access-control.mjs`, `server/index.mjs`, `src/lib/access.ts`, `src/App.tsx`, `src/components/Settings.tsx`
 - Falha esperada: perfil sem permissao para a acao
-- Resposta esperada: bloquear acesso no backend e refletir a restricao no frontend sem esconder inconsistencias; `Administrador` e sempre total, `Colaboradores` e configuravel, `Lavador` preserva operacao de fila/lavagem na migracao antiga e `Clientes` fica travado em agendamento
+- Resposta esperada: bloquear acesso no backend e refletir a restricao no frontend sem esconder inconsistencias; `Administrador` e sempre total, `Colaboradores` e configuravel com `Bases Permitidas`, `Lavador` preserva operacao de fila/lavagem na migracao antiga e `Clientes` fica travado em agendamento
 
 ### S04. `vehicle-normalization`
 
@@ -119,7 +119,7 @@ Ele complementa o `AGENTS.md`:
 - Saidas: agendamento validado ou bloqueado com motivo
 - Dependencias: `Scheduling.tsx`, `server/schema.sql`, `server/index.mjs`, `src/utils/tarumaSchedulingRules.js`
 - Falha esperada: slot lotado, domingo, sabado fora da janela, duplicidade
-- Resposta esperada: feedback imediato, nenhuma gravacao parcial e `Novo Agendamento` pre-preenchido com a mesma data visivel na regua principal da agenda. Na Base Taruma, `Dique Leve` e fila unica: `3` veiculos por horario e `2` veiculos as `17:00`, independente da categoria.
+- Resposta esperada: feedback imediato, nenhuma gravacao parcial, `Novo Agendamento` pre-preenchido com a mesma data visivel na regua principal da agenda e registro de `created_by_id`/`created_by_name` para exibir quem criou o agendamento. Na Base Taruma, `Dique Leve` e fila unica: `3` veiculos por horario e `2` veiculos as `17:00`, independente da categoria.
 
 ### S06. `taruma-zone-routing`
 

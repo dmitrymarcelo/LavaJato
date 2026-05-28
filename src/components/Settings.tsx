@@ -311,7 +311,7 @@ export default function Settings({
       email: activeRole === 'Clientes' ? normalizedEmail : '',
       password: newMemberPassword || undefined,
       role: activeRole,
-      allowedBaseIds: activeRole === 'Clientes' ? newMemberAllowedBaseIds : [],
+      allowedBaseIds: activeRole === 'Clientes' || activeRole === 'Colaboradores' ? newMemberAllowedBaseIds : [],
       rating: existingMember?.rating || 5.0,
       servicesCount: existingMember?.servicesCount || 0,
       status: existingMember?.status || 'active',
@@ -702,6 +702,7 @@ export default function Settings({
   const visiblePermissions = activeRole === 'Clientes'
     ? PERMISSIONS.filter((permission) => permission.id === 'manage_b2b')
     : PERMISSIONS.filter((permission) => permission.id !== 'manage_b2b');
+  const canAssignAllowedBases = activeRole === 'Clientes' || activeRole === 'Colaboradores';
 
   if (availableTabs.length === 0) {
     return (
@@ -970,11 +971,11 @@ export default function Settings({
                               <span className="text-[9px] font-bold text-slate-700">{member.servicesCount} serv.</span>
                             </div>
                           </div>
-                          {member.role === 'Clientes' && (
+                          {(member.role === 'Clientes' || member.role === 'Colaboradores') && (
                             <div className="flex flex-wrap gap-1 mt-2">
                               {(member.allowedBaseIds || []).length === 0 ? (
                                 <span className="text-[9px] font-bold text-amber-700 bg-amber-50 border border-amber-100 px-2 py-1 rounded-full">
-                                  Nenhuma base liberada
+                                  {member.role === 'Clientes' ? 'Nenhuma base liberada' : 'Todas as bases'}
                                 </span>
                               ) : (
                                 (member.allowedBaseIds || []).map((baseId) => {
@@ -1415,7 +1416,7 @@ export default function Settings({
                   </p>
                 </div>
 
-                {activeRole === 'Clientes' && (
+                {canAssignAllowedBases && (
                   <div className="space-y-2">
                     <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400 ml-1">Bases Permitidas</label>
                     <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4 space-y-2">
@@ -1438,7 +1439,9 @@ export default function Settings({
                       })}
                     </div>
                     <p className="text-[10px] font-bold ml-1 text-slate-400">
-                      Defina exatamente em quais filiais este cliente podera consultar e agendar.
+                      {activeRole === 'Clientes'
+                        ? 'Defina exatamente em quais filiais este cliente podera consultar e agendar.'
+                        : 'Marque as bases que este colaborador podera acessar. Sem marcacao, ele acessa todas.'}
                     </p>
                   </div>
                 )}

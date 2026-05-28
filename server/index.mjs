@@ -740,6 +740,8 @@ async function sanitizeSchedulingPayloadForUser(user, appointment, service, exec
       vehicle: vehicle.model,
       plate: vehicle.plate,
       vehicleType: vehicle.type,
+      createdById: user?.id || appointment?.createdById,
+      createdByName: user?.name || appointment?.createdByName,
     },
     service: {
       ...service,
@@ -771,19 +773,28 @@ function getAllowedBaseIdsForMember(member) {
 }
 
 function getBaseFilterForUser(user) {
-  if (!user || user.role !== 'Clientes') {
+  if (!user) {
     return null;
   }
 
-  return getAllowedBaseIdsForMember(user);
+  if (user.role === 'Clientes') {
+    return getAllowedBaseIdsForMember(user);
+  }
+
+  const allowedBaseIds = getAllowedBaseIdsForMember(user);
+  return allowedBaseIds.length > 0 ? allowedBaseIds : null;
 }
 
 function assertUserCanAccessBase(user, baseId) {
-  if (!user || user.role !== 'Clientes') {
+  if (!user) {
     return;
   }
 
   const allowedBaseIds = getAllowedBaseIdsForMember(user);
+  if (user.role !== 'Clientes' && allowedBaseIds.length === 0) {
+    return;
+  }
+
   if (!baseId || !allowedBaseIds.includes(baseId)) {
     const error = new Error('Voce nao tem acesso a esta base.');
     error.statusCode = 403;
@@ -958,6 +969,8 @@ function toCamelAppointment(row) {
     photo: row.photo,
     thirdPartyName: row.third_party_name,
     thirdPartyCpf: row.third_party_cpf,
+    createdById: row.created_by_id,
+    createdByName: row.created_by_name,
   };
 }
 
@@ -1789,7 +1802,7 @@ async function upsertTeamMemberRow(member, executor = query) {
 
   const passwordHash = member.passwordHash
     || (member.password ? await bcrypt.hash(member.password, 10) : existingPasswordHash);
-  const allowedBaseIds = isClientRole
+  const allowedBaseIds = isClientRole || member.role === 'Colaboradores'
     ? getAllowedBaseIdsForMember(member)
     : [];
   const persistedAvatar = await persistUploadedImage(member.avatar || currentMember.rows[0]?.avatar || '', 'avatars');
@@ -1942,6 +1955,8 @@ async function getSessionUser(token) {
 
 async function upsertAppointmentRow(appointment, executor = query) {
   const normalizedTarumaZone = normalizeTarumaZone(appointment.baseId || null, appointment.vehicleType || null, appointment.washingZoneId);
+  const createdById = String(appointment.createdById || appointment.created_by_id || '').trim() || null;
+  const createdByName = String(appointment.createdByName || appointment.created_by_name || '').trim() || null;
 
   const duplicate = await executor(
     `
@@ -1971,8 +1986,8 @@ async function upsertAppointmentRow(appointment, executor = query) {
     await executor(
       `
       INSERT INTO appointments (
-        id, customer, vehicle, plate, base_id, base_name, washing_zone_id, washing_zone_name, vehicle_type, service, date, time, status, photo, third_party_name, third_party_cpf, updated_at
-      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,NOW())
+        id, customer, vehicle, plate, base_id, base_name, washing_zone_id, washing_zone_name, vehicle_type, service, date, time, status, photo, third_party_name, third_party_cpf, created_by_id, created_by_name, updated_at
+      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,NOW())
       ON CONFLICT (id) DO UPDATE SET
         customer = EXCLUDED.customer,
         vehicle = EXCLUDED.vehicle,
@@ -1989,6 +2004,8 @@ async function upsertAppointmentRow(appointment, executor = query) {
         photo = EXCLUDED.photo,
         third_party_name = EXCLUDED.third_party_name,
         third_party_cpf = EXCLUDED.third_party_cpf,
+        created_by_id = COALESCE(appointments.created_by_id, EXCLUDED.created_by_id),
+        created_by_name = COALESCE(NULLIF(appointments.created_by_name, ''), EXCLUDED.created_by_name),
         updated_at = NOW()
       `,
       [
@@ -2008,6 +2025,8 @@ async function upsertAppointmentRow(appointment, executor = query) {
         persistedAppointmentPhoto,
         appointment.thirdPartyName || null,
         appointment.thirdPartyCpf || null,
+        createdById,
+        createdByName,
       ]
     );
   } catch (error) {
@@ -2764,8 +2783,13 @@ app.post('/api/scheduling/book', async (req, res) => {
   const payload = await withTransaction(async (client) => {
     const executor = (text, params = []) => client.query(text, params);
     const sanitized = await sanitizeSchedulingPayloadForUser(req.user, appointment, service, executor);
+    const appointmentWithCreator = {
+      ...sanitized.appointment,
+      createdById: sanitized.appointment.createdById || req.user.id,
+      createdByName: sanitized.appointment.createdByName || req.user.name,
+    };
 
-    await upsertAppointmentRow(sanitized.appointment, executor);
+    await upsertAppointmentRow(appointmentWithCreator, executor);
     await upsertServiceRow(sanitized.service, executor);
 
     const [appointmentResult, serviceResult] = await Promise.all([
@@ -2895,7 +2919,11 @@ app.post('/api/appointments/upsert', async (req, res) => {
 
   assertUserCanAccessBase(req.user, appointment.baseId || null);
 
-  await upsertAppointmentRow(appointment);
+  await upsertAppointmentRow({
+    ...appointment,
+    createdById: appointment.createdById || req.user.id,
+    createdByName: appointment.createdByName || req.user.name,
+  });
   const result = await query('SELECT * FROM appointments WHERE id = $1', [appointment.id]);
   res.json(toCamelAppointment(result.rows[0]));
 });

@@ -767,6 +767,8 @@ export default function Scheduling({
       status: 'confirmed',
       thirdPartyName: isThirdParty ? thirdPartyName : undefined,
       thirdPartyCpf: isThirdParty ? digitsOnly(thirdPartyCpf) : undefined,
+      createdById: currentUser?.id,
+      createdByName: currentUser?.name || currentUser?.email || 'Sistema',
     };
 
     const newService: Service = {
@@ -1050,6 +1052,13 @@ export default function Scheduling({
                       </p>
                     </div>
 
+                    <div className="flex items-center gap-2 mt-1">
+                      <User className="w-3 h-3 text-amber-500" />
+                      <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wide">
+                        Agendado por <span className="text-slate-800">{appointment.createdByName || 'Sistema'}</span>
+                      </p>
+                    </div>
+
                     <div className="mt-2">
                       <span className="text-[10px] font-black uppercase tracking-widest text-primary bg-primary/5 px-2 py-0.5 rounded border border-primary/5">
                         {appointment.service}
@@ -1077,15 +1086,17 @@ export default function Scheduling({
                     <CalendarIcon className="w-8 h-8" />
                   </div>
                   <p className="text-slate-400 text-sm font-medium">Nenhum agendamento para este dia.</p>
-                  <button
-                    onClick={() => {
-                      resetAppointmentForm();
-                      setIsAdding(true);
-                    }}
-                    className="text-primary text-sm font-bold hover:underline active:scale-95 transition-transform"
-                  >
-                    Agendar agora
-                  </button>
+                  {canCreateAppointments && (
+                    <button
+                      onClick={() => {
+                        resetAppointmentForm();
+                        setIsAdding(true);
+                      }}
+                      className="text-primary text-sm font-bold hover:underline active:scale-95 transition-transform"
+                    >
+                      Agendar agora
+                    </button>
+                  )}
                 </div>
               )}
             </motion.div>

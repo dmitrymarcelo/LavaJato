@@ -557,7 +557,7 @@ export default function App() {
       return;
     }
 
-    if (currentUser.role !== 'Clientes') {
+    if (currentUser.role !== 'Clientes' && (currentUser.allowedBaseIds || []).length === 0) {
       if (selectedBase && !getBaseById(selectedBase)) {
         setSelectedBase(null);
       }
@@ -1655,7 +1655,7 @@ export default function App() {
     isRecoveringSessionRef.current = false;
     setCurrentUser(response.user);
     setIsSessionResolved(true);
-    setSelectedBase(response.user.role === 'Clientes' ? (response.user.allowedBaseIds?.[0] || null) : null);
+    setSelectedBase(response.user.allowedBaseIds?.[0] || null);
     setCurrentScreen(getHomeScreenForUser(response.user));
     await loadBootstrap();
   };
@@ -1685,8 +1685,9 @@ export default function App() {
 
   const activeService = services.find((service) => service.id === activeServiceId) || null;
   const activeServiceElapsedMinutes = getElapsedMinutes(activeService?.startTime, clockNow);
-  const availableBases = currentUser?.role === 'Clientes'
-    ? BASES.filter((base) => (currentUser.allowedBaseIds || []).includes(base.id))
+  const currentUserAllowedBaseIds = currentUser?.allowedBaseIds || [];
+  const availableBases = currentUserAllowedBaseIds.length > 0
+    ? BASES.filter((base) => currentUserAllowedBaseIds.includes(base.id))
     : BASES;
   const selectedBaseInfo = getBaseById(selectedBase);
 

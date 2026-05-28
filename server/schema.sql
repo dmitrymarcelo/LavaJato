@@ -148,6 +148,8 @@ CREATE TABLE IF NOT EXISTS appointments (
     photo TEXT,
     third_party_name TEXT,
     third_party_cpf TEXT,
+    created_by_id TEXT,
+    created_by_name TEXT,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -166,6 +168,12 @@ ALTER TABLE appointments
 
 ALTER TABLE appointments
     ADD COLUMN IF NOT EXISTS washing_zone_name TEXT;
+
+ALTER TABLE appointments
+    ADD COLUMN IF NOT EXISTS created_by_id TEXT;
+
+ALTER TABLE appointments
+    ADD COLUMN IF NOT EXISTS created_by_name TEXT;
 
 UPDATE appointments
 SET
