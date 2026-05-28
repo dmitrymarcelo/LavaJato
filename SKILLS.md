@@ -1,7 +1,7 @@
 # SKILLS.md - Lava Jato Norte Tech
 
-Atualizado em: 2026-05-27
-Commit de referencia: `2013e24d4cccf83852da3ad3dd56f23faaaeeaa8`
+Atualizado em: 2026-05-28
+Commit de referencia: `5bf684890b9cadc4218dff2f2f097d02f9159601`
 
 ## Objetivo
 
@@ -77,9 +77,9 @@ Ele complementa o `AGENTS.md`:
 - Objetivo: impedir que a API dependa apenas do frontend para seguranca
 - Entradas: `access_rules`, usuario autenticado, permissao requerida pela rota
 - Saidas: `403` seguro ou execucao autorizada
-- Dependencias: `server/index.mjs`, `src/lib/access.ts`, `src/App.tsx`, `src/components/Settings.tsx`
+- Dependencias: `server/access-control.mjs`, `server/index.mjs`, `src/lib/access.ts`, `src/App.tsx`, `src/components/Settings.tsx`
 - Falha esperada: perfil sem permissao para a acao
-- Resposta esperada: bloquear acesso no backend e refletir a restricao no frontend sem esconder inconsistencias
+- Resposta esperada: bloquear acesso no backend e refletir a restricao no frontend sem esconder inconsistencias; `Administrador` e sempre total, `Colaboradores` e configuravel, `Lavador` preserva operacao de fila/lavagem na migracao antiga e `Clientes` fica travado em agendamento
 
 ### S04. `vehicle-normalization`
 
@@ -89,7 +89,7 @@ Ele complementa o `AGENTS.md`:
 - Saidas: chave de placa canonica e categoria compatibilizada
 - Dependencias: `CheckIn.tsx`, `Settings.tsx`, `vehicle-type.mjs`, `POST /api/vehicles/bulk-upsert`
 - Falha esperada: placa ou tipo inconsistente
-- Resposta esperada: bloquear cadastro incompleto antes da persistencia, consolidar importacoes em lote sem perder o estado apos refresh, permitir cadastro unitario pelo acesso de cliente sem abrir permissao administrativa ampla e exibir precos com formatacao monetaria brasileira consistente
+- Resposta esperada: bloquear cadastro incompleto antes da persistencia, consolidar importacoes em lote sem perder o estado apos refresh, permitir cadastro unitario pelo acesso de cliente sem abrir permissao administrativa ampla, controlar importacao/listagem administrativa por `manage_vehicle_base` e exibir precos com formatacao monetaria brasileira consistente
 
 ### S04B. `client-self-registration`
 

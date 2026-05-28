@@ -3,25 +3,13 @@ import path from 'path';
 import bcrypt from 'bcryptjs';
 import { fileURLToPath } from 'url';
 import { withTransaction } from './db.mjs';
+import { buildDefaultAccessRules } from './access-control.mjs';
 import { mapSourceVehicleTypeToCategory, normalizeSourceVehicleType } from './vehicle-type.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const defaultAdminPassword = process.env.ADMIN_INITIAL_PASSWORD || (process.env.NODE_ENV === 'production' ? '' : 'Admin@123456!');
-const defaultAccessRules = [
-  {
-    role: 'Administrador',
-    permissions: ['view_analytics', 'manage_team', 'edit_services', 'delete_services', 'bypass_inspection', 'manage_b2b', 'manage_inventory', 'manage_access'],
-  },
-  {
-    role: 'Lavador',
-    permissions: [],
-  },
-  {
-    role: 'Clientes',
-    permissions: ['manage_b2b'],
-  },
-];
+const defaultAccessRules = buildDefaultAccessRules();
 
 const serviceTypes = {
   car: {

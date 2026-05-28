@@ -1,14 +1,19 @@
 import type { RoleAccessRule, TeamMember } from '../types';
 
 export const APP_PERMISSION_IDS = [
+  'view_scheduling',
+  'manage_scheduling',
+  'operate_wash',
+  'manage_payments',
   'view_analytics',
+  'manage_vehicle_base',
+  'manage_inventory',
   'manage_team',
   'edit_services',
   'delete_services',
   'bypass_inspection',
-  'manage_b2b',
-  'manage_inventory',
   'manage_access',
+  'manage_b2b',
 ] as const;
 
 export type AppPermissionId = typeof APP_PERMISSION_IDS[number];
@@ -37,6 +42,10 @@ export function getPermissionsForRole(role: string, accessRules: RoleAccessRule[
 
   if (normalizedRole === 'Administrador') {
     return [...APP_PERMISSION_IDS];
+  }
+
+  if (normalizedRole === 'Clientes') {
+    return ['manage_b2b'];
   }
 
   const matchingRule = (accessRules || []).find((rule) => String(rule?.role || '').trim() === normalizedRole);

@@ -156,6 +156,9 @@ export default function Scheduling({
   isClientUser = false,
   currentUser,
   canDeleteRecords = false,
+  canManageScheduling = true,
+  canOperateWash = true,
+  canManagePayments = true,
   selectedBaseId,
   selectedBaseName,
   onSelectBase,
@@ -178,6 +181,9 @@ export default function Scheduling({
   isClientUser?: boolean;
   currentUser?: TeamMember | null;
   canDeleteRecords?: boolean;
+  canManageScheduling?: boolean;
+  canOperateWash?: boolean;
+  canManagePayments?: boolean;
   selectedBaseId?: string | null;
   selectedBaseName?: string | null;
   onSelectBase?: (baseId: string) => void;
@@ -213,6 +219,7 @@ export default function Scheduling({
   const [isVehicleFound, setIsVehicleFound] = useState(false);
   const [appointmentBaseId, setAppointmentBaseId] = useState(selectedBaseId || availableBases[0]?.id || BASES[0]?.id || '');
   const [appointmentWashingZoneId, setAppointmentWashingZoneId] = useState<WashingZoneId | ''>('');
+  const canCreateAppointments = isClientUser || canManageScheduling;
 
   const resetAppointmentForm = () => {
     setIsAdding(false);
@@ -463,28 +470,53 @@ export default function Scheduling({
 
   const handleAction = (service: Service) => {
     if (service.status === 'pending') {
+      if (!canOperateWash) {
+        alert('Seu perfil nao possui permissao para operar lavagens.');
+        return;
+      }
       onNavigate('inspection-pre', service.id);
       return;
     }
 
     if (service.status === 'in_progress') {
+      if (!canOperateWash) {
+        alert('Seu perfil nao possui permissao para operar lavagens.');
+        return;
+      }
       onNavigate('inspection-post', service.id);
       return;
     }
 
     if (service.status === 'waiting_payment') {
+      if (!canManagePayments) {
+        alert('Seu perfil nao possui permissao para fechar pagamentos.');
+        return;
+      }
       onNavigate('payment', service.id);
     }
   };
 
   const handleEditService = (service: Service) => {
     if (service.status === 'pending') {
+      if (!canOperateWash) {
+        alert('Seu perfil nao possui permissao para operar lavagens.');
+        return;
+      }
       onNavigate('inspection-pre', service.id);
       return;
     }
 
     if (service.status === 'in_progress') {
+      if (!canOperateWash) {
+        alert('Seu perfil nao possui permissao para operar lavagens.');
+        return;
+      }
       onNavigate('inspection-post', service.id);
+      return;
+    }
+
+    if (!canManagePayments) {
+      alert('Seu perfil nao possui permissao para fechar pagamentos.');
       return;
     }
 
@@ -653,6 +685,11 @@ export default function Scheduling({
   const handleAddAppointment = async (event: React.FormEvent) => {
     event.preventDefault();
 
+    if (!canCreateAppointments) {
+      alert('Seu perfil nao possui permissao para criar agendamentos.');
+      return;
+    }
+
     if (isClientUser && availableBases.length === 0) {
       alert('Este cliente nao possui bases liberadas para agendamento.');
       return;
@@ -791,8 +828,9 @@ export default function Scheduling({
             resetAppointmentForm();
             setIsAdding(true);
           }}
-          disabled={isClientUser && availableBases.length === 0}
-          className="bg-primary text-white p-3 rounded-2xl shadow-xl shadow-primary/20 active:scale-95 transition-transform"
+          disabled={!canCreateAppointments || (isClientUser && availableBases.length === 0)}
+          className="bg-primary text-white p-3 rounded-2xl shadow-xl shadow-primary/20 active:scale-95 transition-transform disabled:opacity-50 disabled:shadow-none"
+          title={canCreateAppointments ? 'Novo agendamento' : 'Seu perfil nao cria agendamentos'}
         >
           <Plus className="w-7 h-7" />
         </button>

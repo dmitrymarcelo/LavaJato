@@ -161,8 +161,17 @@ export default function App() {
     userHasPermission(currentUser, accessRules, permission)
   ), [currentUser, accessRules]);
   const canViewAnalytics = hasPermission('view_analytics');
+  const canViewScheduling = isClientUser
+    || hasPermission('view_scheduling')
+    || hasPermission('manage_scheduling')
+    || hasPermission('operate_wash')
+    || hasPermission('manage_payments');
+  const canManageScheduling = hasPermission('manage_scheduling');
+  const canOperateWash = hasPermission('operate_wash');
+  const canManagePayments = hasPermission('manage_payments');
   const canManageInventory = hasPermission('manage_inventory');
-  const canManageSettings = hasPermission('manage_access') || hasPermission('manage_team') || hasPermission('edit_services');
+  const canManageVehicleBase = hasPermission('manage_vehicle_base');
+  const canManageSettings = hasPermission('manage_access') || hasPermission('manage_team') || hasPermission('edit_services') || canManageVehicleBase;
   const canDeleteOperationalRecords = hasPermission('delete_services');
 
   const getHomeScreenForUser = React.useCallback((user: TeamMember | null | undefined) => {
@@ -174,7 +183,33 @@ export default function App() {
       return 'scheduling' as Screen;
     }
 
-    return userHasPermission(user, accessRules, 'view_analytics') ? 'dashboard' : 'scheduling';
+    if (userHasPermission(user, accessRules, 'view_analytics')) {
+      return 'dashboard';
+    }
+
+    if (
+      userHasPermission(user, accessRules, 'view_scheduling')
+      || userHasPermission(user, accessRules, 'manage_scheduling')
+      || userHasPermission(user, accessRules, 'operate_wash')
+      || userHasPermission(user, accessRules, 'manage_payments')
+    ) {
+      return 'scheduling';
+    }
+
+    if (userHasPermission(user, accessRules, 'manage_inventory')) {
+      return 'inventory';
+    }
+
+    if (
+      userHasPermission(user, accessRules, 'manage_access')
+      || userHasPermission(user, accessRules, 'manage_team')
+      || userHasPermission(user, accessRules, 'edit_services')
+      || userHasPermission(user, accessRules, 'manage_vehicle_base')
+    ) {
+      return 'settings';
+    }
+
+    return 'scheduling';
   }, [accessRules]);
 
   const normalizePlateKey = (plate?: string | null) => String(plate || '').trim().toUpperCase();
@@ -477,12 +512,32 @@ export default function App() {
     }
 
     if ((currentScreen === 'dashboard') && !canViewAnalytics) {
-      setCurrentScreen('scheduling');
+      setCurrentScreen(getHomeScreenForUser(currentUser));
       return;
     }
 
     if ((currentScreen === 'vehicle-history' || currentScreen === 'vehicle-history-detail') && !canViewAnalytics) {
-      setCurrentScreen('scheduling');
+      setCurrentScreen(getHomeScreenForUser(currentUser));
+      return;
+    }
+
+    if ((currentScreen === 'scheduling' || currentScreen === 'queue') && !canViewScheduling) {
+      setCurrentScreen(getHomeScreenForUser(currentUser));
+      return;
+    }
+
+    if (currentScreen === 'checkin' && !canManageScheduling) {
+      setCurrentScreen(getHomeScreenForUser(currentUser));
+      return;
+    }
+
+    if ((currentScreen === 'inspection-pre' || currentScreen === 'inspection-post') && !canOperateWash) {
+      setCurrentScreen(getHomeScreenForUser(currentUser));
+      return;
+    }
+
+    if (currentScreen === 'payment' && !canManagePayments) {
+      setCurrentScreen(getHomeScreenForUser(currentUser));
       return;
     }
 
@@ -494,7 +549,7 @@ export default function App() {
     if (currentScreen === 'settings' && !canManageSettings) {
       setCurrentScreen(getHomeScreenForUser(currentUser));
     }
-  }, [isAuthenticated, isClientUser, currentScreen, canViewAnalytics, canManageInventory, canManageSettings, currentUser, getHomeScreenForUser]);
+  }, [isAuthenticated, isClientUser, currentScreen, canViewAnalytics, canViewScheduling, canManageScheduling, canOperateWash, canManagePayments, canManageInventory, canManageSettings, currentUser, getHomeScreenForUser]);
 
   useEffect(() => {
     if (!currentUser) {
@@ -1499,12 +1554,32 @@ export default function App() {
     }
 
     if (normalized === 'dashboard' && !canViewAnalytics) {
-      setCurrentScreen('scheduling');
+      setCurrentScreen(getHomeScreenForUser(currentUser));
       return;
     }
 
     if ((normalized === 'vehicle-history' || normalized === 'vehicle-history-detail') && !canViewAnalytics) {
-      setCurrentScreen('scheduling');
+      setCurrentScreen(getHomeScreenForUser(currentUser));
+      return;
+    }
+
+    if ((normalized === 'scheduling' || normalized === 'queue') && !canViewScheduling) {
+      setCurrentScreen(getHomeScreenForUser(currentUser));
+      return;
+    }
+
+    if (normalized === 'checkin' && !canManageScheduling) {
+      setCurrentScreen(getHomeScreenForUser(currentUser));
+      return;
+    }
+
+    if ((normalized === 'inspection-pre' || normalized === 'inspection-post') && !canOperateWash) {
+      setCurrentScreen(getHomeScreenForUser(currentUser));
+      return;
+    }
+
+    if (normalized === 'payment' && !canManagePayments) {
+      setCurrentScreen(getHomeScreenForUser(currentUser));
       return;
     }
 
@@ -1526,6 +1601,16 @@ export default function App() {
   };
 
   const handleNavigateWithService = (screen: Screen, serviceId?: string) => {
+    if ((screen === 'inspection-pre' || screen === 'inspection-post') && !canOperateWash) {
+      setCurrentScreen(getHomeScreenForUser(currentUser));
+      return;
+    }
+
+    if (screen === 'payment' && !canManagePayments) {
+      setCurrentScreen(getHomeScreenForUser(currentUser));
+      return;
+    }
+
     if (serviceId) {
       setActiveServiceId(serviceId);
     }
@@ -1704,7 +1789,7 @@ export default function App() {
       case 'vehicle-history-detail': return <VehicleHistoryDetail plate={selectedVehiclePlate} onNavigate={handleNavigateWithService} />;
       case 'queue':
       case 'scheduling': 
-        return <Scheduling currentDateKey={currentDateKey} appointments={appointments} onUpdateAppointments={persistAppointments} onCreateBooking={createScheduledBooking} onNavigate={handleNavigateWithService} services={services} onReorder={reorderServices} onDeleteServiceRecord={deleteServiceRecord} onDeleteAppointmentRecord={deleteAppointmentRecord} serviceTypes={serviceTypes} vehicleDb={vehicleDb} availableBases={availableBases} isClientUser={isClientUser} currentUser={currentUser} canDeleteRecords={canDeleteOperationalRecords} onRegisterVehicle={registerVehicleFromScheduling} selectedBaseId={selectedBaseInfo?.id} selectedBaseName={selectedBaseInfo?.name} onSelectBase={(baseId) => {
+        return <Scheduling currentDateKey={currentDateKey} appointments={appointments} onUpdateAppointments={persistAppointments} onCreateBooking={createScheduledBooking} onNavigate={handleNavigateWithService} services={services} onReorder={reorderServices} onDeleteServiceRecord={deleteServiceRecord} onDeleteAppointmentRecord={deleteAppointmentRecord} serviceTypes={serviceTypes} vehicleDb={vehicleDb} availableBases={availableBases} isClientUser={isClientUser} currentUser={currentUser} canDeleteRecords={canDeleteOperationalRecords} canManageScheduling={canManageScheduling} canOperateWash={canOperateWash} canManagePayments={canManagePayments} onRegisterVehicle={registerVehicleFromScheduling} selectedBaseId={selectedBaseInfo?.id} selectedBaseName={selectedBaseInfo?.name} onSelectBase={(baseId) => {
           setSelectedBase(baseId);
         }} onResetBaseFilter={() => {
           if (!isClientUser) {
@@ -1760,6 +1845,7 @@ export default function App() {
             onToggle={() => setIsSidebarOpen(!isSidebarOpen)}
             currentUser={currentUser}
             canViewAnalytics={canViewAnalytics}
+            canViewScheduling={canViewScheduling}
             canManageInventory={canManageInventory}
             canManageSettings={canManageSettings}
           />
@@ -1862,12 +1948,14 @@ export default function App() {
                   label="Painel"
                 />
               )}
-              <NavButton 
-                active={currentScreen === 'scheduling' || currentScreen === 'queue'} 
-                onClick={() => navigateTo('scheduling')}
-                icon={<Droplets className="w-6 h-6" />}
-                label="Agenda & Fila"
-              />
+              {canViewScheduling && (
+                <NavButton
+                  active={currentScreen === 'scheduling' || currentScreen === 'queue'}
+                  onClick={() => navigateTo('scheduling')}
+                  icon={<Droplets className="w-6 h-6" />}
+                  label="Agenda & Fila"
+                />
+              )}
               {canManageInventory && (
                 <NavButton 
                   active={currentScreen === 'inventory'} 

@@ -1,7 +1,7 @@
 # AGENTS.md - Lava Jato Norte Tech
 
-Atualizado em: 2026-05-27
-Commit de referencia: `2013e24d4cccf83852da3ad3dd56f23faaaeeaa8`
+Atualizado em: 2026-05-28
+Commit de referencia: `5bf684890b9cadc4218dff2f2f097d02f9159601`
 
 ## Objetivo
 
@@ -79,6 +79,7 @@ O sistema precisa garantir cinco resultados de negocio sem ambiguidade:
 - `Inspecao Pre` e `Inspecao Pos` exigem no minimo `1` foto
 - a foto `Frente` pode virar imagem principal do card
 - cliente e filtrado por bases autorizadas e pelo dono do cadastro, sem listar placas ou agendamentos de outros clientes
+- perfis de acesso atuais: `Administrador` com acesso total protegido, `Colaboradores` configuravel, `Lavador` operacional e `Clientes` restrito ao agendamento das bases liberadas
 - a Base Taruma exige roteamento por area de lavagem
 
 ## Principios operacionais para agentes
@@ -184,10 +185,11 @@ Este projeto adota os seguintes principios, alinhados a boas praticas publicadas
 - Missao: autenticar usuarios, gerenciar equipe, permissoes, tipos de servico e base de veiculos
 - Entradas: credenciais, perfis, base autorizada, regras de acesso e dados mestres
 - Saidas: sessao autenticada, usuarios atualizados, configuracoes persistidas
-- Guardrails: sessoes persistidas em `auth_sessions` com cookie `HttpOnly`, filtro por base para clientes, validacoes de senha e email no frontend e no backend, rate limit de login por IP + identificador, validacao de origem para mutacoes, enforcement por permissao (`manage_access`, `manage_team`, `edit_services`, `manage_inventory`, `delete_services`, `view_analytics`, `bypass_inspection`), seed administrativo configuravel por `ADMIN_INITIAL_PASSWORD` e bloqueio de URL remota arbitraria em imagens persistidas
+- Guardrails: sessoes persistidas em `auth_sessions` com cookie `HttpOnly`, filtro por base para clientes, validacoes de senha e email no frontend e no backend, rate limit de login por IP + identificador, validacao de origem para mutacoes, enforcement por permissao (`view_scheduling`, `manage_scheduling`, `operate_wash`, `manage_payments`, `view_analytics`, `manage_vehicle_base`, `manage_inventory`, `manage_team`, `edit_services`, `delete_services`, `bypass_inspection`, `manage_access`, `manage_b2b`), seed administrativo configuravel por `ADMIN_INITIAL_PASSWORD` e bloqueio de URL remota arbitraria em imagens persistidas
 - Alinhamento de UX recente: `Configuracoes` deixou de aparecer para perfis nao administrativos na navegacao principal
 - Alinhamento visual atual: login, sidebar, modais e acoes principais seguem tema claro com ambar como cor de marca, mantendo leitura profissional sem tons escuros pesados
 - UX atual: a tela de configuracoes usa feedback visual proprio para erro, sucesso e confirmacao, evitando dialogos nativos do navegador
+- Capacidade atual: `Acesso & Equipe` separa `Colaboradores` de `Administrador`; clientes ficam travados em agendamento, e a aba antes chamada `Cadastros de Clientes` agora se chama `Base de Veiculos`
 - Persistencia atual: importacao de CSV da base de veiculos usa `bulk upsert` transacional no backend e lotes no frontend, com estado de carregamento explicito apos refresh
 - Correcao recente: o carregamento da base de veiculos em `Configuracoes` nao pode mais se autocancelar por mudanca da propria flag de loading; esse ciclo foi removido em `src/App.tsx`
 - Capacidade atual: administradores podem resetar senha manualmente em `Configuracoes`, copiar a senha temporaria e, quando SES estiver configurado, enviar a senha temporaria ao email cadastrado; clientes tambem podem pedir reset automatico em `Esqueceu senha?` na tela de login

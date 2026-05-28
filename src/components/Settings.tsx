@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Shield, UserCog, CheckCircle2, XCircle, Save, Info, Lock, Eye, Edit3, Trash2, BarChart3, Users, UserPlus, Star, Clock, MoreVertical, Search, Filter, ShieldCheck, Car, Bike, Truck, Ship, Plus, Upload, FileSpreadsheet, Download, Package, Copy } from 'lucide-react';
+import { Shield, UserCog, CheckCircle2, XCircle, Save, Info, Lock, Eye, Edit3, Trash2, BarChart3, Users, UserPlus, Star, Clock, MoreVertical, Search, Filter, ShieldCheck, Car, Bike, Truck, Ship, Plus, Upload, FileSpreadsheet, Download, Package, Copy, CalendarCheck, CreditCard, Database, WashingMachine } from 'lucide-react';
 import { RoleAccessRule, Screen, TeamMember, VehicleCategory, VehicleType, ServiceTypeOption, VehicleRegistration } from '../types';
 import { motion, AnimatePresence } from '../lib/motion';
 import { digitsOnly, formatCpf, generateId, isValidCpf, isValidEmail, optimizeImageFile, validateStrongPassword } from '../utils/app';
@@ -32,19 +32,25 @@ interface ConfirmationState {
 }
 
 const PERMISSIONS: Permission[] = [
-  { id: 'view_analytics', label: 'Ver Relatórios', description: 'Acesso total ao módulo de produtividade e faturamento.', icon: <BarChart3 className="w-4 h-4" /> },
-  { id: 'manage_team', label: 'Gerenciar Equipe', description: 'Adicionar, editar ou remover membros da equipe.', icon: <UserCog className="w-4 h-4" /> },
-  { id: 'edit_services', label: 'Editar Serviços', description: 'Alterar preços ou tipos de serviços em andamento.', icon: <Edit3 className="w-4 h-4" /> },
-  { id: 'delete_services', label: 'Excluir Serviços', description: 'Remover registros de serviços do sistema.', icon: <Trash2 className="w-4 h-4" /> },
-  { id: 'bypass_inspection', label: 'Pular Inspeção', description: 'Permitir iniciar lavagem sem fotos obrigatórias.', icon: <Eye className="w-4 h-4" /> },
-  { id: 'manage_b2b', label: 'Base', description: 'Controlar a base que o cliente pode acompanhar na agenda e fila.', icon: <Shield className="w-4 h-4" /> },
+  { id: 'view_scheduling', label: 'Ver Agenda & Fila', description: 'Visualizar agendamentos, fila e cards operacionais.', icon: <Clock className="w-4 h-4" /> },
+  { id: 'manage_scheduling', label: 'Criar Agendamentos', description: 'Cadastrar, ajustar e sincronizar agendamentos e check-ins.', icon: <CalendarCheck className="w-4 h-4" /> },
+  { id: 'operate_wash', label: 'Operar Lavagens', description: 'Executar inspeções, iniciar e concluir etapas de lavagem.', icon: <WashingMachine className="w-4 h-4" /> },
+  { id: 'manage_payments', label: 'Fechar Pagamentos', description: 'Acessar a etapa de pagamento e concluir serviços.', icon: <CreditCard className="w-4 h-4" /> },
+  { id: 'view_analytics', label: 'Ver Relatórios', description: 'Acessar Painel, indicadores, históricos e faturamento.', icon: <BarChart3 className="w-4 h-4" /> },
+  { id: 'manage_vehicle_base', label: 'Gerenciar Base de Veículos', description: 'Cadastrar, importar, editar ou remover veículos da base.', icon: <Database className="w-4 h-4" /> },
   { id: 'manage_inventory', label: 'Gerenciar Estoque', description: 'Cadastrar produtos, ajustar saldos e remover itens do estoque.', icon: <Package className="w-4 h-4" /> },
+  { id: 'manage_team', label: 'Gerenciar Equipe', description: 'Adicionar, editar, resetar senha ou remover membros da equipe.', icon: <UserCog className="w-4 h-4" /> },
+  { id: 'edit_services', label: 'Serviços & Preços', description: 'Alterar tipos de serviço e tabela de preços.', icon: <Edit3 className="w-4 h-4" /> },
+  { id: 'delete_services', label: 'Excluir Registros', description: 'Remover registros de serviços e agendamentos do sistema.', icon: <Trash2 className="w-4 h-4" /> },
+  { id: 'bypass_inspection', label: 'Pular Inspeção', description: 'Permitir iniciar lavagem sem fotos obrigatórias.', icon: <Eye className="w-4 h-4" /> },
   { id: 'manage_access', label: 'Gerenciar Permissões', description: 'Alterar níveis de acesso e permissões de outros perfis.', icon: <Lock className="w-4 h-4" /> },
+  { id: 'manage_b2b', label: 'Agendamento do Cliente', description: 'Permitir que clientes agendem nas bases liberadas.', icon: <Shield className="w-4 h-4" /> },
 ];
 
 const INITIAL_RULES: RoleAccessRule[] = [
+  { role: 'Colaboradores', permissions: ['view_scheduling', 'manage_scheduling', 'manage_payments', 'view_analytics', 'manage_vehicle_base'] },
   { role: 'Administrador', permissions: PERMISSIONS.map(p => p.id) },
-  { role: 'Lavador', permissions: [] },
+  { role: 'Lavador', permissions: ['view_scheduling', 'operate_wash'] },
   { role: 'Clientes', permissions: ['manage_b2b'] },
 ];
 
@@ -80,7 +86,7 @@ export default function Settings({
   onUpdateAccessRules?: (rules: RoleAccessRule[]) => Promise<void> | void
 }) {
   const [rules, setRules] = useState<RoleAccessRule[]>(accessRules?.length ? accessRules : INITIAL_RULES);
-  const [activeRole, setActiveRole] = useState<string>('Administrador');
+  const [activeRole, setActiveRole] = useState<string>('Colaboradores');
   const [activeTab, setActiveTab] = useState<'access' | 'services' | 'database'>('access');
   const [isSaving, setIsSaving] = useState(false);
   const [team, setTeam] = useState<TeamMember[]>(teamProp ?? []);
@@ -103,16 +109,20 @@ export default function Settings({
   const canManageAccess = currentPermissions.includes('manage_access');
   const canManageTeam = currentPermissions.includes('manage_team');
   const canEditServices = currentPermissions.includes('edit_services');
+  const canManageVehicleBase = currentPermissions.includes('manage_vehicle_base');
   const availableTabs = React.useMemo(() => {
     const tabs: Array<'access' | 'services' | 'database'> = [];
     if (canManageAccess || canManageTeam) {
       tabs.push('access');
     }
     if (canEditServices) {
-      tabs.push('services', 'database');
+      tabs.push('services');
+    }
+    if (canManageVehicleBase) {
+      tabs.push('database');
     }
     return tabs;
-  }, [canEditServices, canManageAccess, canManageTeam]);
+  }, [canEditServices, canManageAccess, canManageTeam, canManageVehicleBase]);
 
   const filteredTeam = team.filter(member => 
     member.role === activeRole && (
@@ -129,7 +139,7 @@ export default function Settings({
   ) || [];
 
   const togglePermission = (roleName: string, permissionId: string) => {
-    if (!canManageAccess || roleName === 'Administrador') {
+    if (!canManageAccess || roleName === 'Administrador' || roleName === 'Clientes') {
       return;
     }
 
@@ -173,7 +183,7 @@ export default function Settings({
 
   React.useEffect(() => {
     if (!rules.some((rule) => rule.role === activeRole)) {
-      setActiveRole(rules[0]?.role || 'Administrador');
+      setActiveRole(rules[0]?.role || 'Colaboradores');
     }
   }, [activeRole, rules]);
 
@@ -778,7 +788,7 @@ export default function Settings({
             onClick={() => setActiveTab('database')}
             className={`pb-4 pt-2 px-4 font-bold text-sm border-b-2 transition-colors whitespace-nowrap ${activeTab === 'database' ? 'border-primary text-primary' : 'border-transparent text-slate-400'}`}
           >
-            Cadastros de Clientes
+            Base de Veículos
           </button>
         )}
       </div>
@@ -818,7 +828,19 @@ export default function Settings({
                     <span className="text-[10px] font-bold uppercase">Acesso Total</span>
                   </div>
                 )}
+                {activeRole === 'Clientes' && (
+                  <div className="flex items-center gap-2 bg-emerald-50 text-emerald-700 px-3 py-1.5 rounded-lg border border-emerald-100">
+                    <Shield className="w-4 h-4" />
+                    <span className="text-[10px] font-bold uppercase">Somente Agendamento</span>
+                  </div>
+                )}
               </div>
+
+              {activeRole === 'Colaboradores' && (
+                <div className="rounded-2xl border border-amber-100 bg-amber-50/70 px-4 py-3 text-xs font-medium text-amber-800">
+                  Use este perfil para colaboradores administrativos ou operacionais que nao devem ter acesso total de administrador.
+                </div>
+              )}
 
               {activeRole === 'Clientes' && (
                 <div className="rounded-2xl border border-primary/10 bg-primary/5 px-4 py-3 text-xs font-medium text-primary">
@@ -829,7 +851,7 @@ export default function Settings({
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {visiblePermissions.map((perm) => {
                   const isEnabled = currentRoleRules?.permissions.includes(perm.id);
-                  const isDisabled = activeRole === 'Administrador' || !canManageAccess;
+                  const isDisabled = activeRole === 'Administrador' || activeRole === 'Clientes' || !canManageAccess;
 
                   return (
                     <div 

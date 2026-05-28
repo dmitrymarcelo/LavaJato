@@ -1,12 +1,12 @@
 # Handoff Lava Jato - Norte Tech
 
-Atualizado em: 2026-05-27
+Atualizado em: 2026-05-28
 
 ## Estado atual
 
 - Repositorio: `https://github.com/dmitrymarcelo/LavaJato`
 - Branch principal: `main`
-- Commit atual: `2013e24d4cccf83852da3ad3dd56f23faaaeeaa8`
+- Commit atual: `5bf684890b9cadc4218dff2f2f097d02f9159601`
 - Producao AWS atual: `https://3-145-153-19.sslip.io/` (hostname publico com certificado HTTPS confiavel)
 - Regiao AWS: `us-east-2`
 - Instancia usada no deploy: `i-0ba1477cbbe3d986d`
@@ -106,8 +106,17 @@ Observacao:
 - A foto `Frente` do checklist vira imagem principal do card do veiculo.
 - `Inspecao Pre` e `Inspecao Pos` exigem no minimo `1` foto.
 - Regra visual permanente: criar telas em tons claros, com branco/cinza suave como base e ambar da marca como acento; evitar fundos escuros ou preto/navy pesado porque a gestao prefere uma experiencia leve e harmoniosa.
+- Regra atual de perfis: `Administrador` permanece como acesso total protegido; `Colaboradores` e o perfil configuravel para funcionarios; `Lavador` fica para operacao de lavagem; `Clientes` permanece somente com agendamento nas bases liberadas.
 
 ## Correcoes estruturais recentes
+
+### Permissoes e equipe
+
+- `Acesso & Equipe` passou a separar `Colaboradores` de `Administrador`, mantendo administradores com acesso total e colaboradores com permissoes ligaveis/desligaveis.
+- A matriz de permissoes foi ampliada para agenda/fila, criacao de agendamento, operacao de lavagem, pagamento, relatorios, base de veiculos, estoque, equipe, servicos/precos, exclusoes, bypass de inspecao e gerenciamento de permissoes.
+- `Clientes` fica travado em `Agendamento do Cliente`, sem virar perfil administrativo por acidente.
+- `Lavador` recebe `Ver Agenda & Fila` e `Operar Lavagens` na migracao das regras antigas para nao perder acesso operacional apos o deploy.
+- A aba `Cadastros de Clientes` foi renomeada para `Base de Veiculos`, alinhando o nome ao conteudo real da tela.
 
 ### Identidade visual clara
 
@@ -265,6 +274,7 @@ Observacao:
 
 ## Commits recentes relevantes
 
+- `5bf6848` `ui: aplicar tema claro com ambar`
 - `2013e24` `ui: reorganizar painel gerencial`
 - `5b4dbca` `feat: filtros avancados e reset de senha`
 - `fc9a0d4` `fix: isolar placas por cliente`
@@ -272,7 +282,6 @@ Observacao:
 - `b18edd5` `Taruma: bloquear caminhao as 17:00`
 - `570b8c3` `UI: titulo centralizado, remover dica inteligente e melhorar clima`
 - `f828689` `feat: clima real (Open-Meteo) na sidebar`
-- `3fdbb41` `ui: melhorar tipografia e remover embaçado`
 
 ## Arquivos centrais
 
@@ -390,7 +399,7 @@ Com isso, qualquer alteracao publicada em `main` dispara o deploy via SSM no EC2
   - os precos de servico no modal e no seletor passaram a usar formatacao monetaria `pt-BR`, evitando textos como `80.75,00`
 - A tela `Configuracoes > Cadastros de Clientes` trocou `alert/confirm` por feedback visual interno, leve e mais amigavel para smartphone, sem adicionar polling ou dependencias pesadas.
 - O GitHub e a fonte principal da continuidade.
-- Se mudar de computador, o ideal e continuar a partir do commit `2013e24` ou posterior.
+- Se mudar de computador, o ideal e continuar a partir do commit `5bf6848` ou posterior.
 - Imagens enviadas ficam em `server/storage/uploads` (persistidas via volume Docker).
 - Em producao, altere a senha do administrador imediatamente.
 

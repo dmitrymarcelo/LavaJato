@@ -26,6 +26,13 @@ import {
   getPasswordResetEmailConfig,
   sendTemporaryPasswordEmail,
 } from './password-reset.mjs';
+import {
+  ADMIN_ROLES,
+  buildDefaultAccessRules,
+  getPermissionsForRole as resolvePermissionsForRole,
+  normalizeAccessRules,
+  normalizePermissionList,
+} from './access-control.mjs';
 import { mapSourceVehicleTypeToCategory, normalizeSourceVehicleType } from './vehicle-type.mjs';
 import {
   TARUMA_ACTIVE_APPOINTMENT_STATUSES,
@@ -82,18 +89,6 @@ const TARUMA_ZONE_NAMES = {
   [TARUMA_DIQUE_LEVE_ZONE_ID]: TARUMA_DIQUE_LEVE_ZONE_NAME,
 };
 const OPERATIONAL_SERVICE_STATUSES = ['pending', 'in_progress', 'waiting_payment'];
-const ADMIN_ROLES = new Set(['Administrador']);
-const APP_PERMISSION_IDS = [
-  'view_analytics',
-  'manage_team',
-  'edit_services',
-  'delete_services',
-  'bypass_inspection',
-  'manage_b2b',
-  'manage_inventory',
-  'manage_access',
-];
-const APP_PERMISSION_SET = new Set(APP_PERMISSION_IDS);
 const loginAttemptBuckets = new Map();
 const passwordResetAttemptBuckets = new Map();
 let accessRulesCache = [];
@@ -602,63 +597,6 @@ function normalizeEmail(value) {
   return String(value || '').trim().toLowerCase();
 }
 
-function normalizePermissionList(value) {
-  if (!Array.isArray(value)) {
-    return [];
-  }
-
-  return Array.from(
-    new Set(
-      value
-        .map((item) => String(item || '').trim())
-        .filter((item) => APP_PERMISSION_SET.has(item))
-    )
-  );
-}
-
-function buildDefaultAccessRules() {
-  return [
-    { role: 'Administrador', permissions: [...APP_PERMISSION_IDS] },
-    { role: 'Lavador', permissions: [] },
-    { role: 'Clientes', permissions: ['manage_b2b'] },
-  ];
-}
-
-function normalizeAccessRules(value) {
-  const providedRules = Array.isArray(value)
-    ? value
-        .map((rule) => ({
-          role: String(rule?.role || '').trim(),
-          permissions: normalizePermissionList(rule?.permissions),
-        }))
-        .filter((rule) => rule.role)
-    : [];
-  const rulesByRole = new Map(providedRules.map((rule) => [rule.role, rule.permissions]));
-
-  const normalizedDefaults = buildDefaultAccessRules().map((rule) => {
-    if (rule.role === 'Administrador') {
-      return { role: rule.role, permissions: [...APP_PERMISSION_IDS] };
-    }
-
-    const overridePermissions = rulesByRole.has(rule.role)
-      ? rulesByRole.get(rule.role)
-      : rule.permissions;
-    return {
-      role: rule.role,
-      permissions: normalizePermissionList(overridePermissions),
-    };
-  });
-
-  const extraRules = providedRules
-    .filter((rule) => !normalizedDefaults.some((item) => item.role === rule.role))
-    .map((rule) => ({
-      role: rule.role,
-      permissions: normalizePermissionList(rule.permissions),
-    }));
-
-  return [...normalizedDefaults, ...extraRules];
-}
-
 async function loadAccessRulesCache(executor = query) {
   const result = await executor("SELECT value FROM app_settings WHERE key = 'access_rules' LIMIT 1");
   accessRulesCache = normalizeAccessRules(result.rows[0]?.value || buildDefaultAccessRules());
@@ -671,12 +609,7 @@ function getPermissionsForRole(role) {
     return [];
   }
 
-  if (ADMIN_ROLES.has(normalizedRole)) {
-    return [...APP_PERMISSION_IDS];
-  }
-
-  const matchingRule = accessRulesCache.find((rule) => rule.role === normalizedRole);
-  return matchingRule ? normalizePermissionList(matchingRule.permissions) : [];
+  return resolvePermissionsForRole(normalizedRole, accessRulesCache);
 }
 
 function getUserPermissions(user) {
@@ -709,8 +642,17 @@ function assertUserHasPermission(user, permission, message = 'Voce nao tem permi
   throw error;
 }
 
+function assertUserCanCreateScheduling(user) {
+  if (isClientRole(user)) {
+    assertUserHasPermission(user, 'manage_b2b', 'Clientes podem acessar somente o agendamento das bases liberadas.');
+    return;
+  }
+
+  assertUserHasPermission(user, 'manage_scheduling', 'Voce nao tem permissao para criar ou editar agendamentos.');
+}
+
 async function sanitizeVehiclePayloadForUser(user, vehicle, executor = query) {
-  if (userHasPermission(user, 'edit_services')) {
+  if (userHasPermission(user, 'manage_vehicle_base')) {
     return vehicle;
   }
 
@@ -2591,7 +2533,7 @@ app.put('/api/service-types', async (req, res) => {
 });
 
 app.get('/api/vehicles', async (req, res) => {
-  assertUserHasPermission(req.user, 'edit_services');
+  assertUserHasPermission(req.user, 'manage_vehicle_base');
   const result = await query('SELECT * FROM vehicles ORDER BY plate');
   res.json(result.rows.map(toCamelVehicle));
 });
@@ -2620,7 +2562,7 @@ app.post('/api/vehicles/upsert', async (req, res) => {
 });
 
 app.post('/api/vehicles/bulk-upsert', async (req, res) => {
-  assertUserHasPermission(req.user, 'edit_services');
+  assertUserHasPermission(req.user, 'manage_vehicle_base');
   const vehicles = Array.isArray(req.body)
     ? req.body
     : Array.isArray(req.body?.vehicles)
@@ -2657,7 +2599,7 @@ app.post('/api/vehicles/bulk-upsert', async (req, res) => {
 });
 
 app.delete('/api/vehicles/:plate', async (req, res) => {
-  assertUserHasPermission(req.user, 'edit_services');
+  assertUserHasPermission(req.user, 'manage_vehicle_base');
   await query('DELETE FROM vehicles WHERE plate = $1', [String(req.params.plate || '').toUpperCase().trim()]);
   res.status(204).end();
 });
@@ -2686,6 +2628,7 @@ app.get('/api/services/:id', async (req, res) => {
 });
 
 app.post('/api/services/:id/inspection-photo', async (req, res) => {
+  assertUserHasPermission(req.user, 'operate_wash', 'Voce nao tem permissao para operar lavagens.');
   const stage = req.body?.stage;
   const photoId = String(req.body?.photoId || '').trim();
   const imageData = String(req.body?.imageData || '').trim();
@@ -2712,6 +2655,7 @@ app.post('/api/services/:id/inspection-photo', async (req, res) => {
 });
 
 app.post('/api/services/:id/start-wash', async (req, res) => {
+  assertUserHasPermission(req.user, 'operate_wash', 'Voce nao tem permissao para iniciar lavagens.');
   const serviceResult = await query('SELECT base_id, customer FROM services WHERE id = $1', [req.params.id]);
   const serviceRow = serviceResult.rows[0];
 
@@ -2726,6 +2670,7 @@ app.post('/api/services/:id/start-wash', async (req, res) => {
 });
 
 app.post('/api/services/:id/complete-wash', async (req, res) => {
+  assertUserHasPermission(req.user, 'operate_wash', 'Voce nao tem permissao para concluir lavagens.');
   const serviceResult = await query('SELECT base_id, customer FROM services WHERE id = $1', [req.params.id]);
   const serviceRow = serviceResult.rows[0];
 
@@ -2740,6 +2685,7 @@ app.post('/api/services/:id/complete-wash', async (req, res) => {
 });
 
 app.post('/api/services/upsert', async (req, res) => {
+  assertUserCanCreateScheduling(req.user);
   const service = req.body || {};
   if (!service.id) {
     return res.status(400).json({ error: 'Id do servico e obrigatorio.' });
@@ -2753,6 +2699,7 @@ app.post('/api/services/upsert', async (req, res) => {
 });
 
 app.post('/api/services/:id/complete-payment', async (req, res) => {
+  assertUserHasPermission(req.user, 'manage_payments', 'Voce nao tem permissao para fechar pagamentos.');
   const payload = await withTransaction(async (client) => {
     const executor = (text, params = []) => client.query(text, params);
     const serviceResult = await executor('SELECT * FROM services WHERE id = $1 FOR UPDATE', [req.params.id]);
@@ -2804,6 +2751,7 @@ app.post('/api/services/:id/complete-payment', async (req, res) => {
 });
 
 app.post('/api/scheduling/book', async (req, res) => {
+  assertUserCanCreateScheduling(req.user);
   const { appointment, service } = req.body || {};
 
   if (!appointment?.id || !service?.id) {
@@ -2939,6 +2887,7 @@ app.get('/api/appointments', async (req, res) => {
 });
 
 app.post('/api/appointments/upsert', async (req, res) => {
+  assertUserCanCreateScheduling(req.user);
   const appointment = req.body || {};
   if (!appointment.id) {
     return res.status(400).json({ error: 'Id do agendamento e obrigatorio.' });

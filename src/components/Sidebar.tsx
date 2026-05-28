@@ -126,6 +126,7 @@ interface SidebarProps {
   onToggle: () => void;
   currentUser?: TeamMember | null;
   canViewAnalytics?: boolean;
+  canViewScheduling?: boolean;
   canManageInventory?: boolean;
   canManageSettings?: boolean;
 }
@@ -138,6 +139,7 @@ export default function Sidebar({
   onToggle,
   currentUser,
   canViewAnalytics = false,
+  canViewScheduling = false,
   canManageInventory = false,
   canManageSettings = false,
 }: SidebarProps) {
@@ -281,6 +283,10 @@ export default function Sidebar({
 
       if (item.id === 'settings') {
         return canManageSettings;
+      }
+
+      if (item.id === 'scheduling') {
+        return canViewScheduling;
       }
 
       return true;
