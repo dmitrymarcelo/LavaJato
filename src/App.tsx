@@ -499,6 +499,10 @@ export default function App() {
 
   useEffect(() => {
     void loadBootstrap();
+    const interval = setInterval(() => {
+      void loadBootstrap();
+    }, 30000); // Refresh every 30 seconds
+    return () => clearInterval(interval);
   }, []);
 
   useEffect(() => {
