@@ -285,14 +285,14 @@ export default function InspectionPre({
 
   const completedCount = Object.keys(photos).length;
   const progress = (completedCount / PHOTO_TYPES.length) * 100;
-  const isPhotosComplete = completedCount >= 1;
+  const isPhotosComplete = true; // Photos are no longer mandatory
   const isWashersSelected = selectedWashers.length > 0;
   const createdDateKey = normalizeDateKey(service?.timeline?.createdAt);
   const scheduledDateKey = normalizeDateKey(service?.scheduledDate);
   const requiresCarryOverObservation = Boolean(createdDateKey && scheduledDateKey && createdDateKey < scheduledDateKey);
   const hasValidObservation = true; // Observation is no longer mandatory
   const hasAlreadyStarted = Boolean(service && (service.status !== 'pending' || service.timeline?.washStartedAt));
-  const canStart = isPhotosComplete && isWashersSelected && !hasAlreadyStarted;
+  const canStart = isWashersSelected && !hasAlreadyStarted;
 
   const handleStartWash = async () => {
     if (!canStart || isSubmitting) {
@@ -436,7 +436,7 @@ export default function InspectionPre({
 
         <div className="space-y-1">
           <h2 className="text-xl font-bold tracking-tight">Estado Inicial</h2>
-          <p className="text-sm text-slate-500 leading-relaxed">Capture pelo menos 1 foto para documentar o estado do veiculo antes de iniciar o servico. As demais sao opcionais.</p>
+          <p className="text-sm text-slate-500 leading-relaxed">Capture fotos para documentar o estado do veiculo (opcional).</p>
         </div>
 
         {/* Photo Grid */}
@@ -448,7 +448,7 @@ export default function InspectionPre({
               image={photos[type.id]}
               status={photos[type.id] ? (pendingPhotoIds.has(type.id) ? 'pending' : 'saved') : undefined}
               onClick={() => handlePhotoClick(type.id)}
-              required={!completedCount}
+              required={false}
             />
           ))}
         </div>

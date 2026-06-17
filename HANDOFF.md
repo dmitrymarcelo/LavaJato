@@ -6,7 +6,7 @@ Atualizado em: 2026-06-17
 
 - Repositorio: `https://github.com/dmitrymarcelo/LavaJato`
 - Branch principal: `main`
-- Commit atual: `3abc7cef8a35560975872bf431d9bd4b0cb76053`
+- Commit atual: `dd59aee7b4fb8672d06d97ce1e2fb36292b28e5f`
 - Producao AWS atual: `https://3-145-153-19.sslip.io/` (hostname publico com certificado HTTPS confiavel)
 - Regiao AWS: `us-east-2`
 - Instancia usada no deploy: `i-0ba1477cbbe3d986d`
@@ -276,6 +276,7 @@ Observacao:
 
 ## Commits recentes relevantes
 
+- `dd59aee` `Remove mandatory observation requirement when starting wash`
 - `3abc7ce` `Add periodic bootstrap refresh every 30 seconds to ensure frontend has latest data`
 - `9716631` `Add script to reset password for user with registration 24000`
 - `4030057` `feat: rastrear autor e bases de colaboradores`
@@ -283,7 +284,6 @@ Observacao:
 - `5bf6848` `ui: aplicar tema claro com ambar`
 - `2013e24` `ui: reorganizar painel gerencial`
 - `5b4dbca` `feat: filtros avancados e reset de senha`
-- `fc9a0d4` `fix: isolar placas por cliente`
 
 ## Arquivos centrais
 
@@ -401,7 +401,7 @@ Com isso, qualquer alteracao publicada em `main` dispara o deploy via SSM no EC2
   - os precos de servico no modal e no seletor passaram a usar formatacao monetaria `pt-BR`, evitando textos como `80.75,00`
 - A tela `Configuracoes > Cadastros de Clientes` trocou `alert/confirm` por feedback visual interno, leve e mais amigavel para smartphone, sem adicionar polling ou dependencias pesadas.
 - O GitHub e a fonte principal da continuidade.
-- Se mudar de computador, o ideal e continuar a partir do commit `3abc7ce` ou posterior.
+- Se mudar de computador, o ideal e continuar a partir do commit `dd59aee` ou posterior.
 - Imagens enviadas ficam em `server/storage/uploads` (persistidas via volume Docker).
 - Em producao, altere a senha do administrador imediatamente.
 
