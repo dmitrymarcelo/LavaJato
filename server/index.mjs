@@ -1535,11 +1535,8 @@ async function transitionServiceStage(serviceId, action, payload = {}, user = nu
         : (currentService.washers || []);
       const nextObservations = String(payload.observations || '').trim() || currentService.observations || '';
 
-      if (countPersistedPhotoEntries(nextPrePhotos) === 0 && !userHasPermission(user, 'bypass_inspection')) {
-        const error = new Error('Adicione ao menos uma foto da pre-inspecao antes de iniciar a lavagem.');
-        error.statusCode = 400;
-        throw error;
-      }
+      // Fotos de pré-inspeção não devem bloquear o início da lavagem.
+      // Mantemos a possibilidade de anexar fotos depois (inclusive com fila offline no frontend).
 
       nextService = {
         ...currentService,
