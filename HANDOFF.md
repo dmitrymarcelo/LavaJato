@@ -6,7 +6,7 @@ Atualizado em: 2026-06-17
 
 - Repositorio: `https://github.com/dmitrymarcelo/LavaJato`
 - Branch principal: `main`
-- Commit atual: `dd59aee7b4fb8672d06d97ce1e2fb36292b28e5f`
+- Commit atual: `fdb46fcb0e08da87a21f310fdf7c1b2fa7777eed`
 - Producao AWS atual: `https://3-145-153-19.sslip.io/` (hostname publico com certificado HTTPS confiavel)
 - Regiao AWS: `us-east-2`
 - Instancia usada no deploy: `i-0ba1477cbbe3d986d`
@@ -276,14 +276,14 @@ Observacao:
 
 ## Commits recentes relevantes
 
+- `fdb46fc` `fix: iniciar lavagem sem foto`
+- `da78432` `Revert to sslip.io free domain`
+- `3198f52` `Set domain to lavajatonortetech.com`
+- `eece199` `Remove mandatory photo requirement when starting wash`
 - `dd59aee` `Remove mandatory observation requirement when starting wash`
 - `3abc7ce` `Add periodic bootstrap refresh every 30 seconds to ensure frontend has latest data`
 - `9716631` `Add script to reset password for user with registration 24000`
 - `4030057` `feat: rastrear autor e bases de colaboradores`
-- `bcea851` `feat: separar colaboradores e permissoes`
-- `5bf6848` `ui: aplicar tema claro com ambar`
-- `2013e24` `ui: reorganizar painel gerencial`
-- `5b4dbca` `feat: filtros avancados e reset de senha`
 
 ## Arquivos centrais
 
