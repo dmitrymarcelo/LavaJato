@@ -1305,21 +1305,8 @@ function requiresCarryOverObservation(service) {
 }
 
 function assertCarryOverObservation(service) {
-  if (service?.status !== 'in_progress') {
-    return;
-  }
-
-  if (!requiresCarryOverObservation(service)) {
-    return;
-  }
-
-  if (String(service?.observations || '').trim().length >= 10) {
-    return;
-  }
-
-  const error = new Error('Informe uma observacao descritiva antes de iniciar a lavagem deste agendamento anterior.');
-  error.statusCode = 400;
-  throw error;
+  // Observation is no longer mandatory - just a no-op
+  return;
 }
 
 function normalizeTarumaZone(baseId, vehicleType, washingZoneId) {

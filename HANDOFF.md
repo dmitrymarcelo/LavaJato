@@ -1,12 +1,12 @@
 # Handoff Lava Jato - Norte Tech
 
-Atualizado em: 2026-06-16
+Atualizado em: 2026-06-17
 
 ## Estado atual
 
 - Repositorio: `https://github.com/dmitrymarcelo/LavaJato`
 - Branch principal: `main`
-- Commit atual: `9716631e74de121ec6021578916f7af27185cc43`
+- Commit atual: `3abc7cef8a35560975872bf431d9bd4b0cb76053`
 - Producao AWS atual: `https://3-145-153-19.sslip.io/` (hostname publico com certificado HTTPS confiavel)
 - Regiao AWS: `us-east-2`
 - Instancia usada no deploy: `i-0ba1477cbbe3d986d`
@@ -276,6 +276,7 @@ Observacao:
 
 ## Commits recentes relevantes
 
+- `3abc7ce` `Add periodic bootstrap refresh every 30 seconds to ensure frontend has latest data`
 - `9716631` `Add script to reset password for user with registration 24000`
 - `4030057` `feat: rastrear autor e bases de colaboradores`
 - `bcea851` `feat: separar colaboradores e permissoes`
@@ -283,7 +284,6 @@ Observacao:
 - `2013e24` `ui: reorganizar painel gerencial`
 - `5b4dbca` `feat: filtros avancados e reset de senha`
 - `fc9a0d4` `fix: isolar placas por cliente`
-- `2bacc0a` `feat: cadastro publico de clientes`
 
 ## Arquivos centrais
 
@@ -401,7 +401,7 @@ Com isso, qualquer alteracao publicada em `main` dispara o deploy via SSM no EC2
   - os precos de servico no modal e no seletor passaram a usar formatacao monetaria `pt-BR`, evitando textos como `80.75,00`
 - A tela `Configuracoes > Cadastros de Clientes` trocou `alert/confirm` por feedback visual interno, leve e mais amigavel para smartphone, sem adicionar polling ou dependencias pesadas.
 - O GitHub e a fonte principal da continuidade.
-- Se mudar de computador, o ideal e continuar a partir do commit `9716631` ou posterior.
+- Se mudar de computador, o ideal e continuar a partir do commit `3abc7ce` ou posterior.
 - Imagens enviadas ficam em `server/storage/uploads` (persistidas via volume Docker).
 - Em producao, altere a senha do administrador imediatamente.
 

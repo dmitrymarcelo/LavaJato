@@ -290,9 +290,9 @@ export default function InspectionPre({
   const createdDateKey = normalizeDateKey(service?.timeline?.createdAt);
   const scheduledDateKey = normalizeDateKey(service?.scheduledDate);
   const requiresCarryOverObservation = Boolean(createdDateKey && scheduledDateKey && createdDateKey < scheduledDateKey);
-  const hasValidObservation = !requiresCarryOverObservation || observations.trim().length >= 10;
+  const hasValidObservation = true; // Observation is no longer mandatory
   const hasAlreadyStarted = Boolean(service && (service.status !== 'pending' || service.timeline?.washStartedAt));
-  const canStart = isPhotosComplete && isWashersSelected && hasValidObservation && !hasAlreadyStarted;
+  const canStart = isPhotosComplete && isWashersSelected && !hasAlreadyStarted;
 
   const handleStartWash = async () => {
     if (!canStart || isSubmitting) {
@@ -420,35 +420,18 @@ export default function InspectionPre({
             <div>
               <h2 className="text-xl font-bold tracking-tight">Observacao operacional</h2>
               <p className="text-sm text-slate-500 leading-relaxed">
-                {requiresCarryOverObservation
-                  ? 'Este veiculo foi agendado em dia anterior. Antes de iniciar a lavagem, registre uma observacao descritiva.'
-                  : 'Use este campo para registrar contexto adicional do atendimento, quando necessario.'}
+                Use este campo para registrar contexto adicional do atendimento, quando necessario.
               </p>
             </div>
-            {requiresCarryOverObservation && (
-              <span className="shrink-0 rounded-full bg-amber-50 border border-amber-100 px-3 py-1 text-[10px] font-black uppercase tracking-widest text-amber-600">
-                Obrigatoria
-              </span>
-            )}
           </div>
 
           <textarea
             value={observations}
             onChange={(event) => setObservations(event.target.value)}
             rows={4}
-            placeholder={requiresCarryOverObservation ? 'Descreva o contexto do atendimento deste agendamento anterior.' : 'Observacoes adicionais do veiculo ou do atendimento.'}
-            className={`w-full rounded-2xl border bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none resize-none ${
-              requiresCarryOverObservation && !hasValidObservation
-                ? 'border-amber-300 focus:border-amber-500'
-                : 'border-slate-100 focus:border-primary'
-            }`}
+            placeholder={'Observacoes adicionais do veiculo ou do atendimento.'}
+            className={`w-full rounded-2xl border bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none resize-none border-slate-100 focus:border-primary`}
           />
-
-          {requiresCarryOverObservation && !hasValidObservation && (
-            <p className="text-xs font-bold text-amber-600">
-              Informe pelo menos 10 caracteres para liberar o inicio da lavagem.
-            </p>
-          )}
         </section>
 
         <div className="space-y-1">
