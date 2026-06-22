@@ -1,7 +1,7 @@
 # SKILLS.md - Lava Jato Norte Tech
 
 Atualizado em: 2026-06-22
-Commit de referencia: `4b7f1d43465f5895fef0042fd6ae24e14fb5c201`
+Commit de referencia: `3fe95ce45ca19773e85c7a110cbe73610e81aec4`
 
 ## Objetivo
 
@@ -60,6 +60,7 @@ Ele complementa o `AGENTS.md`:
 - Dependencias: `src/App.tsx`, `server/index.mjs`
 - Falha esperada: API lenta, indisponivel ou sessao invalida
 - Resposta esperada: carga inicial com feedback visivel; sincronizacoes periodicas devem atualizar os dados silenciosamente, preservar a tela atual e manter o estado existente diante de falha transitoria
+- Guardrail visual: manter uma unica logomarca no shell autenticado, posicionada na barra lateral
 
 ### S03. `base-scoping`
 

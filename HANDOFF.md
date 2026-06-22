@@ -6,7 +6,7 @@ Atualizado em: 2026-06-22
 
 - Repositorio: `https://github.com/dmitrymarcelo/LavaJato`
 - Branch principal: `main`
-- Commit atual: `4b7f1d43465f5895fef0042fd6ae24e14fb5c201`
+- Commit atual: `3fe95ce45ca19773e85c7a110cbe73610e81aec4`
 - Producao AWS atual: `https://3-145-153-19.sslip.io/` (hostname publico com certificado HTTPS confiavel)
 - Regiao AWS: `us-east-2`
 - Instancia usada no deploy: `i-0ba1477cbbe3d986d`
@@ -277,6 +277,7 @@ Observacao:
 
 ## Commits recentes relevantes
 
+- `3fe95ce` `fix: preservar tela durante sincronizacao`
 - `4b7f1d4` `fix: adjust curl flags in deploy healthcheck to follow redirects`
 - `fdb46fc` `fix: iniciar lavagem sem foto`
 - `da78432` `Revert to sslip.io free domain`
@@ -284,7 +285,6 @@ Observacao:
 - `eece199` `Remove mandatory photo requirement when starting wash`
 - `dd59aee` `Remove mandatory observation requirement when starting wash`
 - `3abc7ce` `Add periodic bootstrap refresh every 30 seconds to ensure frontend has latest data`
-- `9716631` `Add script to reset password for user with registration 24000`
 
 ## Arquivos centrais
 
@@ -395,6 +395,7 @@ Com isso, qualquer alteracao publicada em `main` dispara o deploy via SSM no EC2
 - O botao flutuante do assistente IA foi removido da UI principal; a integracao Bedrock segue existente no backend, mas sem CTA visivel no app.
 - A logomarca oficial da empresa voltou para o login e para o canto superior esquerdo do sistema, mas agora empacotada localmente em `public/brand/nortetech-circle.png`, sem dependencia externa em runtime.
 - A diretriz visual atual e `light-first`: branco, cinza muito suave e ambar; tons escuros devem ficar restritos a texto/contraste pontual, nunca como bloco dominante.
+- O shell autenticado usa uma unica logomarca na barra lateral; a repeticao no cabecalho superior foi removida para reduzir ruido visual.
 - O cadastro de `Novo Veiculo` no acesso de cliente foi corrigido:
   - o backend agora aceita o `upsert` unitario desse fluxo sem liberar importacao/listagem administrativa
   - clientes nao podem sobrescrever veiculo ja pertencente a outro cadastro
@@ -402,7 +403,7 @@ Com isso, qualquer alteracao publicada em `main` dispara o deploy via SSM no EC2
   - os precos de servico no modal e no seletor passaram a usar formatacao monetaria `pt-BR`, evitando textos como `80.75,00`
 - A tela `Configuracoes > Cadastros de Clientes` trocou `alert/confirm` por feedback visual interno, leve e mais amigavel para smartphone, sem adicionar polling ou dependencias pesadas.
 - O GitHub e a fonte principal da continuidade.
-- Se mudar de computador, o ideal e continuar a partir do commit `4b7f1d4` ou posterior.
+- Se mudar de computador, o ideal e continuar a partir do commit `3fe95ce` ou posterior.
 - Imagens enviadas ficam em `server/storage/uploads` (persistidas via volume Docker).
 - Em producao, altere a senha do administrador imediatamente.
 

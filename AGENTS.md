@@ -1,7 +1,7 @@
 # AGENTS.md - Lava Jato Norte Tech
 
 Atualizado em: 2026-06-22
-Commit de referencia: `4b7f1d43465f5895fef0042fd6ae24e14fb5c201`
+Commit de referencia: `3fe95ce45ca19773e85c7a110cbe73610e81aec4`
 
 ## Objetivo
 
@@ -57,6 +57,7 @@ O sistema precisa garantir cinco resultados de negocio sem ambiguidade:
 - endurecimento recente de seguranca no backend com rate limit de login, CORS restritivo por mesmo-origem/allowlist, validacao de origem para mutacoes, cookie de sessao `HttpOnly` e enforcement real por permissao nas rotas mais sensiveis
 - deploy automatico em `main`, com memoria operacional sincronizada em `HANDOFF.md` e validacao de SHA real do frontend servido pela EC2
 - identidade visual atual em tons claros: priorizar branco, cinzas suaves e ambar alinhado a logomarca; evitar fundos escuros, preto/navy pesado e gradientes dominantes nas novas telas
+- branding do shell autenticado: exibir a logomarca somente na barra lateral, sem repeti-la no cabecalho de cada tela
 
 ### Hotspots tecnicos
 

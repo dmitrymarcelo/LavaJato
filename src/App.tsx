@@ -40,7 +40,6 @@ import {
   UNAUTHORIZED_SESSION_EVENT,
 } from './services/api';
 import { BASES, getBaseById } from './data/bases';
-import { getSafeLogoSrc } from './lib/placeholders';
 
 const LEGACY_STORAGE_KEYS = ['bootstrapCacheV2', 'bootstrapCacheV3', 'vehicleDbCacheV1', 'authUserV1', 'selectedBase', 'activeServiceId', 'access_rules', 'appCacheVersion', 'authToken'];
 const ACTIVE_SCHEDULING_APPOINTMENT_STATUSES: Appointment['status'][] = ['confirmed', 'pending'];
@@ -1873,14 +1872,7 @@ export default function App() {
           {/* Header */}
           {isAuthenticated && (
             <header className="sticky top-0 z-40 bg-white border-b border-slate-100 px-4 py-4 grid grid-cols-3 items-center transition-colors">
-              <div className="flex items-center gap-3">
-                <img 
-                  src={getSafeLogoSrc()} 
-                  alt="Norte Tech Logo" 
-                  className="w-8 h-8 object-contain"
-                  referrerPolicy="no-referrer"
-                />
-              </div>
+              <div aria-hidden="true" />
               
               <div className="text-center">
                 <h2 className="text-lg sm:text-xl font-black text-slate-900 tracking-tight capitalize">

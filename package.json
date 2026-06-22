@@ -14,6 +14,7 @@
     "test:access-rules": "node scripts/test-access-rules.mjs",
     "test:dashboard": "node scripts/test-dashboard-metrics.mjs",
     "test:bootstrap-refresh": "node scripts/test-bootstrap-refresh.mjs",
+    "test:single-app-logo": "node scripts/test-single-app-logo.mjs",
     "test:password-reset": "node scripts/test-password-reset.mjs",
     "test:taruma-rules": "node scripts/test-taruma-scheduling-rules.mjs",
     "lint": "node ./node_modules/typescript/bin/tsc --noEmit",
