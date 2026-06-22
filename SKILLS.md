@@ -1,7 +1,7 @@
 # SKILLS.md - Lava Jato Norte Tech
 
 Atualizado em: 2026-06-22
-Commit de referencia: `82565a0de669fbc23db5e944135fee0e7e08a868`
+Commit de referencia: `3a5e2f497b2d155f9670bfe52e87ffecf851c46c`
 
 ## Objetivo
 
@@ -62,6 +62,7 @@ Ele complementa o `AGENTS.md`:
 - Resposta esperada: carga inicial com feedback visivel; sincronizacoes periodicas devem atualizar os dados silenciosamente, preservar a tela atual e manter o estado existente diante de falha transitoria
 - Guardrail visual: manter uma unica logomarca no shell autenticado, posicionada na barra lateral
 - Guardrail de movimento: animacoes devem ser curtas, sem deslocar o layout, sem polling extra e desativadas quando `prefers-reduced-motion` estiver ativo
+- Guardrail de formularios: overlays devem usar `ModalSurface` com portal, limite por `100dvh` e scroll proprio para permanecer acessiveis em qualquer resolucao ou zoom
 
 ### S03. `base-scoping`
 

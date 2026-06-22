@@ -1,4 +1,5 @@
 import React, { useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { motion } from '../lib/motion';
 
 type ModalSurfaceProps = {
@@ -38,13 +39,13 @@ export default function ModalSurface({
 
   const centered = position === 'center';
 
-  return (
+  return createPortal(
     <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       onClick={onClose}
-      className={`fixed inset-0 z-[140] flex overflow-hidden justify-center p-3 sm:p-4 bg-slate-200/70 backdrop-blur-sm ${centered ? 'items-center' : 'items-end sm:items-center'} ${overlayClassName}`}
+      className={`fixed inset-0 z-[140] flex overflow-y-auto overflow-x-hidden justify-center p-3 sm:p-4 bg-slate-200/70 backdrop-blur-sm ${centered ? 'items-center' : 'items-end sm:items-center'} ${overlayClassName}`}
     >
       <motion.div
         initial={centered ? { opacity: 0, scale: 0.96 } : { y: '100%' }}
@@ -52,10 +53,11 @@ export default function ModalSurface({
         exit={centered ? { opacity: 0, scale: 0.96 } : { y: '100%' }}
         transition={{ type: 'spring', damping: 25, stiffness: 200 }}
         onClick={(event) => event.stopPropagation()}
-        className={`no-scrollbar w-full max-h-[min(88vh,820px)] overflow-y-auto overflow-x-hidden overscroll-contain scroll-smooth bg-white shadow-2xl ${centered ? 'rounded-3xl' : 'rounded-t-[32px] sm:rounded-3xl'} ${panelClassName}`}
+        className={`no-scrollbar w-full shrink-0 max-h-[calc(100dvh-1.5rem)] sm:max-h-[calc(100dvh-2rem)] overflow-y-auto overflow-x-hidden overscroll-contain scroll-smooth bg-white shadow-2xl ${centered ? 'rounded-3xl' : 'rounded-t-[32px] sm:rounded-3xl'} ${panelClassName}`}
       >
         {children}
       </motion.div>
-    </motion.div>
+    </motion.div>,
+    document.body
   );
 }

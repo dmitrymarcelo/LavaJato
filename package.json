@@ -16,6 +16,7 @@
     "test:bootstrap-refresh": "node scripts/test-bootstrap-refresh.mjs",
     "test:single-app-logo": "node scripts/test-single-app-logo.mjs",
     "test:ui-motion": "node scripts/test-ui-motion.mjs",
+    "test:responsive-modals": "node scripts/test-responsive-modals.mjs",
     "test:password-reset": "node scripts/test-password-reset.mjs",
     "test:taruma-rules": "node scripts/test-taruma-scheduling-rules.mjs",
     "lint": "node ./node_modules/typescript/bin/tsc --noEmit",

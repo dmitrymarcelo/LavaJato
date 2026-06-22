@@ -1,7 +1,7 @@
 # AGENTS.md - Lava Jato Norte Tech
 
 Atualizado em: 2026-06-22
-Commit de referencia: `82565a0de669fbc23db5e944135fee0e7e08a868`
+Commit de referencia: `3a5e2f497b2d155f9670bfe52e87ffecf851c46c`
 
 ## Objetivo
 
@@ -59,6 +59,7 @@ O sistema precisa garantir cinco resultados de negocio sem ambiguidade:
 - identidade visual atual em tons claros: priorizar branco, cinzas suaves e ambar alinhado a logomarca; evitar fundos escuros, preto/navy pesado e gradientes dominantes nas novas telas
 - branding do shell autenticado: exibir a logomarca somente na barra lateral, sem repeti-la no cabecalho de cada tela
 - movimento visual atual: entradas curtas, KPIs animados e resposta leve de superficies/navegacao; nunca usar animacao continua e sempre respeitar `prefers-reduced-motion`
+- modais responsivos: todos os formularios compartilhados usam `ModalSurface` via portal no `document.body`, altura baseada em `100dvh` e rolagem interna; o contêiner global de tela nunca pode manter `transform`, pois isso prende elementos `fixed`
 
 ### Hotspots tecnicos
 
