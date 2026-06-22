@@ -449,9 +449,12 @@ export default function App() {
     } catch (error) {}
   }, []);
 
-  const loadBootstrap = async () => {
-    setIsBootstrapping(true);
-    setBackendError(null);
+  const loadBootstrap = async ({ background = false }: { background?: boolean } = {}) => {
+    if (!background) {
+      setIsBootstrapping(true);
+      setBackendError(null);
+    }
+
     try {
       const data = await api.bootstrap();
       const nextServiceTypes = mergeServiceTypes(data.serviceTypes);
@@ -479,8 +482,11 @@ export default function App() {
       setTeam(nextTeam);
       teamRef.current = nextTeam;
       isRecoveringSessionRef.current = false;
+      setBackendError(null);
       setIsSessionResolved(true);
-      setCurrentScreen(getHomeScreenForUser(data.currentUser || null));
+      if (!background) {
+        setCurrentScreen(getHomeScreenForUser(data.currentUser || null));
+      }
     } catch (error: any) {
       if (error instanceof ApiError && error.status === 401) {
         performClientLogout();
@@ -489,18 +495,25 @@ export default function App() {
         return;
       }
 
+      if (background) {
+        console.error('Falha ao sincronizar dados em segundo plano.', error);
+        return;
+      }
+
       setCurrentUser(null);
       setBackendError(error.message || 'Nao foi possivel carregar os dados persistentes.');
       setIsSessionResolved(true);
     } finally {
-      setIsBootstrapping(false);
+      if (!background) {
+        setIsBootstrapping(false);
+      }
     }
   };
 
   useEffect(() => {
     void loadBootstrap();
     const interval = setInterval(() => {
-      void loadBootstrap();
+      void loadBootstrap({ background: true });
     }, 30000); // Refresh every 30 seconds
     return () => clearInterval(interval);
   }, []);

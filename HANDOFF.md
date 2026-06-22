@@ -1,12 +1,12 @@
 # Handoff Lava Jato - Norte Tech
 
-Atualizado em: 2026-06-17
+Atualizado em: 2026-06-22
 
 ## Estado atual
 
 - Repositorio: `https://github.com/dmitrymarcelo/LavaJato`
 - Branch principal: `main`
-- Commit atual: `fdb46fcb0e08da87a21f310fdf7c1b2fa7777eed`
+- Commit atual: `4b7f1d43465f5895fef0042fd6ae24e14fb5c201`
 - Producao AWS atual: `https://3-145-153-19.sslip.io/` (hostname publico com certificado HTTPS confiavel)
 - Regiao AWS: `us-east-2`
 - Instancia usada no deploy: `i-0ba1477cbbe3d986d`
@@ -141,6 +141,7 @@ Observacao:
 
 - O `bootstrap` inicial estava muito pesado porque trazia fotos completas dos servicos.
 - Agora o `bootstrap` carrega servicos sem fotos pesadas, e o detalhe completo do servico e buscado sob demanda.
+- O refresh do `bootstrap` a cada `30s` e executado em segundo plano: nao ativa a tela global de carregamento, nao altera a navegacao atual e nao apaga a sessao/dados por falha transitoria de rede.
 - Medicao feita:
   - antes: cerca de `24s` e `5.3 MB`
   - depois: cerca de `2.7s` e `1.6 MB`
@@ -276,6 +277,7 @@ Observacao:
 
 ## Commits recentes relevantes
 
+- `4b7f1d4` `fix: adjust curl flags in deploy healthcheck to follow redirects`
 - `fdb46fc` `fix: iniciar lavagem sem foto`
 - `da78432` `Revert to sslip.io free domain`
 - `3198f52` `Set domain to lavajatonortetech.com`
@@ -283,7 +285,6 @@ Observacao:
 - `dd59aee` `Remove mandatory observation requirement when starting wash`
 - `3abc7ce` `Add periodic bootstrap refresh every 30 seconds to ensure frontend has latest data`
 - `9716631` `Add script to reset password for user with registration 24000`
-- `4030057` `feat: rastrear autor e bases de colaboradores`
 
 ## Arquivos centrais
 
@@ -401,7 +402,7 @@ Com isso, qualquer alteracao publicada em `main` dispara o deploy via SSM no EC2
   - os precos de servico no modal e no seletor passaram a usar formatacao monetaria `pt-BR`, evitando textos como `80.75,00`
 - A tela `Configuracoes > Cadastros de Clientes` trocou `alert/confirm` por feedback visual interno, leve e mais amigavel para smartphone, sem adicionar polling ou dependencias pesadas.
 - O GitHub e a fonte principal da continuidade.
-- Se mudar de computador, o ideal e continuar a partir do commit `dd59aee` ou posterior.
+- Se mudar de computador, o ideal e continuar a partir do commit `4b7f1d4` ou posterior.
 - Imagens enviadas ficam em `server/storage/uploads` (persistidas via volume Docker).
 - Em producao, altere a senha do administrador imediatamente.
 

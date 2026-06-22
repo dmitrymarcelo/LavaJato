@@ -1,7 +1,7 @@
 # AGENTS.md - Lava Jato Norte Tech
 
-Atualizado em: 2026-06-17
-Commit de referencia: `dd59aee7b4fb8672d06d97ce1e2fb36292b28e5f`
+Atualizado em: 2026-06-22
+Commit de referencia: `4b7f1d43465f5895fef0042fd6ae24e14fb5c201`
 
 ## Objetivo
 
@@ -103,7 +103,7 @@ Este projeto adota os seguintes principios, alinhados a boas praticas publicadas
 - Missao: iniciar a sessao, carregar bootstrap, manter estado global e coordenar sincronizacao local/remota
 - Entradas: token, bootstrap da API, eventos de rede, foco/visibilidade, acoes do usuario
 - Saidas: estado hidratado do app, reconciliacao de filas pendentes, navegacao consistente e feedback operacional em tempo real
-- Guardrails: fallback local quando a API falha, recuperacao de sessao e eventos de nao autorizado
+- Guardrails: fallback local quando a API falha, recuperacao de sessao, eventos de nao autorizado e sincronizacao periodica sempre em segundo plano, sem trocar a tela atual ou ativar loading global
 - Owner sugerido: frontend + plataforma
 
 ### A02. Agente de Agendamento e Fila
