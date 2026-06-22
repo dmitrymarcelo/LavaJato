@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   Activity,
   BarChart3,
@@ -26,6 +26,7 @@ import { getLifetimeWashSummary } from '../utils/dashboardMetrics.js';
 import { BASES } from '../data/bases';
 import { Appointment } from '../services/api';
 import { getSafeAvatarImage, getSafeServiceImage } from '../lib/placeholders';
+import { interpolateMetricValue } from '../utils/uiMotion.js';
 import ModalSurface from './ModalSurface';
 
 type DashboardTimeframe = 'today' | 'week' | 'month' | 'all' | 'custom';
@@ -268,7 +269,7 @@ export default function Dashboard({
     .slice(0, 5);
 
   return (
-    <div className="flex flex-col gap-6 pb-8 bg-white transition-colors">
+    <div className="dashboard-motion-scope flex flex-col gap-6 pb-8 bg-white transition-colors">
       <div className="px-4 pt-4">
         <div className="mb-3 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div>
@@ -344,41 +345,52 @@ export default function Dashboard({
       </div>
 
       <div className="px-4">
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+        <div className="stagger-grid grid grid-cols-2 md:grid-cols-5 gap-3">
           <MetricCard
+            motionIndex={0}
             icon={<DollarSign className="text-primary w-3.5 h-3.5" />}
             label="Faturamento"
-            value={currencyFormatter.format(currentRevenue)}
+            value={currentRevenue}
+            formatValue={(nextValue) => currencyFormatter.format(nextValue)}
             secondary={growthLabel}
             secondaryClassName="text-emerald-500"
           />
           <MetricCard
+            motionIndex={1}
             icon={<Car className="text-slate-500 w-3.5 h-3.5" />}
             label="Volume"
-            value={`${servicesInCurrentWindow.length} veiculos`}
+            value={servicesInCurrentWindow.length}
+            formatValue={(nextValue) => `${integerFormatter.format(nextValue)} veiculos`}
             secondary={timeframe === 'all' ? 'Total ate hoje' : 'Periodo selecionado'}
             interactive
             onClick={() => onNavigate('scheduling')}
           />
           <MetricCard
+            motionIndex={2}
             icon={<CheckCircle2 className="text-emerald-500 w-3.5 h-3.5" />}
             label={timeframe === 'all' ? 'Lavados ate hoje' : 'Lavados no periodo'}
-            value={integerFormatter.format(selectedWashSummary.totalWashed)}
+            value={selectedWashSummary.totalWashed}
+            formatValue={(nextValue) => integerFormatter.format(nextValue)}
             secondary={`${integerFormatter.format(selectedWashSummary.uniqueVehicles)} placas unicas`}
             secondaryClassName="text-emerald-500"
             interactive
             onClick={() => onNavigate('vehicle-history')}
           />
           <MetricCard
+            motionIndex={3}
             icon={<Gauge className="text-primary w-3.5 h-3.5" />}
             label="Tempo medio"
-            value={formatAverageMinutes(averageMinutes)}
+            value={averageMinutes}
+            formatValue={formatAverageMinutes}
+            precision={1}
             secondary={completedDurations.length ? `${completedDurations.length} servicos medidos` : 'Sem base no periodo'}
           />
           <MetricCard
+            motionIndex={4}
             icon={<Clock className="text-amber-500 w-3.5 h-3.5" />}
             label="Pendentes"
-            value={pendingPayments.toString().padStart(2, '0')}
+            value={pendingPayments}
+            formatValue={(nextValue) => nextValue.toString().padStart(2, '0')}
             secondary={`${integerFormatter.format(lifetimeWashSummary.pendingPayment)} no historico`}
             interactive
             onClick={() => onNavigate('scheduling')}
@@ -388,7 +400,7 @@ export default function Dashboard({
 
       <div className="px-4 grid grid-cols-1 items-start gap-6 xl:grid-cols-[minmax(0,0.95fr)_minmax(520px,1.35fr)]">
         <div className="space-y-6">
-          <section className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
+          <section className="interactive-surface bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
             <div className="flex justify-between items-center mb-6">
               <h3 className="text-slate-900 font-black text-lg tracking-tight">Picos de Demanda</h3>
               <div className="flex items-center gap-2 text-[10px] text-slate-500 font-bold uppercase tracking-wider">
@@ -580,17 +592,23 @@ export default function Dashboard({
 }
 
 function MetricCard({
+  motionIndex,
   icon,
   label,
   value,
+  formatValue,
+  precision,
   secondary,
   secondaryClassName,
   interactive,
   onClick,
 }: {
+  motionIndex: number;
   icon: React.ReactNode;
   label: string;
-  value: string;
+  value: number;
+  formatValue: (value: number) => string;
+  precision?: number;
   secondary: string;
   secondaryClassName?: string;
   interactive?: boolean;
@@ -599,19 +617,62 @@ function MetricCard({
   return (
     <div
       onClick={onClick}
-      className={`bg-white border border-slate-100 p-4 rounded-2xl shadow-sm flex flex-col justify-between min-h-[98px] ${interactive ? 'cursor-pointer active:scale-95 transition-transform' : ''}`}
+      style={{ '--motion-index': motionIndex } as React.CSSProperties}
+      className={`interactive-surface bg-white border border-slate-100 p-4 rounded-2xl shadow-sm flex flex-col justify-between min-h-[98px] ${interactive ? 'cursor-pointer active:scale-95' : ''}`}
     >
       <div className="flex items-center gap-1.5 mb-1">
         {icon}
         <span className="text-slate-500 text-[10px] font-bold uppercase tracking-wider truncate">{label}</span>
       </div>
-      <span className="text-slate-900 text-xl font-black block">{value}</span>
+      <span className="text-slate-900 text-xl font-black block">
+        <AnimatedMetricValue value={value} formatValue={formatValue} precision={precision} />
+      </span>
       <span className={`${secondaryClassName || 'text-slate-400'} text-[10px] font-bold mt-1 uppercase flex items-center gap-1 truncate`}>
         {secondaryClassName === 'text-emerald-500' && <TrendingUp className="w-3 h-3" />}
         {secondary}
       </span>
     </div>
   );
+}
+
+function AnimatedMetricValue({
+  value,
+  formatValue,
+  precision = 0,
+}: {
+  value: number;
+  formatValue: (value: number) => string;
+  precision?: number;
+}) {
+  const previousValueRef = useRef(0);
+  const [displayValue, setDisplayValue] = useState(0);
+
+  useEffect(() => {
+    const startValue = previousValueRef.current;
+    previousValueRef.current = value;
+
+    if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) {
+      setDisplayValue(value);
+      return;
+    }
+
+    const startedAt = window.performance.now();
+    let animationFrame = 0;
+
+    const animateValue = (now: number) => {
+      const progress = Math.min(1, (now - startedAt) / 650);
+      setDisplayValue(interpolateMetricValue(startValue, value, progress, precision));
+
+      if (progress < 1) {
+        animationFrame = window.requestAnimationFrame(animateValue);
+      }
+    };
+
+    animationFrame = window.requestAnimationFrame(animateValue);
+    return () => window.cancelAnimationFrame(animationFrame);
+  }, [precision, value]);
+
+  return <span className="metric-value-motion">{formatValue(displayValue)}</span>;
 }
 
 function ExecutiveCard({

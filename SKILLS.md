@@ -1,7 +1,7 @@
 # SKILLS.md - Lava Jato Norte Tech
 
 Atualizado em: 2026-06-22
-Commit de referencia: `3fe95ce45ca19773e85c7a110cbe73610e81aec4`
+Commit de referencia: `82565a0de669fbc23db5e944135fee0e7e08a868`
 
 ## Objetivo
 
@@ -61,6 +61,7 @@ Ele complementa o `AGENTS.md`:
 - Falha esperada: API lenta, indisponivel ou sessao invalida
 - Resposta esperada: carga inicial com feedback visivel; sincronizacoes periodicas devem atualizar os dados silenciosamente, preservar a tela atual e manter o estado existente diante de falha transitoria
 - Guardrail visual: manter uma unica logomarca no shell autenticado, posicionada na barra lateral
+- Guardrail de movimento: animacoes devem ser curtas, sem deslocar o layout, sem polling extra e desativadas quando `prefers-reduced-motion` estiver ativo
 
 ### S03. `base-scoping`
 

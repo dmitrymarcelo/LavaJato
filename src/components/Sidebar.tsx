@@ -319,7 +319,7 @@ export default function Sidebar({
                 key={item.id}
                 onClick={() => onNavigate(item.id as Screen)}
                 title={!isOpen ? item.label : undefined}
-                className={`w-full flex items-center rounded-2xl transition-all group ${
+                className={`nav-motion w-full flex items-center rounded-2xl transition-all group ${
                   isOpen ? 'justify-between px-4 py-3.5' : 'justify-center p-3.5'
                 } ${
                   isActive

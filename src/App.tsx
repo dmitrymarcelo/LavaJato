@@ -1893,7 +1893,7 @@ export default function App() {
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -10 }}
                   transition={{ duration: 0.2 }}
-                  className="h-full"
+                  className="h-full screen-enter"
                 >
                   <Suspense fallback={<div className="min-h-screen flex items-center justify-center text-slate-500 font-bold">Carregando tela...</div>}>
                     {renderScreen()}

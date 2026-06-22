@@ -6,7 +6,7 @@ Atualizado em: 2026-06-22
 
 - Repositorio: `https://github.com/dmitrymarcelo/LavaJato`
 - Branch principal: `main`
-- Commit atual: `3fe95ce45ca19773e85c7a110cbe73610e81aec4`
+- Commit atual: `82565a0de669fbc23db5e944135fee0e7e08a868`
 - Producao AWS atual: `https://3-145-153-19.sslip.io/` (hostname publico com certificado HTTPS confiavel)
 - Regiao AWS: `us-east-2`
 - Instancia usada no deploy: `i-0ba1477cbbe3d986d`
@@ -277,6 +277,7 @@ Observacao:
 
 ## Commits recentes relevantes
 
+- `82565a0` `ui: remover logomarca duplicada do cabecalho`
 - `3fe95ce` `fix: preservar tela durante sincronizacao`
 - `4b7f1d4` `fix: adjust curl flags in deploy healthcheck to follow redirects`
 - `fdb46fc` `fix: iniciar lavagem sem foto`
@@ -284,7 +285,6 @@ Observacao:
 - `3198f52` `Set domain to lavajatonortetech.com`
 - `eece199` `Remove mandatory photo requirement when starting wash`
 - `dd59aee` `Remove mandatory observation requirement when starting wash`
-- `3abc7ce` `Add periodic bootstrap refresh every 30 seconds to ensure frontend has latest data`
 
 ## Arquivos centrais
 
@@ -396,6 +396,8 @@ Com isso, qualquer alteracao publicada em `main` dispara o deploy via SSM no EC2
 - A logomarca oficial da empresa voltou para o login e para o canto superior esquerdo do sistema, mas agora empacotada localmente em `public/brand/nortetech-circle.png`, sem dependencia externa em runtime.
 - A diretriz visual atual e `light-first`: branco, cinza muito suave e ambar; tons escuros devem ficar restritos a texto/contraste pontual, nunca como bloco dominante.
 - O shell autenticado usa uma unica logomarca na barra lateral; a repeticao no cabecalho superior foi removida para reduzir ruido visual.
+- O teste de interatividade usa apenas CSS e `requestAnimationFrame`: entrada curta das telas, contagem dos KPIs, elevacao sutil dos cards e resposta da navegacao, com fallback completo para `prefers-reduced-motion`.
+- Rollback visual garantido pela tag Git `stable-before-motion-2026-06-22`, apontando para o commit `82565a0`.
 - O cadastro de `Novo Veiculo` no acesso de cliente foi corrigido:
   - o backend agora aceita o `upsert` unitario desse fluxo sem liberar importacao/listagem administrativa
   - clientes nao podem sobrescrever veiculo ja pertencente a outro cadastro
@@ -403,7 +405,7 @@ Com isso, qualquer alteracao publicada em `main` dispara o deploy via SSM no EC2
   - os precos de servico no modal e no seletor passaram a usar formatacao monetaria `pt-BR`, evitando textos como `80.75,00`
 - A tela `Configuracoes > Cadastros de Clientes` trocou `alert/confirm` por feedback visual interno, leve e mais amigavel para smartphone, sem adicionar polling ou dependencias pesadas.
 - O GitHub e a fonte principal da continuidade.
-- Se mudar de computador, o ideal e continuar a partir do commit `3fe95ce` ou posterior.
+- Se mudar de computador, o ideal e continuar a partir do commit `82565a0` ou posterior.
 - Imagens enviadas ficam em `server/storage/uploads` (persistidas via volume Docker).
 - Em producao, altere a senha do administrador imediatamente.
 
