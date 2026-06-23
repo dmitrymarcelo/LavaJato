@@ -4,7 +4,7 @@
  */
 
 import React, { useMemo, useState, useRef, useEffect } from 'react';
-import { Camera, CheckCircle2, Lock, Info, RefreshCw, ChevronLeft, PlayCircle, AlertCircle, Upload, X, Clock3 } from 'lucide-react';
+import { Camera, CheckCircle2, Lock, Info, RefreshCw, ChevronLeft, PlayCircle, Upload, X, Clock3 } from 'lucide-react';
 import { motion } from '../lib/motion';
 import { Screen, Service, TeamMember } from '../types';
 import {
@@ -12,7 +12,6 @@ import {
   flushPendingPhotoSaves,
   formatElapsedMinutes,
   listPendingPhotoIds,
-  normalizeDateKey,
   optimizeImageFile,
   PENDING_PHOTO_SAVES_UPDATED_EVENT,
   shouldQueuePendingPhotoSave,
@@ -285,12 +284,7 @@ export default function InspectionPre({
 
   const completedCount = Object.keys(photos).length;
   const progress = (completedCount / PHOTO_TYPES.length) * 100;
-  const isPhotosComplete = true; // Photos are no longer mandatory
   const isWashersSelected = selectedWashers.length > 0;
-  const createdDateKey = normalizeDateKey(service?.timeline?.createdAt);
-  const scheduledDateKey = normalizeDateKey(service?.scheduledDate);
-  const requiresCarryOverObservation = Boolean(createdDateKey && scheduledDateKey && createdDateKey < scheduledDateKey);
-  const hasValidObservation = true; // Observation is no longer mandatory
   const hasAlreadyStarted = Boolean(service && (service.status !== 'pending' || service.timeline?.washStartedAt));
   const canStart = isWashersSelected && !hasAlreadyStarted;
 
@@ -448,7 +442,6 @@ export default function InspectionPre({
               image={photos[type.id]}
               status={photos[type.id] ? (pendingPhotoIds.has(type.id) ? 'pending' : 'saved') : undefined}
               onClick={() => handlePhotoClick(type.id)}
-              required={false}
             />
           ))}
         </div>
@@ -458,12 +451,12 @@ export default function InspectionPre({
           <div className="flex justify-between items-end mb-2">
             <div>
               <span className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider">Progresso da Captura</span>
-              <span className={`text-lg font-black italic ${isPhotosComplete ? 'text-emerald-500' : 'text-primary'}`}>
+              <span className="text-lg font-black italic text-primary">
                 {completedCount}/{PHOTO_TYPES.length} Concluído
               </span>
             </div>
             <span className="text-xs font-semibold text-slate-400">
-              {isPhotosComplete ? 'Tudo pronto!' : 'Capture ao menos 1 foto'}
+              Fotos opcionais
             </span>
           </div>
           {pendingCount > 0 && (
@@ -492,7 +485,7 @@ export default function InspectionPre({
               initial={{ width: 0 }}
               animate={{ 
                 width: `${progress}%`,
-                backgroundColor: isPhotosComplete ? '#10b981' : '#137fec' 
+                backgroundColor: '#b45309'
               }}
               transition={{ duration: 0.6, ease: "easeInOut" }}
               className="h-full rounded-full"
@@ -580,13 +573,11 @@ export default function InspectionPre({
           <div className="flex items-center justify-center gap-2 px-6">
             <Info className={`w-4 h-4 ${canStart ? 'text-emerald-500' : 'text-amber-500'}`} />
             <p className="text-center text-[10px] uppercase font-bold tracking-wider text-slate-500">
-              {hasAlreadyStarted ? 'Inicio ja registrado para este veiculo' : !isPhotosComplete 
-                ? 'Capture ao menos 1 foto para habilitar'
-                : !isWashersSelected 
+              {hasAlreadyStarted
+                ? 'Inicio ja registrado para este veiculo'
+                : !isWashersSelected
                   ? 'Selecione pelo menos um responsável'
-                  : !hasValidObservation
-                    ? 'Registre a observacao obrigatoria para continuar'
-                    : 'Tudo pronto para iniciar'}
+                  : 'Fotos opcionais. Tudo pronto para iniciar'}
             </p>
           </div>
         </div>
@@ -595,7 +586,7 @@ export default function InspectionPre({
   );
 }
 
-function PhotoItem({ label, image, status, onClick, required }: { label: string, image?: string, status?: 'saved' | 'pending', onClick: () => void, required?: boolean, key?: string }) {
+function PhotoItem({ label, image, status, onClick }: { label: string, image?: string, status?: 'saved' | 'pending', onClick: () => void, key?: string }) {
   if (image) {
     return (
       <div className="relative group" onClick={onClick}>
@@ -626,23 +617,12 @@ function PhotoItem({ label, image, status, onClick, required }: { label: string,
   return (
     <div 
       onClick={onClick}
-      className={`relative aspect-square rounded-2xl border-2 border-dashed flex flex-col items-center justify-center gap-2 cursor-pointer active:scale-95 transition-all hover:border-primary/50 ${
-        required ? 'animate-blink-red border-red-500/30' : 'border-slate-200 bg-slate-50'
-      }`}
+      className="relative aspect-square rounded-2xl border-2 border-dashed border-slate-200 bg-slate-50 flex flex-col items-center justify-center gap-2 cursor-pointer active:scale-95 transition-all hover:border-primary/50"
     >
-      <div className={`p-4 rounded-full border ${
-        required ? 'bg-red-50 text-red-500 border-red-200/50' : 'bg-slate-200 text-slate-400 border-slate-300/50'
-      }`}>
+      <div className="p-4 rounded-full border bg-slate-200 text-slate-400 border-slate-300/50">
         <Camera className="w-8 h-8" />
       </div>
-      <span className={`text-[10px] font-black uppercase tracking-widest ${
-        required ? 'text-red-500' : 'text-slate-500'
-      }`}>{label}</span>
-      {required && (
-        <div className="absolute top-2 right-2 flex items-center justify-center w-6 h-6 bg-red-500 text-white rounded-full shadow-lg animate-pulse">
-          <AlertCircle className="w-4 h-4" />
-        </div>
-      )}
+      <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">{label}</span>
     </div>
   );
 }

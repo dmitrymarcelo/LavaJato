@@ -1,7 +1,7 @@
 # SKILLS.md - Lava Jato Norte Tech
 
-Atualizado em: 2026-06-22
-Commit de referencia: `3a5e2f497b2d155f9670bfe52e87ffecf851c46c`
+Atualizado em: 2026-06-23
+Commit de referencia: `01ce58cae0d15972a6d83e9ab81685e46b52ed77`
 
 ## Objetivo
 
@@ -151,14 +151,14 @@ Ele complementa o `AGENTS.md`:
 - Entradas: id do servico, etapa, tipo da foto, imagem
 - Saidas: foto persistida e resposta individual
 - Dependencias: `POST /api/services/:id/inspection-photo`, `InspectionPre.tsx`, `InspectionPost.tsx`
-- Falha esperada: upload interrompido, rede lenta ou refresh do aparelho
-- Resposta esperada: falha isolada da foto, nao perda do resto do servico
+- Falha esperada: upload opcional interrompido, rede lenta ou refresh do aparelho
+- Resposta esperada: falha isolada da foto, sem bloquear a transicao da lavagem nem perder o resto do servico
 
 ### S09. `offline-photo-retry`
 
 - Tipo: operacao critica
 - Objetivo: nao perder evidencias quando a rede oscila
-- Entradas: fotos pendentes, eventos de conectividade, foco, visibilidade
+- Entradas: fotos opcionais pendentes, eventos de conectividade, foco, visibilidade
 - Saidas: fila local e sincronizacao posterior
 - Dependencias: `src/utils/app.ts`, `src/App.tsx`
 - Falha esperada: navegador fechado, cache limpo ou storage indisponivel
@@ -167,7 +167,7 @@ Ele complementa o `AGENTS.md`:
 ### S10. `offline-operational-retry`
 
 - Tipo: operacao critica
-- Objetivo: garantir que inicio e fim da lavagem sobrevivam ao offline
+- Objetivo: garantir que inicio e fim da lavagem sobrevivam ao offline independentemente de anexos de fotos
 - Entradas: `start-wash`, `complete-wash`, id do servico, horario
 - Saidas: fila local e replay seguro
 - Dependencias: `src/utils/app.ts`, `src/App.tsx`, `server/index.mjs`

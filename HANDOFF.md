@@ -1,12 +1,12 @@
 # Handoff Lava Jato - Norte Tech
 
-Atualizado em: 2026-06-22
+Atualizado em: 2026-06-23
 
 ## Estado atual
 
 - Repositorio: `https://github.com/dmitrymarcelo/LavaJato`
 - Branch principal: `main`
-- Commit atual: `3a5e2f497b2d155f9670bfe52e87ffecf851c46c`
+- Commit atual: `01ce58cae0d15972a6d83e9ab81685e46b52ed77`
 - Producao AWS atual: `https://3-145-153-19.sslip.io/` (hostname publico com certificado HTTPS confiavel)
 - Regiao AWS: `us-east-2`
 - Instancia usada no deploy: `i-0ba1477cbbe3d986d`
@@ -104,7 +104,7 @@ Observacao:
 - Nao pode existir a mesma placa no mesmo horario e mesma data em agendamento ativo.
 - Os cards da fila possuem menu de `Editar` e `Excluir`.
 - A foto `Frente` do checklist vira imagem principal do card do veiculo.
-- `Inspecao Pre` e `Inspecao Pos` exigem no minimo `1` foto.
+- `Inspecao Pre` e `Inspecao Pos` permitem iniciar e concluir sem fotos; os anexos permanecem opcionais.
 - Regra visual permanente: criar telas em tons claros, com branco/cinza suave como base e ambar da marca como acento; evitar fundos escuros ou preto/navy pesado porque a gestao prefere uma experiencia leve e harmoniosa.
 - Regra atual de perfis: `Administrador` permanece como acesso total protegido; `Colaboradores` e o perfil configuravel para funcionarios; `Lavador` fica para operacao de lavagem; `Clientes` permanece somente com agendamento nas bases liberadas.
 
@@ -185,9 +185,8 @@ Observacao:
   - `delete_services`
   - `manage_inventory`
   - `view_analytics`
-  - `bypass_inspection`
 - `Historico de Veiculos` agora exige permissao de analytics tambem na API.
-- Inicio e conclusao de lavagem sem foto obrigatoria so passam no backend se o perfil tiver `bypass_inspection`.
+- Inicio e conclusao de lavagem nao exigem fotos para nenhum perfil com permissao `operate_wash`; `bypass_inspection` permanece apenas como ID legado nas regras persistidas.
 - Exclusoes operacionais agora exigem permissao `delete_services`.
 - Isso reduz o risco de o time reiniciar a mesma lavagem por falta de confirmacao imediata do servidor.
 - A carga da base de veiculos em `Configuracoes` agora ignora respostas antigas da API quando a lista local ja mudou, evitando que um CSV importado suma da tela logo apos a importacao.
@@ -277,6 +276,7 @@ Observacao:
 
 ## Commits recentes relevantes
 
+- `01ce58c` `fix: tornar formularios responsivos em qualquer tela`
 - `3a5e2f4` `ui: adicionar interacoes leves e reversiveis`
 - `82565a0` `ui: remover logomarca duplicada do cabecalho`
 - `3fe95ce` `fix: preservar tela durante sincronizacao`
@@ -284,7 +284,6 @@ Observacao:
 - `fdb46fc` `fix: iniciar lavagem sem foto`
 - `da78432` `Revert to sslip.io free domain`
 - `3198f52` `Set domain to lavajatonortetech.com`
-- `eece199` `Remove mandatory photo requirement when starting wash`
 
 ## Arquivos centrais
 
@@ -406,7 +405,7 @@ Com isso, qualquer alteracao publicada em `main` dispara o deploy via SSM no EC2
   - os precos de servico no modal e no seletor passaram a usar formatacao monetaria `pt-BR`, evitando textos como `80.75,00`
 - A tela `Configuracoes > Cadastros de Clientes` trocou `alert/confirm` por feedback visual interno, leve e mais amigavel para smartphone, sem adicionar polling ou dependencias pesadas.
 - O GitHub e a fonte principal da continuidade.
-- Se mudar de computador, o ideal e continuar a partir do commit `3a5e2f4` ou posterior.
+- Se mudar de computador, o ideal e continuar a partir do commit `01ce58c` ou posterior.
 - Imagens enviadas ficam em `server/storage/uploads` (persistidas via volume Docker).
 - Em producao, altere a senha do administrador imediatamente.
 

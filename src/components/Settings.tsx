@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Shield, UserCog, CheckCircle2, XCircle, Save, Info, Lock, Eye, Edit3, Trash2, BarChart3, Users, UserPlus, Star, Clock, MoreVertical, Search, Filter, ShieldCheck, Car, Bike, Truck, Ship, Plus, Upload, FileSpreadsheet, Download, Package, Copy, CalendarCheck, CreditCard, Database, WashingMachine } from 'lucide-react';
+import { Shield, UserCog, CheckCircle2, XCircle, Save, Info, Lock, Edit3, Trash2, BarChart3, Users, UserPlus, Star, Clock, MoreVertical, Search, Filter, ShieldCheck, Car, Bike, Truck, Ship, Plus, Upload, FileSpreadsheet, Download, Package, Copy, CalendarCheck, CreditCard, Database, WashingMachine } from 'lucide-react';
 import { RoleAccessRule, Screen, TeamMember, VehicleCategory, VehicleType, ServiceTypeOption, VehicleRegistration } from '../types';
 import { motion, AnimatePresence } from '../lib/motion';
 import { digitsOnly, formatCpf, generateId, isValidCpf, isValidEmail, optimizeImageFile, validateStrongPassword } from '../utils/app';
@@ -42,7 +42,6 @@ const PERMISSIONS: Permission[] = [
   { id: 'manage_team', label: 'Gerenciar Equipe', description: 'Adicionar, editar, resetar senha ou remover membros da equipe.', icon: <UserCog className="w-4 h-4" /> },
   { id: 'edit_services', label: 'Serviços & Preços', description: 'Alterar tipos de serviço e tabela de preços.', icon: <Edit3 className="w-4 h-4" /> },
   { id: 'delete_services', label: 'Excluir Registros', description: 'Remover registros de serviços e agendamentos do sistema.', icon: <Trash2 className="w-4 h-4" /> },
-  { id: 'bypass_inspection', label: 'Pular Inspeção', description: 'Permitir iniciar lavagem sem fotos obrigatórias.', icon: <Eye className="w-4 h-4" /> },
   { id: 'manage_access', label: 'Gerenciar Permissões', description: 'Alterar níveis de acesso e permissões de outros perfis.', icon: <Lock className="w-4 h-4" /> },
   { id: 'manage_b2b', label: 'Agendamento do Cliente', description: 'Permitir que clientes agendem nas bases liberadas.', icon: <Shield className="w-4 h-4" /> },
 ];

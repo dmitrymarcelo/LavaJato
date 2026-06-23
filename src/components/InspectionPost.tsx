@@ -4,7 +4,7 @@
  */
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { AlertCircle, Camera, CheckCircle2, ChevronLeft, Clock3, CreditCard, RefreshCw, Upload, X } from 'lucide-react';
+import { Camera, CheckCircle2, ChevronLeft, Clock3, CreditCard, RefreshCw, Upload, X } from 'lucide-react';
 import { Screen, Service } from '../types';
 import {
   enqueuePendingPhotoSave,
@@ -237,7 +237,7 @@ export default function InspectionPost({
   const progress = (completedCount / PHOTO_TYPES.length) * 100;
   const hasAlreadyCompleted = ['waiting_payment', 'completed', 'no_show'].includes(service?.status || '')
     || Boolean(service?.timeline?.washCompletedAt);
-  const canComplete = completedCount >= 1 && !hasAlreadyCompleted;
+  const canComplete = !hasAlreadyCompleted;
 
   const handleComplete = async () => {
     if (!canComplete || isSubmitting) {
@@ -311,7 +311,7 @@ export default function InspectionPost({
 
         <div className="space-y-1">
           <h2 className="text-xl font-bold tracking-tight">Estado Final</h2>
-          <p className="text-sm text-slate-500 leading-relaxed">Capture pelo menos 1 foto para documentar a entrega do veiculo apos a lavagem. As demais sao opcionais.</p>
+          <p className="text-sm text-slate-500 leading-relaxed">As fotos finais sao opcionais e podem ser adicionadas apenas quando voce quiser documentar a entrega do veiculo.</p>
         </div>
 
         <div className="grid grid-cols-2 gap-3">
@@ -322,7 +322,6 @@ export default function InspectionPost({
               image={photos[type.id]}
               status={photos[type.id] ? (pendingPhotoIds.has(type.id) ? 'pending' : 'saved') : undefined}
               onClick={() => handlePhotoClick(type.id)}
-              required={!completedCount}
             />
           ))}
         </div>
@@ -331,12 +330,12 @@ export default function InspectionPost({
           <div className="flex justify-between items-end mb-2">
             <div>
               <span className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider">Progresso da Captura</span>
-              <span className={`text-lg font-black italic ${canComplete ? 'text-emerald-500' : 'text-primary'}`}>
+              <span className="text-lg font-black italic text-primary">
                 {completedCount}/{PHOTO_TYPES.length} Concluido
               </span>
             </div>
             <span className="text-xs font-semibold text-slate-400">
-              {canComplete ? 'Entrega pronta' : 'Capture ao menos 1 foto'}
+              Fotos opcionais
             </span>
           </div>
           {pendingCount > 0 && (
@@ -357,7 +356,7 @@ export default function InspectionPost({
           )}
           <div className="w-full bg-slate-100 h-3 rounded-full overflow-hidden p-0.5 border border-slate-200">
             <div
-              className={`h-full rounded-full ${canComplete ? 'bg-emerald-500' : 'bg-primary'}`}
+              className="h-full rounded-full bg-primary"
               style={{ width: `${progress}%` }}
             />
           </div>
@@ -443,13 +442,11 @@ export default function InspectionPost({
             </span>
           </button>
           <div className="flex items-center justify-center gap-2 px-6">
-            <AlertCircle className={`w-4 h-4 ${canComplete ? 'text-emerald-500' : 'text-amber-500'}`} />
+            <CheckCircle2 className="w-4 h-4 text-emerald-500" />
             <p className="text-center text-[10px] uppercase font-bold tracking-wider text-slate-500">
               {hasAlreadyCompleted
                 ? 'Finalizacao ja registrada para este veiculo'
-                : canComplete
-                  ? 'Tudo pronto para finalizar a lavagem'
-                  : 'Capture ao menos 1 foto final para habilitar'}
+                : 'Fotos opcionais. Voce pode liberar para pagamento agora'}
             </p>
           </div>
         </div>
@@ -463,14 +460,12 @@ function PhotoItem({
   image,
   status,
   onClick,
-  required,
 }: {
   key?: React.Key;
   label: string;
   image?: string;
   status?: 'saved' | 'pending';
   onClick: () => void;
-  required?: boolean;
 }) {
   if (image) {
     return (
@@ -502,23 +497,12 @@ function PhotoItem({
   return (
     <div
       onClick={onClick}
-      className={`relative aspect-square rounded-2xl border-2 border-dashed flex flex-col items-center justify-center gap-2 cursor-pointer active:scale-95 transition-all hover:border-primary/50 ${
-        required ? 'animate-blink-red border-red-500/30' : 'border-slate-200 bg-slate-50'
-      }`}
+      className="relative aspect-square rounded-2xl border-2 border-dashed border-slate-200 bg-slate-50 flex flex-col items-center justify-center gap-2 cursor-pointer active:scale-95 transition-all hover:border-primary/50"
     >
-      <div className={`p-4 rounded-full border ${
-        required ? 'bg-red-50 text-red-500 border-red-200/50' : 'bg-slate-200 text-slate-400 border-slate-300/50'
-      }`}>
+      <div className="p-4 rounded-full border bg-slate-200 text-slate-400 border-slate-300/50">
         <Camera className="w-8 h-8" />
       </div>
-      <span className={`text-[10px] font-black uppercase tracking-widest ${
-        required ? 'text-red-500' : 'text-slate-500'
-      }`}>{label}</span>
-      {required && (
-        <div className="absolute top-2 right-2 flex items-center justify-center w-6 h-6 bg-red-500 text-white rounded-full shadow-lg animate-pulse">
-          <AlertCircle className="w-4 h-4" />
-        </div>
-      )}
+      <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">{label}</span>
     </div>
   );
 }

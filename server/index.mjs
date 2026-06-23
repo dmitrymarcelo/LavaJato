@@ -1501,14 +1501,6 @@ async function saveInspectionPhoto(serviceId, stage, photoId, imageData) {
   });
 }
 
-function countPersistedPhotoEntries(photos) {
-  if (!photos || typeof photos !== 'object') {
-    return 0;
-  }
-
-  return Object.values(photos).filter((value) => Boolean(String(value || '').trim())).length;
-}
-
 async function transitionServiceStage(serviceId, action, payload = {}, user = null) {
   return withTransaction(async (client) => {
     const executor = (text, params = []) => client.query(text, params);
@@ -1560,12 +1552,6 @@ async function transitionServiceStage(serviceId, action, payload = {}, user = nu
         ...(currentService.postInspectionPhotos || {}),
         ...((payload.postInspectionPhotos && typeof payload.postInspectionPhotos === 'object') ? payload.postInspectionPhotos : {}),
       };
-
-      if (countPersistedPhotoEntries(nextPostPhotos) === 0 && !userHasPermission(user, 'bypass_inspection')) {
-        const error = new Error('Adicione ao menos uma foto da pos-inspecao antes de concluir a lavagem.');
-        error.statusCode = 400;
-        throw error;
-      }
 
       nextService = {
         ...currentService,

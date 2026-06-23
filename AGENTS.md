@@ -1,7 +1,7 @@
 # AGENTS.md - Lava Jato Norte Tech
 
-Atualizado em: 2026-06-22
-Commit de referencia: `3a5e2f497b2d155f9670bfe52e87ffecf851c46c`
+Atualizado em: 2026-06-23
+Commit de referencia: `01ce58cae0d15972a6d83e9ab81685e46b52ed77`
 
 ## Objetivo
 
@@ -79,7 +79,7 @@ O sistema precisa garantir cinco resultados de negocio sem ambiguidade:
 - nao pode haver a mesma placa no mesmo horario em agendamento ativo
 - clientes podem se cadastrar pela tela de login, com email, senha forte, base autorizada e pelo menos `1` veiculo inicial
 - o cadastro publico sempre cria role `Clientes` e nunca sobrescreve placa ja existente
-- `Inspecao Pre` e `Inspecao Pos` exigem no minimo `1` foto
+- `Inspecao Pre` e `Inspecao Pos` permitem iniciar e concluir sem fotos; os anexos permanecem opcionais
 - a foto `Frente` pode virar imagem principal do card
 - cliente e filtrado por bases autorizadas e pelo dono do cadastro, sem listar placas ou agendamentos de outros clientes
 - perfis de acesso atuais: `Administrador` com acesso total protegido, `Colaboradores` configuravel, `Lavador` operacional e `Clientes` restrito ao agendamento das bases liberadas
@@ -136,9 +136,9 @@ Este projeto adota os seguintes principios, alinhados a boas praticas publicadas
 - Tipo: deterministico com resiliencia mobile
 - Arquivos principais: `src/components/InspectionPre.tsx`, `src/utils/app.ts`, `server/index.mjs`
 - Missao: registrar evidencia inicial, responsavel pela lavagem e preparar a transicao para execucao
-- Entradas: fotos obrigatorias, lavador, observacoes, dados do servico
+- Entradas: fotos opcionais, lavador, observacoes, dados do servico
 - Saidas: fotos persistidas, timeline atualizada e transicao para lavagem
-- Guardrails: minimo de `1` foto, fila local quando a rede oscila, compressao de imagem, bloqueio de duplo envio
+- Guardrails: lavador obrigatorio, fotos opcionais com fila local quando usadas, compressao de imagem e bloqueio de duplo envio
 - Owner sugerido: operacoes de campo + frontend mobile
 
 ### A05. Agente de Transicao de Lavagem
@@ -156,9 +156,9 @@ Este projeto adota os seguintes principios, alinhados a boas praticas publicadas
 - Tipo: deterministico com resiliencia mobile
 - Arquivos principais: `src/components/InspectionPost.tsx`, `src/utils/app.ts`, `server/index.mjs`
 - Missao: capturar evidencia final e preparar o servico para pagamento ou encerramento
-- Entradas: fotos finais, observacoes, status do servico
+- Entradas: fotos finais opcionais, observacoes, status do servico
 - Saidas: `post_inspection_photos`, timeline e fechamento operacional
-- Guardrails: minimo de `1` foto, upload atomico por foto, fallback local visivel ao usuario
+- Guardrails: conclusao sem foto permitida, upload atomico por foto quando usada e fallback local visivel ao usuario
 - Owner sugerido: operacoes de campo + frontend mobile
 
 ### A07. Agente de Pagamento e Encerramento
@@ -189,7 +189,7 @@ Este projeto adota os seguintes principios, alinhados a boas praticas publicadas
 - Missao: autenticar usuarios, gerenciar equipe, permissoes, tipos de servico e base de veiculos
 - Entradas: credenciais, perfis, base autorizada, regras de acesso e dados mestres
 - Saidas: sessao autenticada, usuarios atualizados, configuracoes persistidas
-- Guardrails: sessoes persistidas em `auth_sessions` com cookie `HttpOnly`, filtro por base para clientes, validacoes de senha e email no frontend e no backend, rate limit de login por IP + identificador, validacao de origem para mutacoes, enforcement por permissao (`view_scheduling`, `manage_scheduling`, `operate_wash`, `manage_payments`, `view_analytics`, `manage_vehicle_base`, `manage_inventory`, `manage_team`, `edit_services`, `delete_services`, `bypass_inspection`, `manage_access`, `manage_b2b`), seed administrativo configuravel por `ADMIN_INITIAL_PASSWORD` e bloqueio de URL remota arbitraria em imagens persistidas
+- Guardrails: sessoes persistidas em `auth_sessions` com cookie `HttpOnly`, filtro por base para clientes, validacoes de senha e email no frontend e no backend, rate limit de login por IP + identificador, validacao de origem para mutacoes, enforcement por permissao (`view_scheduling`, `manage_scheduling`, `operate_wash`, `manage_payments`, `view_analytics`, `manage_vehicle_base`, `manage_inventory`, `manage_team`, `edit_services`, `delete_services`, `manage_access`, `manage_b2b`), compatibilidade legada com o ID `bypass_inspection`, seed administrativo configuravel por `ADMIN_INITIAL_PASSWORD` e bloqueio de URL remota arbitraria em imagens persistidas
 - Alinhamento de UX recente: `Configuracoes` deixou de aparecer para perfis nao administrativos na navegacao principal
 - Alinhamento visual atual: login, sidebar, modais e acoes principais seguem tema claro com ambar como cor de marca, mantendo leitura profissional sem tons escuros pesados
 - UX atual: a tela de configuracoes usa feedback visual proprio para erro, sucesso e confirmacao, evitando dialogos nativos do navegador
