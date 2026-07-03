@@ -1,7 +1,7 @@
 # SKILLS.md - Lava Jato Norte Tech
 
-Atualizado em: 2026-06-23
-Commit de referencia: `01ce58cae0d15972a6d83e9ab81685e46b52ed77`
+Atualizado em: 2026-07-03
+Commit de referencia: `e0948623e406a2fe865bab3c4a37a3818f99082e`
 
 ## Objetivo
 
@@ -120,9 +120,9 @@ Ele complementa o `AGENTS.md`:
 - Objetivo: aplicar regras de horario e capacidade sem ambiguidade
 - Entradas: data, hora, placa, tipo, base, area
 - Saidas: agendamento validado ou bloqueado com motivo
-- Dependencias: `Scheduling.tsx`, `server/schema.sql`, `server/index.mjs`, `src/utils/tarumaSchedulingRules.js`
-- Falha esperada: slot lotado, domingo, sabado fora da janela, duplicidade
-- Resposta esperada: feedback imediato, nenhuma gravacao parcial, `Novo Agendamento` pre-preenchido com a mesma data visivel na regua principal da agenda e registro de `created_by_id`/`created_by_name` para exibir quem criou o agendamento. Na Base Taruma, `Dique Leve` e fila unica: `3` veiculos por horario e `2` veiculos as `17:00`, independente da categoria.
+- Dependencias: `Scheduling.tsx`, `server/schema.sql`, `server/index.mjs`, `src/utils/tarumaSchedulingRules.js`, `src/utils/floresSchedulingRules.js`
+- Falha esperada: slot lotado, domingo, sabado fora da janela, base fechada, intervalo sobreposto, duplicidade
+- Resposta esperada: feedback imediato, nenhuma gravacao parcial, `Novo Agendamento` pre-preenchido com a mesma data visivel na regua principal da agenda e registro de `created_by_id`/`created_by_name` para exibir quem criou o agendamento. Na Base Taruma, `Dique Leve` e fila unica: `3` veiculos por horario e `2` veiculos as `17:00`, independente da categoria. Na Base Flores, terca/quinta usam turnos `08:00-12:00` e `14:00-18:00`, sabado usa `08:00-12:00`, segunda/quarta/sexta/domingo ficam fechados, veiculo leve ocupa `1h30` e caminhao ocupa `2h` sem sobreposicao, e a regua de datas nao mostra dias fechados.
 
 ### S06. `taruma-zone-routing`
 

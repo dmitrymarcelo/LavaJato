@@ -1,7 +1,7 @@
 # AGENTS.md - Lava Jato Norte Tech
 
-Atualizado em: 2026-06-23
-Commit de referencia: `01ce58cae0d15972a6d83e9ab81685e46b52ed77`
+Atualizado em: 2026-07-03
+Commit de referencia: `e0948623e406a2fe865bab3c4a37a3818f99082e`
 
 ## Objetivo
 
@@ -76,6 +76,7 @@ O sistema precisa garantir cinco resultados de negocio sem ambiguidade:
 - sabado vai ate `12:00`
 - capacidade por horario: `5` vagas totais, `2` caminhoes, `3` outros
 - Base Taruma: nao usa mais `Dique Pesada`; todo veiculo agenda em `Dique Leve`, com `3` vagas por horario e `2` vagas as `17:00`
+- Base Flores: nao atende segunda, quarta, sexta e domingo; atende terca e quinta das `08:00` as `12:00` e das `14:00` as `18:00`, e sabado das `08:00` as `12:00`; veiculo leve ocupa `1h30` e caminhao ocupa `2h`, sem sobrepor intervalos; a regua de datas deve ocultar dias fechados e saltar para o proximo dia aberto
 - nao pode haver a mesma placa no mesmo horario em agendamento ativo
 - clientes podem se cadastrar pela tela de login, com email, senha forte, base autorizada e pelo menos `1` veiculo inicial
 - o cadastro publico sempre cria role `Clientes` e nunca sobrescreve placa ja existente
@@ -116,7 +117,7 @@ Este projeto adota os seguintes principios, alinhados a boas praticas publicadas
 - Missao: gerenciar agenda, fila operacional, validacao de vagas, lotacao e regras por base
 - Entradas: placa, base, data, horario, tipo do veiculo, status do servico
 - Saidas: agendamentos validos, cards de fila, historico operacional e consultas por placa
-- Guardrails: bloqueio de domingo, sabado reduzido, capacidade por faixa, unicidade de placa/slot, Base Taruma em fila unica de `Dique Leve` com limite especial as `17:00`, abertura do `Novo Agendamento` sempre ancorada na data selecionada pelo operador e cliente restrito as proprias placas
+- Guardrails: bloqueio de domingo, sabado reduzido, capacidade por faixa, unicidade de placa/slot, Base Taruma em fila unica de `Dique Leve` com limite especial as `17:00`, Base Flores com agenda propria por dia/turno/duracao, regua sem dias fechados e bloqueio de sobreposicao, abertura do `Novo Agendamento` sempre ancorada na data selecionada pelo operador e cliente restrito as proprias placas
 - Rastreabilidade atual: novos agendamentos registram `created_by_id` e `created_by_name`, e a tela `Agenda & Fila` exibe quem criou o agendamento
 - Owner sugerido: produto operacional + backend
 
@@ -250,7 +251,7 @@ Definicao adotada neste documento: `SKILL` e uma capacidade reutilizavel, docume
 | `bootstrap-hydration` | Carrega estado inicial do app com servicos sem fotos pesadas | abertura do sistema, recarga, troca de usuario | `GET /api/bootstrap`, `src/App.tsx` | painel abre rapido sem baixar todas as fotos |
 | `base-scoping` | Filtra dados por bases autorizadas e dono do cadastro para usuarios `Clientes` | agenda do cliente, historico, bootstrap, lookup de placa | `server/index.mjs`, `server/client-scope.mjs`, `src/data/bases.ts` | cliente so enxerga bases liberadas e proprias placas |
 | `vehicle-normalization` | Normaliza placa, tipo de veiculo e dados de cadastro | check-in, agenda, importacao de frota | `CheckIn.tsx`, `Settings.tsx`, `vehicle-type.mjs` | placa `abc-1234` vira chave canonica |
-| `scheduling-rules-engine` | Aplica regras de domingo, sabado, capacidade e conflito de placa | criar ou editar agendamento | `Scheduling.tsx`, `server/schema.sql` | sistema bloqueia slot lotado |
+| `scheduling-rules-engine` | Aplica regras de domingo, sabado, capacidade, conflito de placa e agenda por base | criar ou editar agendamento | `Scheduling.tsx`, `server/index.mjs`, `src/utils/tarumaSchedulingRules.js`, `src/utils/floresSchedulingRules.js` | sistema bloqueia slot lotado, horario fechado ou intervalo sobreposto |
 | `taruma-zone-routing` | Normaliza a Base Taruma para `Dique Leve` e aplica capacidade unica por horario | agenda e fila da Taruma | `Scheduling.tsx`, `server/index.mjs`, `src/utils/tarumaSchedulingRules.js` | qualquer categoria conta no mesmo limite do horario |
 | `service-upsert-transaction` | Persiste servicos com consistencia transacional | edicao, sincronizacao, importacao | `server/index.mjs`, `withTransaction` | servico muda sem deixar agendamento orfao |
 | `inspection-photo-atomic-save` | Salva cada foto de inspecao separadamente no backend | pre-inspecao, pos-inspecao | `POST /api/services/:id/inspection-photo` | foto de celular persiste mesmo com rede lenta |

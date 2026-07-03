@@ -20,6 +20,7 @@
     "test:optional-post-wash-photos": "node scripts/test-optional-post-wash-photos.mjs",
     "test:password-reset": "node scripts/test-password-reset.mjs",
     "test:taruma-rules": "node scripts/test-taruma-scheduling-rules.mjs",
+    "test:flores-rules": "node scripts/test-flores-scheduling-rules.mjs",
     "lint": "node ./node_modules/typescript/bin/tsc --noEmit",
     "docs:update": "node scripts/update-persistence-docs.mjs",
     "docs:check": "node scripts/check-persistence-docs.mjs",

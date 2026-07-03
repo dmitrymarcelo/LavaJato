@@ -38,11 +38,20 @@ import {
   getTarumaZoneLabel,
   isTarumaBase,
 } from '../utils/tarumaSchedulingRules.js';
+import {
+  canFloresBookSlot,
+  getFloresWorkingDateStrip,
+  getFloresServiceDurationMinutes,
+  getFloresTimeSlots,
+  getNextFloresWorkingDate,
+  isFloresBase,
+  isFloresWorkingDay,
+} from '../utils/floresSchedulingRules.js';
 import { BASES, BaseInfo, getBaseById } from '../data/bases';
 import ModalSurface from './ModalSurface';
 import { DEFAULT_SERVICE_IMAGE_SRC } from '../lib/placeholders';
 
-const TIME_SLOTS = ['07:00', '09:00', '11:00', '13:00', '15:00', '17:00'];
+const DEFAULT_TIME_SLOTS = ['07:00', '09:00', '11:00', '13:00', '15:00', '17:00'];
 const ACTIVE_APPOINTMENT_STATUSES: Appointment['status'][] = ['confirmed', 'pending'];
 const SLOT_LIMITS = {
   total: 5,
@@ -66,6 +75,65 @@ const isTimeBlockedByBusinessRules = (date: string, time: string) => {
   }
 
   return isSaturdayDate(date) && isSaturdayAfternoonSlot(time);
+};
+const isFloresScheduleBlockedReason = (reason?: string | null) => (
+  reason === 'closed_day' || reason === 'outside_hours' || reason === 'invalid_time'
+);
+const formatServiceDuration = (minutes: number) => {
+  if (minutes === 90) return '1h30';
+  if (minutes === 120) return '2h';
+  return `${minutes} min`;
+};
+const getScheduleTimeSlots = (baseId: string, date: string, vehicleType: VehicleType) => (
+  isFloresBase(baseId) ? getFloresTimeSlots(date, vehicleType) : DEFAULT_TIME_SLOTS
+);
+const isScheduleDateAvailableForBase = (baseId: string, date: string) => (
+  !isFloresBase(baseId) || isFloresWorkingDay(date)
+);
+const getNextScheduleDateForBase = (baseId: string, date: string) => (
+  isFloresBase(baseId) ? getNextFloresWorkingDate(date) : date
+);
+const getScheduleDateStrip = (baseId: string, startDate: string) => (
+  isFloresBase(baseId)
+    ? getFloresWorkingDateStrip(startDate, 7)
+    : Array.from({ length: 7 }, (_, index) => addDays(startDate, index))
+);
+const getFloresScheduleMessage = (reason?: string | null, vehicleType?: VehicleType) => {
+  const durationLabel = formatServiceDuration(getFloresServiceDurationMinutes(vehicleType));
+
+  if (reason === 'closed_day') {
+    return 'Base Flores nao atende segunda, quarta, sexta e domingo. Escolha terca, quinta ou sabado.';
+  }
+
+  if (reason === 'overlap') {
+    return `Este intervalo ja esta ocupado na Base Flores. Duracao deste servico: ${durationLabel}.`;
+  }
+
+  return `Base Flores atende terca e quinta das 08:00 as 12:00 e das 14:00 as 18:00, e sabado das 08:00 as 12:00. Duracao deste servico: ${durationLabel}.`;
+};
+const getScheduleBlockedMessage = (baseId: string, date: string, time: string, vehicleType?: VehicleType, reason?: string | null) => {
+  if (isFloresBase(baseId)) {
+    return getFloresScheduleMessage(reason, vehicleType);
+  }
+
+  if (isSundayDate(date)) {
+    return 'Nao trabalhamos aos domingos. Selecione outro dia.';
+  }
+
+  if (isSaturdayDate(date) && isSaturdayAfternoonSlot(time)) {
+    return 'Aos sabados atendemos somente ate as 12:00. Selecione 07:00, 09:00 ou 11:00.';
+  }
+
+  return 'Este horario nao esta disponivel para agendamento.';
+};
+const getSlotUnavailableMessage = (baseId: string, vehicleType?: VehicleType, reason?: string | null) => {
+  if (isFloresBase(baseId)) {
+    return getFloresScheduleMessage(reason, vehicleType);
+  }
+
+  return vehicleType === 'truck'
+    ? 'Horario sem vaga para caminhao. Limite: 2 caminhoes e 5 veiculos no total por horario.'
+    : 'Horario sem vaga para este tipo de veiculo. Limite: 3 veiculos leves e 5 veiculos no total por horario.';
 };
 const getVehicleTypeLabel = (type: VehicleType) => {
   if (type === 'motorcycle') return 'Moto';
@@ -283,8 +351,44 @@ export default function Scheduling({
   }, [selectedBaseId, availableBases]);
 
   useEffect(() => {
+    const dateBaseId = selectedBaseId || '';
+    if (!isFloresBase(dateBaseId) || isFloresWorkingDay(filterDate)) {
+      return;
+    }
+
+    const nextDate = getNextScheduleDateForBase(dateBaseId, filterDate)
+      || getNextScheduleDateForBase(dateBaseId, currentDateKey);
+    if (nextDate && nextDate !== filterDate) {
+      setFilterDate(nextDate);
+    }
+  }, [currentDateKey, filterDate, selectedBaseId]);
+
+  useEffect(() => {
+    if (!isFloresBase(appointmentBaseId) || isFloresWorkingDay(appointmentDate)) {
+      return;
+    }
+
+    const nextDate = getNextScheduleDateForBase(appointmentBaseId, appointmentDate)
+      || getNextScheduleDateForBase(appointmentBaseId, currentDateKey);
+    if (nextDate && nextDate !== appointmentDate) {
+      setAppointmentDate(nextDate);
+    }
+  }, [appointmentBaseId, appointmentDate, currentDateKey]);
+
+  useEffect(() => {
     setSelectedTime(null);
   }, [appointmentBaseId, appointmentWashingZoneId]);
+
+  useEffect(() => {
+    if (!selectedTime) {
+      return;
+    }
+
+    const availableSlots = getScheduleTimeSlots(appointmentBaseId, appointmentDate, vehicleType);
+    if (!availableSlots.includes(selectedTime)) {
+      setSelectedTime(null);
+    }
+  }, [appointmentBaseId, appointmentDate, selectedTime, vehicleType]);
 
   useEffect(() => {
     if (!isVehicleFound || !isTarumaBase(appointmentBaseId)) {
@@ -638,6 +742,24 @@ export default function Scheduling({
     );
 
     const isTarumaScheduling = isTarumaBase(appointmentBaseId);
+    if (isFloresBase(appointmentBaseId)) {
+      const booking = canFloresBookSlot(appointments, date, time, { baseId: appointmentBaseId, nextVehicleType });
+      const isBlockedBySchedule = !booking.ok && isFloresScheduleBlockedReason(booking.reason);
+      const durationLabel = formatServiceDuration(booking.durationMinutes || getFloresServiceDurationMinutes(nextVehicleType));
+
+      return {
+        count: booking.usage?.total || 0,
+        truckCount: 0,
+        otherCount: booking.usage?.total || 0,
+        isFull: !booking.ok && !isBlockedBySchedule,
+        isPast: false,
+        isBlockedBySchedule,
+        fullReason: booking.ok ? null : booking.reason,
+        capacityTotal: 1,
+        capacityLabel: `1 por intervalo de ${durationLabel}`,
+      };
+    }
+
     if (isTarumaScheduling) {
       const usage = getTarumaSlotUsageByType(appointments, date, time, { baseId: appointmentBaseId });
       const booking = canTarumaBookSlot(appointments, date, time, { baseId: appointmentBaseId, nextVehicleType });
@@ -734,14 +856,14 @@ export default function Scheduling({
       return;
     }
 
-    const { isFull, isBlockedBySchedule } = getSlotStatus(appointmentDate, selectedTime, vehicleType, appointmentWashingZoneId);
+    const { isFull, isBlockedBySchedule, fullReason } = getSlotStatus(appointmentDate, selectedTime, vehicleType, appointmentWashingZoneId);
     if (isFull) {
-      alert('Este horario esta lotado.');
+      alert(getSlotUnavailableMessage(appointmentBaseId, vehicleType, fullReason));
       return;
     }
 
     if (isBlockedBySchedule) {
-      alert('Aos sabados atendemos somente ate as 12:00. Selecione 07:00, 09:00 ou 11:00.');
+      alert(getScheduleBlockedMessage(appointmentBaseId, appointmentDate, selectedTime, vehicleType, fullReason));
       return;
     }
 
@@ -810,6 +932,12 @@ export default function Scheduling({
       setIsSavingAppointment(false);
     }
   };
+
+  const appointmentTimeSlots = getScheduleTimeSlots(appointmentBaseId, appointmentDate, vehicleType);
+  const isFloresSchedulingForm = isFloresBase(appointmentBaseId);
+  const scheduleDateBaseId = selectedBaseId || '';
+  const scheduleDateStrip = getScheduleDateStrip(scheduleDateBaseId, currentDateKey);
+  const canSelectScheduleDate = (date: string) => isScheduleDateAvailableForBase(scheduleDateBaseId, date);
 
   return (
     <div className="flex flex-col min-h-full bg-white pb-24">
@@ -915,7 +1043,7 @@ export default function Scheduling({
           </>
         </button>
 
-        {Array.from({ length: 7 }, (_, index) => addDays(currentDateKey, index)).map((date, index) => (
+        {scheduleDateStrip.map((date) => (
           <button
             key={date}
             onClick={() => setFilterDate(date)}
@@ -926,10 +1054,10 @@ export default function Scheduling({
             }`}
           >
             <span className="text-[10px] font-bold uppercase tracking-widest opacity-70 mb-1">
-              {index === 0 ? 'Hoje' : new Date(`${date}T00:00:00`).toLocaleDateString('pt-BR', { weekday: 'short' })}
+              {date === currentDateKey ? 'Hoje' : new Date(`${date}T00:00:00`).toLocaleDateString('pt-BR', { weekday: 'short' })}
             </span>
             <span className="text-xl font-black">
-              {index === 0
+              {date === currentDateKey
                 ? new Date(`${date}T00:00:00`).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })
                 : new Date(`${date}T00:00:00`).getDate()}
             </span>
@@ -1256,6 +1384,10 @@ export default function Scheduling({
                           value={appointmentDate}
                           onChange={event => {
                             const nextDate = event.target.value;
+                            if (isFloresBase(appointmentBaseId) && !isFloresWorkingDay(nextDate)) {
+                              alert(getFloresScheduleMessage('closed_day', vehicleType));
+                              return;
+                            }
                             if (isSundayDate(nextDate)) {
                               alert('Nao trabalhamos aos domingos. Selecione outro dia.');
                               return;
@@ -1269,10 +1401,11 @@ export default function Scheduling({
                       <div className="space-y-1">
                         <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400 ml-1">Hora</label>
                         <div className="grid grid-cols-3 gap-2">
-                          {TIME_SLOTS.map(time => {
+                          {appointmentTimeSlots.length > 0 ? appointmentTimeSlots.map(time => {
                             const { isFull, fullReason, count, truckCount, otherCount, isBlockedBySchedule, capacityTotal } = getSlotStatus(appointmentDate, time, vehicleType, appointmentWashingZoneId);
                             const isSelected = selectedTime === time;
                             const isTarumaScheduling = isTarumaBase(appointmentBaseId);
+                            const isFloresScheduling = isFloresBase(appointmentBaseId);
 
                             return (
                               <button
@@ -1285,11 +1418,16 @@ export default function Scheduling({
                                   }
 
                                   if (isBlockedBySchedule) {
-                                    alert('Aos sabados atendemos somente ate as 12:00. Selecione 07:00, 09:00 ou 11:00.');
+                                    alert(getScheduleBlockedMessage(appointmentBaseId, appointmentDate, time, vehicleType, fullReason));
                                     return;
                                   }
 
                                   if (isFull) {
+                                    if (isFloresScheduling) {
+                                      alert(getSlotUnavailableMessage(appointmentBaseId, vehicleType, fullReason));
+                                      return;
+                                    }
+
                                     if (isTarumaScheduling && vehicleType === 'truck' && fullReason === 'truck_not_allowed_17') {
                                       alert('Base Taruma: nao agendamos caminhao no horario das 17:00.');
                                       return;
@@ -1302,11 +1440,7 @@ export default function Scheduling({
 
                                     alert(isTarumaScheduling
                                       ? 'Horario sem vaga na Base Taruma. Limite: 3 veiculos (2 leves + 1 caminhao). As 17:00: 2 leves (nao aceita caminhao).'
-                                      : (
-                                        vehicleType === 'truck'
-                                          ? 'Horario sem vaga para caminhao. Limite: 2 caminhoes e 5 veiculos no total por horario.'
-                                          : 'Horario sem vaga para este tipo de veiculo. Limite: 3 veiculos leves e 5 veiculos no total por horario.'
-                                      ));
+                                      : getSlotUnavailableMessage(appointmentBaseId, vehicleType, fullReason));
                                     return;
                                   }
 
@@ -1324,7 +1458,9 @@ export default function Scheduling({
                               >
                                 <span className="block">{time}</span>
                                 <span className="block text-[8px] font-medium opacity-70">
-                                  {isTarumaScheduling
+                                  {isFloresScheduling
+                                    ? `${count}/${capacityTotal}`
+                                    : isTarumaScheduling
                                     ? `${count}/${capacityTotal}`
                                     : `C${truckCount}/2 O${otherCount}/3`}
                                 </span>
@@ -1340,13 +1476,21 @@ export default function Scheduling({
                                 )}
                               </button>
                             );
-                          })}
+                          }) : (
+                            <div className="col-span-3 rounded-xl border border-slate-100 bg-slate-50 px-3 py-4 text-xs font-bold text-slate-400 text-center">
+                              {isFloresSchedulingForm
+                                ? getFloresScheduleMessage('closed_day', vehicleType)
+                                : 'Nenhum horario disponivel para esta data.'}
+                            </div>
+                          )}
                         </div>
                       </div>
                     </div>
 
                     <div className="rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3 text-[10px] font-bold uppercase tracking-wider text-slate-500">
-                      {isTarumaBase(appointmentBaseId)
+                      {isFloresSchedulingForm
+                        ? 'Base Flores: terca e quinta 08:00-12:00 e 14:00-18:00; sabado 08:00-12:00. Carro 1h30, caminhao 2h.'
+                        : isTarumaBase(appointmentBaseId)
                         ? 'Base Taruma: Dique Leve recebe 3 veiculos (2 leves + 1 caminhao). Se houver caminhao, o intervalo minimo entre caminhoes e de 3 horas. As 17:00: somente 2 leves (nao aceita caminhao).'
                         : 'Capacidade por horario: 2 caminhoes, 3 outros veiculos, 5 vagas totais.'}
                     </div>
@@ -1357,7 +1501,7 @@ export default function Scheduling({
                       </div>
                     )}
 
-                    {isSaturdayDate(appointmentDate) && (
+                    {isSaturdayDate(appointmentDate) && !isFloresSchedulingForm && (
                       <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs font-bold text-amber-700">
                         Aos sabados atendemos somente ate as 12:00. Horarios disponiveis: 07:00, 09:00 e 11:00.
                       </div>
@@ -1489,6 +1633,7 @@ export default function Scheduling({
         onClose={() => setIsCalendarOpen(false)}
         onSelect={setFilterDate}
         selectedDate={filterDate}
+        isDateSelectable={canSelectScheduleDate}
       />
     </div>
   );
@@ -1499,11 +1644,13 @@ function CalendarModal({
   onClose,
   onSelect,
   selectedDate,
+  isDateSelectable,
 }: {
   isOpen: boolean;
   onClose: () => void;
   onSelect: (date: string) => void;
   selectedDate: string;
+  isDateSelectable?: (date: string) => boolean;
 }) {
   const [currentDate, setCurrentDate] = useState(new Date(`${selectedDate}T00:00:00`));
 
@@ -1582,12 +1729,21 @@ function CalendarModal({
             const dateStr = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
             const isSelected = dateStr === selectedDate;
             const isToday = dateStr === new Date().toISOString().split('T')[0];
+            const isSelectable = isDateSelectable ? isDateSelectable(dateStr) : true;
             return (
               <button
                 key={day}
-                onClick={() => handleSelectDay(day)}
+                type="button"
+                onClick={() => {
+                  if (isSelectable) {
+                    handleSelectDay(day);
+                  }
+                }}
+                disabled={!isSelectable}
                 className={`aspect-square rounded-xl flex items-center justify-center text-sm font-bold transition-all active:scale-90 ${
-                  isSelected
+                  !isSelectable
+                    ? 'bg-slate-50 text-slate-300 cursor-not-allowed'
+                    : isSelected
                     ? 'bg-primary text-white shadow-lg shadow-primary/30'
                     : isToday
                       ? 'bg-slate-100 text-primary border border-primary/20'

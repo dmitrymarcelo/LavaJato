@@ -43,6 +43,12 @@ import {
   getDefaultTarumaZone,
   isActiveTarumaAppointment,
 } from '../src/utils/tarumaSchedulingRules.js';
+import {
+  FLORES_ACTIVE_APPOINTMENT_STATUSES,
+  FLORES_BASE_ID,
+  canFloresBookSlot,
+  isActiveFloresAppointment,
+} from '../src/utils/floresSchedulingRules.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -1383,6 +1389,61 @@ async function assertTarumaAppointmentSlotCapacity(appointment, executor = query
   }
 }
 
+async function assertFloresAppointmentSchedule(appointment, executor = query) {
+  if (
+    appointment.baseId !== FLORES_BASE_ID
+    || !appointment.date
+    || !appointment.time
+    || !isActiveFloresAppointment(appointment)
+  ) {
+    return;
+  }
+
+  const existingResult = await executor(
+    `
+    SELECT
+      id,
+      date::text AS date,
+      to_char(time, 'HH24:MI') AS time,
+      status,
+      vehicle_type
+    FROM appointments
+    WHERE base_id = $1
+      AND date = $2
+      AND status = ANY($3::text[])
+      AND id <> $4
+    `,
+    [FLORES_BASE_ID, appointment.date, FLORES_ACTIVE_APPOINTMENT_STATUSES, appointment.id]
+  );
+
+  const existingAppointments = existingResult.rows.map((row) => ({
+    id: row.id,
+    baseId: FLORES_BASE_ID,
+    date: row.date,
+    time: String(row.time || '').slice(0, 5),
+    status: row.status,
+    vehicleType: row.vehicle_type,
+  }));
+
+  const booking = canFloresBookSlot(existingAppointments, appointment.date, appointment.time, {
+    baseId: FLORES_BASE_ID,
+    excludeId: appointment.id,
+    nextVehicleType: appointment.vehicleType,
+  });
+
+  if (!booking.ok) {
+    const errorMessage = booking.reason === 'closed_day'
+      ? 'Base Flores nao atende segunda, quarta, sexta e domingo.'
+      : booking.reason === 'overlap'
+        ? 'Este intervalo ja esta ocupado na Base Flores.'
+        : 'Horario fora da agenda da Base Flores. Terca e quinta: 08:00-12:00 e 14:00-18:00; sabado: 08:00-12:00.';
+
+    const error = new Error(errorMessage);
+    error.statusCode = booking.reason === 'overlap' ? 409 : 400;
+    throw error;
+  }
+}
+
 async function upsertServiceRow(service, executor = query) {
   assertCarryOverObservation(service);
   const persistedPreInspectionPhotos = await persistPhotoMap(service.preInspectionPhotos, 'checklists/pre');
@@ -1949,6 +2010,7 @@ async function upsertAppointmentRow(appointment, executor = query) {
   }
 
   await assertTarumaAppointmentSlotCapacity(appointment, executor);
+  await assertFloresAppointmentSchedule(appointment, executor);
 
   const persistedAppointmentPhoto = await persistUploadedImage(appointment.photo || null, 'appointments');
 

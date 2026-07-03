@@ -1,12 +1,12 @@
 # Handoff Lava Jato - Norte Tech
 
-Atualizado em: 2026-06-23
+Atualizado em: 2026-07-03
 
 ## Estado atual
 
 - Repositorio: `https://github.com/dmitrymarcelo/LavaJato`
 - Branch principal: `main`
-- Commit atual: `01ce58cae0d15972a6d83e9ab81685e46b52ed77`
+- Commit atual: `e0948623e406a2fe865bab3c4a37a3818f99082e`
 - Producao AWS atual: `https://3-145-153-19.sslip.io/` (hostname publico com certificado HTTPS confiavel)
 - Regiao AWS: `us-east-2`
 - Instancia usada no deploy: `i-0ba1477cbbe3d986d`
@@ -101,6 +101,13 @@ Observacao:
   - limite normal: `3` veiculos por horario (`2` leves + `1` caminhao)
   - caminhao exige intervalo minimo de `3h` entre agendamentos
   - `17:00`: `2` veiculos (ou `1` se houver caminhao no horario)
+- Base Flores:
+  - nao atende segunda, quarta, sexta e domingo
+  - terca e quinta: `08:00-12:00` e `14:00-18:00`
+  - sabado: `08:00-12:00`
+  - veiculo leve ocupa `1h30`; caminhao ocupa `2h`
+  - a agenda bloqueia qualquer sobreposicao de intervalo
+  - a regua de datas oculta dias fechados e move a selecao para o proximo dia aberto
 - Nao pode existir a mesma placa no mesmo horario e mesma data em agendamento ativo.
 - Os cards da fila possuem menu de `Editar` e `Excluir`.
 - A foto `Frente` do checklist vira imagem principal do card do veiculo.
@@ -276,6 +283,7 @@ Observacao:
 
 ## Commits recentes relevantes
 
+- `e094862` `fix: tornar fotos opcionais nas inspecoes`
 - `01ce58c` `fix: tornar formularios responsivos em qualquer tela`
 - `3a5e2f4` `ui: adicionar interacoes leves e reversiveis`
 - `82565a0` `ui: remover logomarca duplicada do cabecalho`
@@ -283,7 +291,6 @@ Observacao:
 - `4b7f1d4` `fix: adjust curl flags in deploy healthcheck to follow redirects`
 - `fdb46fc` `fix: iniciar lavagem sem foto`
 - `da78432` `Revert to sslip.io free domain`
-- `3198f52` `Set domain to lavajatonortetech.com`
 
 ## Arquivos centrais
 
@@ -405,7 +412,7 @@ Com isso, qualquer alteracao publicada em `main` dispara o deploy via SSM no EC2
   - os precos de servico no modal e no seletor passaram a usar formatacao monetaria `pt-BR`, evitando textos como `80.75,00`
 - A tela `Configuracoes > Cadastros de Clientes` trocou `alert/confirm` por feedback visual interno, leve e mais amigavel para smartphone, sem adicionar polling ou dependencias pesadas.
 - O GitHub e a fonte principal da continuidade.
-- Se mudar de computador, o ideal e continuar a partir do commit `01ce58c` ou posterior.
+- Se mudar de computador, o ideal e continuar a partir do commit `e094862` ou posterior.
 - Imagens enviadas ficam em `server/storage/uploads` (persistidas via volume Docker).
 - Em producao, altere a senha do administrador imediatamente.
 
