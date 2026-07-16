@@ -1,7 +1,7 @@
 # SKILLS.md - Lava Jato Norte Tech
 
-Atualizado em: 2026-07-03
-Commit de referencia: `e0948623e406a2fe865bab3c4a37a3818f99082e`
+Atualizado em: 2026-07-16
+Commit de referencia: `80b0740d6924c8d181e449e3d3ce4890f6fa2a73`
 
 ## Objetivo
 
@@ -122,7 +122,7 @@ Ele complementa o `AGENTS.md`:
 - Saidas: agendamento validado ou bloqueado com motivo
 - Dependencias: `Scheduling.tsx`, `server/schema.sql`, `server/index.mjs`, `src/utils/tarumaSchedulingRules.js`, `src/utils/floresSchedulingRules.js`
 - Falha esperada: slot lotado, domingo, sabado fora da janela, base fechada, intervalo sobreposto, duplicidade
-- Resposta esperada: feedback imediato, nenhuma gravacao parcial, `Novo Agendamento` pre-preenchido com a mesma data visivel na regua principal da agenda e registro de `created_by_id`/`created_by_name` para exibir quem criou o agendamento. Na Base Taruma, `Dique Leve` e fila unica: `3` veiculos por horario e `2` veiculos as `17:00`, independente da categoria. Na Base Flores, terca/quinta usam turnos `08:00-12:00` e `14:00-18:00`, sabado usa `08:00-12:00`, segunda/quarta/sexta/domingo ficam fechados, veiculo leve ocupa `1h30` e caminhao ocupa `2h` sem sobreposicao, e a regua de datas nao mostra dias fechados.
+- Resposta esperada: feedback imediato, nenhuma gravacao parcial, `Novo Agendamento` pre-preenchido com a mesma data visivel na regua principal da agenda e registro de `created_by_id`/`created_by_name` para exibir quem criou o agendamento. Na Base Taruma, `Dique Leve` e fila unica: `3` veiculos por horario e `1` veiculo leve as `17:00`. Na Base Flores, terca/quinta usam turnos `08:00-12:00` e `14:00-18:00`, sabado usa `08:00-12:00`, segunda/quarta/sexta/domingo ficam fechados, veiculo leve ocupa `1h30` e caminhao ocupa `2h` sem sobreposicao, e a regua de datas nao mostra dias fechados.
 
 ### S06. `taruma-zone-routing`
 
@@ -132,7 +132,7 @@ Ele complementa o `AGENTS.md`:
 - Saidas: `washingZoneId=dique_leve` e capacidade por horario aplicada
 - Dependencias: `Scheduling.tsx`, `server/index.mjs`, `src/utils/tarumaSchedulingRules.js`
 - Falha esperada: horario cheio na fila unica do `Dique Leve`
-- Resposta esperada: bloquear novo agendamento quando o horario chegar em `3` veiculos, ou `2` veiculos as `17:00`
+- Resposta esperada: bloquear novo agendamento quando o horario chegar em `3` veiculos, ou `1` veiculo leve as `17:00`
 
 ### S07. `service-upsert-transaction`
 

@@ -1,7 +1,7 @@
 # AGENTS.md - Lava Jato Norte Tech
 
-Atualizado em: 2026-07-03
-Commit de referencia: `e0948623e406a2fe865bab3c4a37a3818f99082e`
+Atualizado em: 2026-07-16
+Commit de referencia: `80b0740d6924c8d181e449e3d3ce4890f6fa2a73`
 
 ## Objetivo
 
@@ -75,7 +75,7 @@ O sistema precisa garantir cinco resultados de negocio sem ambiguidade:
 - domingo e bloqueado
 - sabado vai ate `12:00`
 - capacidade por horario: `5` vagas totais, `2` caminhoes, `3` outros
-- Base Taruma: nao usa mais `Dique Pesada`; todo veiculo agenda em `Dique Leve`, com `3` vagas por horario e `2` vagas as `17:00`
+- Base Taruma: nao usa mais `Dique Pesada`; todo veiculo agenda em `Dique Leve`, com `3` vagas por horario e `1` vaga as `17:00`
 - Base Flores: nao atende segunda, quarta, sexta e domingo; atende terca e quinta das `08:00` as `12:00` e das `14:00` as `18:00`, e sabado das `08:00` as `12:00`; veiculo leve ocupa `1h30` e caminhao ocupa `2h`, sem sobrepor intervalos; a regua de datas deve ocultar dias fechados e saltar para o proximo dia aberto
 - nao pode haver a mesma placa no mesmo horario em agendamento ativo
 - clientes podem se cadastrar pela tela de login, com email, senha forte, base autorizada e pelo menos `1` veiculo inicial

@@ -1325,7 +1325,7 @@ export default function Scheduling({
                         <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400 ml-1">Area de lavagem</label>
                         <div className="flex min-h-14 items-center justify-between gap-3 rounded-2xl border border-emerald-100 bg-emerald-50 px-4 text-emerald-900">
                           <span className="text-sm font-black">{TARUMA_DIQUE_LEVE_ZONE_NAME}</span>
-                          <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-700">3 vagas (2 leves + 1 caminhao); 17:00: 2 (ou 1)</span>
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-700">3 vagas (2 leves + 1 caminhao); 17:00: 1 leve</span>
                         </div>
                       </div>
                     )}
@@ -1439,7 +1439,7 @@ export default function Scheduling({
                                     }
 
                                     alert(isTarumaScheduling
-                                      ? 'Horario sem vaga na Base Taruma. Limite: 3 veiculos (2 leves + 1 caminhao). As 17:00: 2 leves (nao aceita caminhao).'
+                                      ? 'Horario sem vaga na Base Taruma. Limite: 3 veiculos (2 leves + 1 caminhao). As 17:00: 1 veiculo leve (nao aceita caminhao).'
                                       : getSlotUnavailableMessage(appointmentBaseId, vehicleType, fullReason));
                                     return;
                                   }
@@ -1491,7 +1491,7 @@ export default function Scheduling({
                       {isFloresSchedulingForm
                         ? 'Base Flores: terca e quinta 08:00-12:00 e 14:00-18:00; sabado 08:00-12:00. Carro 1h30, caminhao 2h.'
                         : isTarumaBase(appointmentBaseId)
-                        ? 'Base Taruma: Dique Leve recebe 3 veiculos (2 leves + 1 caminhao). Se houver caminhao, o intervalo minimo entre caminhoes e de 3 horas. As 17:00: somente 2 leves (nao aceita caminhao).'
+                        ? 'Base Taruma: Dique Leve recebe 3 veiculos (2 leves + 1 caminhao). Se houver caminhao, o intervalo minimo entre caminhoes e de 3 horas. As 17:00: somente 1 veiculo leve (nao aceita caminhao).'
                         : 'Capacidade por horario: 2 caminhoes, 3 outros veiculos, 5 vagas totais.'}
                     </div>
 

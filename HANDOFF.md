@@ -1,12 +1,12 @@
 # Handoff Lava Jato - Norte Tech
 
-Atualizado em: 2026-07-03
+Atualizado em: 2026-07-16
 
 ## Estado atual
 
 - Repositorio: `https://github.com/dmitrymarcelo/LavaJato`
 - Branch principal: `main`
-- Commit atual: `e0948623e406a2fe865bab3c4a37a3818f99082e`
+- Commit atual: `80b0740d6924c8d181e449e3d3ce4890f6fa2a73`
 - Producao AWS atual: `https://3-145-153-19.sslip.io/` (hostname publico com certificado HTTPS confiavel)
 - Regiao AWS: `us-east-2`
 - Instancia usada no deploy: `i-0ba1477cbbe3d986d`
@@ -100,7 +100,7 @@ Observacao:
   - todo veiculo agenda em `Dique Leve`
   - limite normal: `3` veiculos por horario (`2` leves + `1` caminhao)
   - caminhao exige intervalo minimo de `3h` entre agendamentos
-  - `17:00`: `2` veiculos (ou `1` se houver caminhao no horario)
+  - `17:00`: `1` veiculo leve; caminhao nao e aceito nesse horario
 - Base Flores:
   - nao atende segunda, quarta, sexta e domingo
   - terca e quinta: `08:00-12:00` e `14:00-18:00`
@@ -283,6 +283,7 @@ Observacao:
 
 ## Commits recentes relevantes
 
+- `80b0740` `fix: ajustar agenda da base flores`
 - `e094862` `fix: tornar fotos opcionais nas inspecoes`
 - `01ce58c` `fix: tornar formularios responsivos em qualquer tela`
 - `3a5e2f4` `ui: adicionar interacoes leves e reversiveis`
@@ -290,7 +291,6 @@ Observacao:
 - `3fe95ce` `fix: preservar tela durante sincronizacao`
 - `4b7f1d4` `fix: adjust curl flags in deploy healthcheck to follow redirects`
 - `fdb46fc` `fix: iniciar lavagem sem foto`
-- `da78432` `Revert to sslip.io free domain`
 
 ## Arquivos centrais
 
@@ -412,7 +412,7 @@ Com isso, qualquer alteracao publicada em `main` dispara o deploy via SSM no EC2
   - os precos de servico no modal e no seletor passaram a usar formatacao monetaria `pt-BR`, evitando textos como `80.75,00`
 - A tela `Configuracoes > Cadastros de Clientes` trocou `alert/confirm` por feedback visual interno, leve e mais amigavel para smartphone, sem adicionar polling ou dependencias pesadas.
 - O GitHub e a fonte principal da continuidade.
-- Se mudar de computador, o ideal e continuar a partir do commit `e094862` ou posterior.
+- Se mudar de computador, o ideal e continuar a partir do commit `80b0740` ou posterior.
 - Imagens enviadas ficam em `server/storage/uploads` (persistidas via volume Docker).
 - Em producao, altere a senha do administrador imediatamente.
 

@@ -4,7 +4,7 @@ export const TARUMA_DIQUE_LEVE_ZONE_ID = 'dique_leve';
 export const TARUMA_DIQUE_LEVE_ZONE_NAME = 'Dique Leve';
 export const TARUMA_DEFAULT_SLOT_CAPACITY = 3;
 export const TARUMA_END_OF_SHIFT_TIME = '17:00';
-export const TARUMA_END_OF_SHIFT_SLOT_CAPACITY = 2;
+export const TARUMA_END_OF_SHIFT_SLOT_CAPACITY = 1;
 export const TARUMA_END_OF_SHIFT_TRUCK_SLOT_CAPACITY = 1;
 export const TARUMA_MAX_TRUCKS_PER_SLOT = 1;
 export const TARUMA_MAX_OTHERS_PER_SLOT = 2;
@@ -15,7 +15,7 @@ export const TARUMA_ZONE_RULES = [
   {
     id: TARUMA_DIQUE_LEVE_ZONE_ID,
     label: TARUMA_DIQUE_LEVE_ZONE_NAME,
-    capacityLabel: '3 veiculos (2 leves + 1 caminhao); 17:00: 2 leves (nao aceita caminhao)',
+    capacityLabel: '3 veiculos (2 leves + 1 caminhao); 17:00: 1 veiculo leve (nao aceita caminhao)',
     accepts: () => true,
   },
 ];

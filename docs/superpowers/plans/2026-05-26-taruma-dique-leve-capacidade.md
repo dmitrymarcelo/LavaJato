@@ -1,6 +1,6 @@
 # Taruma Dique Leve Capacidade Implementation Plan
 
-**Goal:** Replace Taruma heavy-dike scheduling with a single `Dique Leve` capacity rule: 3 vehicles per slot, 2 at 17:00.
+**Goal:** Replace Taruma heavy-dike scheduling with a single `Dique Leve` capacity rule: 3 vehicles per slot, 1 light vehicle at 17:00.
 
 **Architecture:** Add a small shared utility for Taruma scheduling rules, then connect it to frontend slot display and backend booking validation.
 
@@ -29,7 +29,7 @@
 - Modify: `src/components/Scheduling.tsx`
 
 - [x] Remove the selectable Taruma `Dique Pesada` path for new appointments.
-- [x] Display Taruma as `Dique Leve` with 3 slots, except 2 at `17:00`.
+- [x] Display Taruma as `Dique Leve` with 3 slots, except 1 light vehicle at `17:00`.
 - [x] Count every active Taruma appointment in the same slot regardless of vehicle category.
 
 ### Task 4: Backend Guardrail

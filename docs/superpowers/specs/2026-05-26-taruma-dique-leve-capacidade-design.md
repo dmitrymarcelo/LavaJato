@@ -11,7 +11,7 @@ Atualizar a regra operacional da Base Taruma: o `Dique Pesada` nao e mais usado 
 - Todo novo agendamento da Base Taruma deve gravar `washingZoneId=dique_leve`.
 - A categoria do veiculo nao altera a capacidade da Base Taruma.
 - Horarios `07:00`, `09:00`, `11:00`, `13:00` e `15:00`: maximo de `3` veiculos.
-- Horario `17:00`: maximo de `2` veiculos.
+- Horario `17:00`: maximo de `1` veiculo leve.
 - Agendamentos ativos sao `confirmed` e `pending`.
 - Registros historicos com `dique_pesada` ou `estacionamento` continuam legiveis, mas nao devem abrir novas vagas nem aparecer como opcao para novos agendamentos.
 

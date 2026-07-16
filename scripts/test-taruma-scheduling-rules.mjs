@@ -57,12 +57,12 @@ const tarumaAppointments = [
 assert.equal(getDefaultTarumaZone('truck'), 'dique_leve');
 assert.equal(getDefaultTarumaZone('boat'), 'dique_leve');
 assert.equal(getTarumaSlotCapacity('15:00'), 3);
-assert.equal(getTarumaSlotCapacity('17:00'), 2);
+assert.equal(getTarumaSlotCapacity('17:00'), 1);
 assert.equal(getTarumaSlotUsage(tarumaAppointments, '2026-05-26', '15:00'), 3);
 assert.deepEqual(getTarumaSlotUsageByType(tarumaAppointments, '2026-05-26', '15:00'), { total: 3, truck: 1, other: 2 });
 assert.equal(isTarumaSlotFull(tarumaAppointments, '2026-05-26', '15:00'), true);
 assert.equal(isTarumaSlotFull(tarumaAppointments.slice(0, 2), '2026-05-26', '15:00'), false);
-assert.equal(isTarumaSlotFull(tarumaAppointments.slice(0, 2), '2026-05-26', '17:00'), false);
+assert.equal(isTarumaSlotFull([{ ...tarumaAppointments[0], time: '17:00' }], '2026-05-26', '17:00'), true);
 assert.equal(
   isTarumaSlotFull(
     tarumaAppointments.slice(0, 2).map((appointment) => ({ ...appointment, time: '17:00' })),
@@ -102,7 +102,7 @@ assert.equal(
 );
 
 const tarumaEndShiftWithCar = [{ ...tarumaAppointments[0], time: '17:00' }];
-assert.equal(canTarumaBookSlot(tarumaEndShiftWithCar, '2026-05-26', '17:00', { nextVehicleType: 'car' }).ok, true);
+assert.equal(canTarumaBookSlot(tarumaEndShiftWithCar, '2026-05-26', '17:00', { nextVehicleType: 'car' }).ok, false);
 assert.equal(canTarumaBookSlot(tarumaEndShiftWithCar, '2026-05-26', '17:00', { nextVehicleType: 'truck' }).reason, 'truck_not_allowed_17');
 
 const tarumaEndShiftWithTruck = [{ ...tarumaAppointments[1], time: '17:00' }];

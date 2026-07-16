@@ -1373,6 +1373,12 @@ async function assertTarumaAppointmentSlotCapacity(appointment, executor = query
   });
 
   if (!booking.ok) {
+    const lightVehicleLimitLabel = booking.limits.other === 1
+      ? '1 veiculo leve'
+      : `${booking.limits.other} veiculos leves`;
+    const totalVehicleLimitLabel = booking.limits.total === 1
+      ? '1 veiculo'
+      : `${booking.limits.total} veiculos`;
     const errorMessage = booking.reason === 'truck_interval'
       ? 'Base Taruma: caminhao exige intervalo minimo de 3 horas entre agendamentos.'
       : booking.reason === 'truck_not_allowed_17'
@@ -1380,8 +1386,8 @@ async function assertTarumaAppointmentSlotCapacity(appointment, executor = query
       : booking.reason === 'slot_truck_full'
         ? 'Horario sem vaga para caminhao na Base Taruma. Limite: 1 caminhao por horario.'
         : booking.reason === 'slot_other_full'
-          ? 'Horario sem vaga para veiculo leve na Base Taruma. Limite: 2 veiculos leves por horario.'
-          : `Horario sem vaga na Base Taruma. Limite: ${booking.limits.total} veiculos no Dique Leve.`;
+          ? `Horario sem vaga para veiculo leve na Base Taruma. Limite: ${lightVehicleLimitLabel} por horario.`
+          : `Horario sem vaga na Base Taruma. Limite: ${totalVehicleLimitLabel} no Dique Leve.`;
 
     const error = new Error(errorMessage);
     error.statusCode = 409;
