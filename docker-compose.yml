@@ -17,7 +17,9 @@ services:
       dockerfile: Dockerfile.api
     restart: unless-stopped
     environment:
-      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/lavajato
+      DATABASE_URL: ${DATABASE_URL:-postgresql://postgres:postgres@postgres:5432/lavajato}
+      DATABASE_SSL: ${DATABASE_SSL:-false}
+      SKIP_STARTUP_SCHEMA: ${SKIP_STARTUP_SCHEMA:-false}
       API_PORT: 4000
       PUBLIC_APP_URL: ${PUBLIC_APP_URL:-https://3-145-153-19.sslip.io/}
       AWS_REGION: ${AWS_REGION:-us-east-2}

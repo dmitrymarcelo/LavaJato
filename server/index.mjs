@@ -74,6 +74,7 @@ const loginRateLimitMaxAttempts = Math.max(3, Number(process.env.LOGIN_RATE_LIMI
 const passwordResetRateLimitWindowMs = Math.max(60_000, Number(process.env.PASSWORD_RESET_RATE_LIMIT_WINDOW_MS || 15 * 60 * 1000));
 const passwordResetRateLimitMaxAttempts = Math.max(2, Number(process.env.PASSWORD_RESET_RATE_LIMIT_MAX_ATTEMPTS || 4));
 const sessionCookieName = String(process.env.SESSION_COOKIE_NAME || 'lavajato_session').trim() || 'lavajato_session';
+const skipStartupSchema = ['1', 'true', 'yes'].includes(String(process.env.SKIP_STARTUP_SCHEMA || '').trim().toLowerCase());
 const sessionCookieSameSite = ['strict', 'lax', 'none'].includes(String(process.env.SESSION_COOKIE_SAME_SITE || 'lax').trim().toLowerCase())
   ? String(process.env.SESSION_COOKIE_SAME_SITE || 'lax').trim().toLowerCase()
   : 'lax';
@@ -1142,8 +1143,13 @@ function buildVehicleHistoryGroups(services, vehicles) {
 }
 
 async function runSchema() {
-  const schema = fs.readFileSync(path.join(__dirname, 'schema.sql'), 'utf8');
-  await pool.query(schema);
+  if (!skipStartupSchema) {
+    const schema = fs.readFileSync(path.join(__dirname, 'schema.sql'), 'utf8');
+    await pool.query(schema);
+  } else {
+    console.log('Startup schema skipped; using externally managed database schema.');
+  }
+
   await migrateInlineImages();
   await backfillMissingServicePhotoMaps();
   await seedDatabase();
