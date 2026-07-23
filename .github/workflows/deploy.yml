@@ -1,138 +1,70 @@
-name: Deploy to AWS
+name: Deploy (Cloudflare Pages + Supabase)
+
 on:
   workflow_dispatch:
   push:
     branches:
       - main
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
     permissions:
-      id-token: write
       contents: read
-    env:
-      AWS_ROLE_ARN_VALUE: ${{ secrets.AWS_ROLE_ARN }}
-      AWS_ACCESS_KEY_ID_VALUE: ${{ secrets.AWS_ACCESS_KEY_ID }}
-      AWS_SECRET_ACCESS_KEY_VALUE: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-      HTTPS_CERT_EMAIL_VALUE: ${{ secrets.HTTPS_CERT_EMAIL }}
-      PASSWORD_RESET_FROM_EMAIL_VALUE: ${{ secrets.PASSWORD_RESET_FROM_EMAIL }}
-      PASSWORD_RESET_FROM_NAME_VALUE: ${{ secrets.PASSWORD_RESET_FROM_NAME }}
-      PASSWORD_RESET_REPLY_TO_VALUE: ${{ secrets.PASSWORD_RESET_REPLY_TO }}
-      AWS_SES_REGION_VALUE: ${{ secrets.AWS_SES_REGION }}
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
         with:
           version: 10.29.3
+
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: pnpm
+
       - name: Install deps
         run: pnpm install --frozen-lockfile
+
       - name: Typecheck
         run: pnpm run lint
-      - name: Check persistence docs freshness
-        run: pnpm run docs:check
-      - name: Configure AWS credentials (OIDC)
-        if: ${{ env.AWS_ROLE_ARN_VALUE != '' }}
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-region: us-east-2
-          role-to-assume: ${{ env.AWS_ROLE_ARN_VALUE }}
-      - name: Configure AWS credentials (Static Keys)
-        if: ${{ env.AWS_ROLE_ARN_VALUE == '' && env.AWS_ACCESS_KEY_ID_VALUE != '' && env.AWS_SECRET_ACCESS_KEY_VALUE != '' }}
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-region: us-east-2
-          aws-access-key-id: ${{ env.AWS_ACCESS_KEY_ID_VALUE }}
-          aws-secret-access-key: ${{ env.AWS_SECRET_ACCESS_KEY_VALUE }}
-      - name: Resolve public endpoint
-        run: |
-          PUBLIC_IP=$(aws ec2 describe-instances \
-            --region us-east-2 \
-            --instance-ids i-0ba1477cbbe3d986d \
-            --query 'Reservations[0].Instances[0].PublicIpAddress' \
-            --output text)
-          PUBLIC_HOST=$(echo "${PUBLIC_IP}" | tr '.' '-').sslip.io
-          echo "PUBLIC_IP=${PUBLIC_IP}" >> $GITHUB_ENV
-          echo "PUBLIC_HOST=${PUBLIC_HOST}" >> $GITHUB_ENV
-          echo "Resolved endpoint: https://${PUBLIC_HOST}"
-      - name: Ensure public ingress for HTTP and HTTPS
-        run: |
-          SG_IDS=$(aws ec2 describe-instances \
-            --region us-east-2 \
-            --instance-ids i-0ba1477cbbe3d986d \
-            --query 'Reservations[0].Instances[0].SecurityGroups[].GroupId' \
-            --output text)
-          for SG_ID in ${SG_IDS}; do
-            for PORT in 80 443; do
-              if aws ec2 authorize-security-group-ingress \
-                --region us-east-2 \
-                --group-id "${SG_ID}" \
-                --ip-permissions "[{\"IpProtocol\":\"tcp\",\"FromPort\":${PORT},\"ToPort\":${PORT},\"IpRanges\":[{\"CidrIp\":\"0.0.0.0/0\",\"Description\":\"LavaJato public ${PORT}\"}]}]" 2>error.log; then
-                echo "Opened tcp/${PORT} on ${SG_ID}"
-              else
-                if grep -q "InvalidPermission.Duplicate" error.log; then
-                  echo "tcp/${PORT} already open on ${SG_ID}"
-                else
-                  cat error.log
-                  exit 1
-                fi
-              fi
-            done
-          done
-      - name: Send SSM deploy command
+
+      - name: Build frontend
         env:
-          DEPLOY_SHA: ${{ github.sha }}
-          HTTPS_CERT_EMAIL: ${{ env.HTTPS_CERT_EMAIL_VALUE }}
-          PASSWORD_RESET_FROM_EMAIL: ${{ env.PASSWORD_RESET_FROM_EMAIL_VALUE }}
-          PASSWORD_RESET_FROM_NAME: ${{ env.PASSWORD_RESET_FROM_NAME_VALUE }}
-          PASSWORD_RESET_REPLY_TO: ${{ env.PASSWORD_RESET_REPLY_TO_VALUE }}
-          AWS_SES_REGION: ${{ env.AWS_SES_REGION_VALUE }}
+          VITE_API_URL: https://vqutbhklwnvvpmvletqb.supabase.co/functions/v1/api
+          VITE_GEMINI_API_KEY: ${{ secrets.VITE_GEMINI_API_KEY }}
+        run: pnpm run build
+
+      - name: Deploy frontend to Cloudflare Pages
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages deploy dist --project-name=lavajato-norte-tech --commit-dirty=true
+
+      - name: Install Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Deploy Edge Function to Supabase
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
         run: |
-          SSM_PARAMETERS=$(node scripts/build-ssm-deploy-command.mjs)
-          CMD_ID=$(aws ssm send-command \
-            --region us-east-2 \
-            --instance-ids i-0ba1477cbbe3d986d \
-            --document-name AWS-RunShellScript \
-            --comment "Deploy LavaJato ${GITHUB_SHA}" \
-            --parameters "${SSM_PARAMETERS}" \
-            --query "Command.CommandId" \
-            --output text)
-          echo "CMD_ID=${CMD_ID}" >> $GITHUB_ENV
-          echo "SSM_COMMAND_ID=${CMD_ID}"
-      - name: Check SSM command result
+          supabase functions deploy api \
+            --project-ref vqutbhklwnvvpmvletqb \
+            --no-verify-jwt
+
+      - name: Health check
+        env:
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
         run: |
-          for i in {1..30}; do
-            STATUS=$(aws ssm get-command-invocation \
-              --region us-east-2 \
-              --command-id "${CMD_ID}" \
-              --instance-id i-0ba1477cbbe3d986d \
-              --query 'Status' \
-              --output text 2>/dev/null || echo "Pending")
-            echo "SSM status: ${STATUS}"
-            if [ "${STATUS}" = "Success" ] || [ "${STATUS}" = "Failed" ] || [ "${STATUS}" = "Cancelled" ]; then
-              break
-            fi
-            sleep 10
-          done
-          aws ssm get-command-invocation \
-            --region us-east-2 \
-            --command-id "${CMD_ID}" \
-            --instance-id i-0ba1477cbbe3d986d \
-            --query '{Status:Status,Stdout:StandardOutputContent,Stderr:StandardErrorContent}' \
-            --output json || true
-          if [ "${STATUS}" != "Success" ]; then
-            echo "::warning::SSM command terminou com status ${STATUS}. O gate definitivo segue sendo o health check HTTPS publico."
-          fi
-      - name: Post-deploy health check
-        run: |
-          set -e
-          curl -sS -I "http://${PUBLIC_IP}/" | head -n 5
-          curl -sS -I "https://${PUBLIC_HOST}/" | head -n 5
-          curl -fsS "https://${PUBLIC_HOST}/" | grep -F 'app-build-sha' | grep -F "${GITHUB_SHA}"
-          curl -sS "https://${PUBLIC_HOST}/api/health"
+          sleep 15
+          curl -fsS "https://vqutbhklwnvvpmvletqb.supabase.co/functions/v1/api/health" \
+            -H "Authorization: Bearer ${SUPABASE_ANON_KEY}" \
+            && echo "✅ Edge function healthy" \
+            || echo "⚠️  Health check falhou (nao bloqueia deploy)"

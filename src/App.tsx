@@ -38,6 +38,7 @@ import {
   ServiceStageTransitionPayload,
   StartWashPayload,
   UNAUTHORIZED_SESSION_EVENT,
+  clearStoredAuthToken,
 } from './services/api';
 import { BASES, getBaseById } from './data/bases';
 
@@ -970,6 +971,7 @@ export default function App() {
   };
 
   const performClientLogout = () => {
+    clearStoredAuthToken();
     setCurrentUser(null);
     setIsSessionResolved(true);
     setActiveServiceId(null);

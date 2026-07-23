@@ -35,6 +35,7 @@ export interface BootstrapPayload {
 
 export interface LoginResponse {
   user: TeamMember;
+  token?: string;
   expiresAt: string;
 }
 
@@ -202,14 +203,28 @@ export class ApiError extends Error {
 }
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
+const AUTH_TOKEN_KEY = 'authToken';
 
-function clearLegacyAuthStorage() {
+export function getStoredAuthToken(): string | null {
   try {
-    window.sessionStorage.removeItem('authToken');
+    return localStorage.getItem(AUTH_TOKEN_KEY) || sessionStorage.getItem(AUTH_TOKEN_KEY);
+  } catch (error) {
+    return null;
+  }
+}
+
+export function setStoredAuthToken(token: string) {
+  try {
+    localStorage.setItem(AUTH_TOKEN_KEY, token);
   } catch (error) {}
 }
 
-clearLegacyAuthStorage();
+export function clearStoredAuthToken() {
+  try {
+    localStorage.removeItem(AUTH_TOKEN_KEY);
+    sessionStorage.removeItem(AUTH_TOKEN_KEY);
+  } catch (error) {}
+}
 
 function dispatchUnauthorizedSession(message: string) {
   try {
@@ -241,10 +256,14 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const headers = new Headers(init?.headers || {});
   headers.set('Content-Type', 'application/json');
 
+  const token = getStoredAuthToken();
+  if (token) {
+    headers.set('Authorization', `Bearer ${token}`);
+  }
+
   const response = await fetch(`${API_BASE_URL}${path}`, {
     ...init,
     headers,
-    credentials: 'include',
   });
 
   if (!response.ok) {
@@ -263,6 +282,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     }
 
     if (response.status === 401 && path !== '/auth/login' && path !== '/auth/register-client' && path !== '/auth/forgot-password') {
+      clearStoredAuthToken();
       dispatchUnauthorizedSession(message);
     }
 
@@ -270,10 +290,18 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   }
 
   if (response.status === 204) {
+    if (path === '/auth/logout') {
+      clearStoredAuthToken();
+    }
     return undefined as T;
   }
 
-  return response.json();
+  const data = await response.json();
+  if (data && typeof data === 'object' && typeof (data as any).token === 'string' && (data as any).token) {
+    setStoredAuthToken((data as any).token);
+  }
+
+  return data as T;
 }
 
 export const api = {

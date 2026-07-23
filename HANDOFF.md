@@ -1,48 +1,36 @@
 # Handoff Lava Jato - Norte Tech
 
-Atualizado em: 2026-07-16
+Atualizado em: 2026-07-23
 
 ## Estado atual
 
 - Repositorio: `https://github.com/dmitrymarcelo/LavaJato`
 - Branch principal: `main`
-- Commit atual: `80b0740d6924c8d181e449e3d3ce4890f6fa2a73`
-- Producao AWS atual: `https://3-145-153-19.sslip.io/` (hostname publico com certificado HTTPS confiavel)
-- Regiao AWS: `us-east-2`
-- Instancia usada no deploy: `i-0ba1477cbbe3d986d`
+- Arquitetura Backend: **Supabase Serverless (Edge Functions + Postgres + Storage)** — sem dependência de EC2/AWS
+- Project Ref Supabase: `vqutbhklwnvvpmvletqb`
+- Edge Function API: `https://vqutbhklwnvvpmvletqb.supabase.co/functions/v1/api`
+- Cloudflare Pages Proxy: `infra/cloudflare/pages-worker.js` (redireciona `/api/*` para Supabase Edge Function e `/uploads/*` para Supabase Storage)
 
-## Como continuar em outro computador
+## Como rodar localmente
 
 1. Clonar o repositorio.
-2. Abrir este arquivo `HANDOFF.md`.
-3. Rodar a aplicacao local com Docker:
+2. Rodar a aplicacao com Vite:
 
 ```powershell
-docker compose up -d --build
+npm run dev
 ```
 
-4. Acessar:
+3. Frontend disponivel em: `http://localhost:5173/` (ou porta informada pelo Vite).
+4. API direta validada em: `https://vqutbhklwnvvpmvletqb.supabase.co/functions/v1/api/health`
 
-- Frontend: `http://localhost/` ou `http://localhost:80/`
-- API: `http://localhost:4000/api/health`
+## Arquitetura atual (Zero AWS)
 
-5. Verificar status rapido:
-
-- `docker compose ps`
-- `docker compose logs api --tail 50`
-
-## Arquitetura atual
-
-- Frontend: React + Vite
-- Backend: Express
-- Banco: PostgreSQL
-- Infra local: `docker-compose.yml`
-- Proxy web: Nginx com templates em `infra/nginx/*.template` e renderizacao dinamica via `infra/nginx/render-config.sh`
-- Assistente: AWS Bedrock via backend
-
-## Variaveis principais
-
-Base em `.env.example`:
+- **Frontend**: React + Vite
+- **Backend / API**: Supabase Edge Function (`supabase/functions/api/index.ts`) rodando Deno runtime
+- **Autenticacao**: Bearer Token persistido no navegador via `auth_sessions` no Supabase
+- **Banco de Dados**: PostgreSQL embutido no Supabase (`vqutbhklwnvvpmvletqb`)
+- **Storage / Uploads**: Supabase Storage (bucket `uploads`)
+- **Edge Routing**: Cloudflare Worker (`infra/cloudflare/pages-worker.js`)
 
 ```env
 # Frontend

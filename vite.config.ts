@@ -24,7 +24,11 @@ export default defineConfig({
     // HMR is disabled in AI Studio via DISABLE_HMR env var.
     hmr: process.env.DISABLE_HMR !== 'true',
     proxy: {
-      '/api': 'http://localhost:4000',
+      '/api': {
+        target: 'https://vqutbhklwnvvpmvletqb.supabase.co/functions/v1/api',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api/, ''),
+      },
     },
   },
 });

@@ -1,0 +1,6 @@
+{
+  "commands": [
+    "cd /opt/lavajato/app",
+    "docker compose exec -T postgres psql -U postgres -d lavajato -c \"EXPLAIN ANALYZE WITH related_services AS (SELECT a.id AS appointment_id, related.status AS service_status FROM appointments a JOIN LATERAL (SELECT s.status FROM services s WHERE s.id = a.id OR (UPPER(s.plate) = UPPER(a.plate) AND s.scheduled_date = a.date AND s.scheduled_time = a.time AND COALESCE(s.base_id, '') = COALESCE(a.base_id, '')) ORDER BY CASE WHEN s.id = a.id THEN 0 ELSE 1 END, CASE s.status WHEN 'pending' THEN 1 WHEN 'in_progress' THEN 2 WHEN 'waiting_payment' THEN 3 WHEN 'completed' THEN 4 WHEN 'no_show' THEN 5 ELSE 6 END, s.updated_at DESC, s.created_at DESC LIMIT 1) AS related ON TRUE) SELECT COUNT(*) FROM related_services;\""
+  ]
+}

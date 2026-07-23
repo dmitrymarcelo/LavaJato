@@ -1,0 +1,8 @@
+{
+  "commands": [
+    "echo '=== HEALTH CHECK ==='",
+    "curl -o /dev/null -s -w 'Connect: %{time_connect}s | TTFB: %{time_starttransfer}s | Total: %{time_total}s\\n' http://127.0.0.1/api/health",
+    "echo '=== BOOTSTRAP ==='",
+    "curl -o /dev/null -s -w 'Connect: %{time_connect}s | TTFB: %{time_starttransfer}s | Total: %{time_total}s\\n' http://127.0.0.1/api/bootstrap"
+  ]
+}
