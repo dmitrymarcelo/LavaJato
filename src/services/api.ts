@@ -268,16 +268,26 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
   if (!response.ok) {
     const raw = await response.text().catch(() => '');
-    let message = 'Falha na requisicao.';
+    let message = 'Falha na requisição.';
 
     if (response.status === 413) {
       message = 'As fotos enviadas ficaram muito grandes. Tente novamente com menos imagens ou imagens menores.';
     } else if (raw) {
       try {
         const data = JSON.parse(raw);
-        message = data.error || message;
+        message = data.error || data.message || message;
       } catch (error) {
-        message = raw.trim() || message;
+        if (raw.includes('<html') || raw.includes('<!DOCTYPE') || raw.includes('<body')) {
+          const titleMatch = raw.match(/<title>(.*?)<\/title>/i);
+          if (titleMatch && titleMatch[1]) {
+            const cleanTitle = titleMatch[1].replace(/^(https?:\/\/[^\s|]+|\b[\w-]+\.pages\.dev)\s*\|\s*/i, '').trim();
+            message = `Servidor indisponível (${cleanTitle}). Tente novamente em instantes.`;
+          } else {
+            message = `Erro no servidor (${response.status}). Por favor, tente novamente em instantes.`;
+          }
+        } else {
+          message = raw.trim() || message;
+        }
       }
     }
 

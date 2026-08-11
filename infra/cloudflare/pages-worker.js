@@ -26,7 +26,7 @@ export default {
     const url = new URL(request.url);
 
     if (url.pathname === '/api' || url.pathname.startsWith('/api/')) {
-      const targetUrl = new URL(url.pathname + url.search, API_ORIGIN);
+      const targetUrl = `${API_ORIGIN}${url.pathname}${url.search}`;
       const headers = cleanHeaders(request.headers);
       headers.delete('host');
 
