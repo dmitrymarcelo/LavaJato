@@ -1,7 +1,7 @@
 # SKILLS.md - Lava Jato Norte Tech
 
-Atualizado em: 2026-07-16
-Commit de referencia: `80b0740d6924c8d181e449e3d3ce4890f6fa2a73`
+Atualizado em: 2026-08-11
+Commit de referencia: `656e292dc08bd8e70d1d1000db1b3f4ef5e111f2`
 
 ## Objetivo
 

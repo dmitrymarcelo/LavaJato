@@ -202,7 +202,15 @@ export class ApiError extends Error {
   }
 }
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
+const DEFAULT_SUPABASE_API_URL = 'https://vqutbhklwnvvpmvletqb.supabase.co/functions/v1/api';
+const isDevServer = (() => {
+  if (typeof window === 'undefined') return false;
+  const host = window.location.hostname;
+  if (host === 'localhost' || host === '127.0.0.1') return true;
+  if (/\.local$/i.test(host)) return true;
+  return false;
+})();
+const API_BASE_URL = import.meta.env.VITE_API_URL || (isDevServer ? '/api' : DEFAULT_SUPABASE_API_URL);
 const AUTH_TOKEN_KEY = 'authToken';
 
 export function getStoredAuthToken(): string | null {

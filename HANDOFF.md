@@ -1,11 +1,12 @@
 # Handoff Lava Jato - Norte Tech
 
-Atualizado em: 2026-07-23
+Atualizado em: 2026-08-11
 
 ## Estado atual
 
 - Repositorio: `https://github.com/dmitrymarcelo/LavaJato`
 - Branch principal: `main`
+- Commit atual: `656e292dc08bd8e70d1d1000db1b3f4ef5e111f2`
 - Arquitetura Backend: **Supabase Serverless (Edge Functions + Postgres + Storage)** — sem dependência de EC2/AWS
 - Project Ref Supabase: `vqutbhklwnvvpmvletqb`
 - Edge Function API: `https://vqutbhklwnvvpmvletqb.supabase.co/functions/v1/api`
@@ -271,14 +272,14 @@ Observacao:
 
 ## Commits recentes relevantes
 
+- `656e292` `fix(cloudflare): correct proxy URL resolution and sanitize HTML error responses`
+- `ffec14e` `fix: add public/_worker.js for Cloudflare Pages proxy and optimize CORS OPTIONS`
+- `00acaf6` `feat: migrar para Cloudflare Pages + Supabase Edge Functions (remover AWS)`
+- `4e13262` `chore: prepare Supabase and Cloudflare migration`
+- `b74c4bf` `fix: limitar Taruma as 17h a um veiculo`
 - `80b0740` `fix: ajustar agenda da base flores`
 - `e094862` `fix: tornar fotos opcionais nas inspecoes`
 - `01ce58c` `fix: tornar formularios responsivos em qualquer tela`
-- `3a5e2f4` `ui: adicionar interacoes leves e reversiveis`
-- `82565a0` `ui: remover logomarca duplicada do cabecalho`
-- `3fe95ce` `fix: preservar tela durante sincronizacao`
-- `4b7f1d4` `fix: adjust curl flags in deploy healthcheck to follow redirects`
-- `fdb46fc` `fix: iniciar lavagem sem foto`
 
 ## Arquivos centrais
 
@@ -400,7 +401,7 @@ Com isso, qualquer alteracao publicada em `main` dispara o deploy via SSM no EC2
   - os precos de servico no modal e no seletor passaram a usar formatacao monetaria `pt-BR`, evitando textos como `80.75,00`
 - A tela `Configuracoes > Cadastros de Clientes` trocou `alert/confirm` por feedback visual interno, leve e mais amigavel para smartphone, sem adicionar polling ou dependencias pesadas.
 - O GitHub e a fonte principal da continuidade.
-- Se mudar de computador, o ideal e continuar a partir do commit `80b0740` ou posterior.
+- Se mudar de computador, o ideal e continuar a partir do commit `656e292` ou posterior.
 - Imagens enviadas ficam em `server/storage/uploads` (persistidas via volume Docker).
 - Em producao, altere a senha do administrador imediatamente.
 
