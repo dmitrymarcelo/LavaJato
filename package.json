@@ -47,10 +47,5 @@
     "tailwindcss": "^4.1.14",
     "typescript": "~5.8.2",
     "vite": "^6.2.0"
-  },
-  "pnpm": {
-    "overrides": {
-      "path-to-regexp": "^8.4.1"
-    }
   }
 }

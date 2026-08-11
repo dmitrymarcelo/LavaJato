@@ -1,0 +1,7 @@
+allowBuilds:
+  esbuild: true
+overrides:
+  path-to-regexp: ^8.4.1
+
+onlyBuiltDependencies:
+  - esbuild

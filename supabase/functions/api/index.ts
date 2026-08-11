@@ -88,9 +88,10 @@ function fail(message: string, statusCode = 400): never {
 
 function corsHeaders(req: Request) {
   const origin = req.headers.get("origin") || "*";
+  const reqHeaders = req.headers.get("access-control-request-headers") || "authorization, x-client-info, apikey, content-type";
   return {
     "Access-Control-Allow-Origin": origin,
-    "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+    "Access-Control-Allow-Headers": reqHeaders,
     "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
     "Access-Control-Max-Age": "86400",
     "Cache-Control": "no-store",
@@ -1979,13 +1980,13 @@ async function handleRealWeatherForecast(req: Request, url: URL) {
 }
 
 async function handleRequest(req: Request) {
+  if (req.method === "OPTIONS") return emptyResponse(req);
+
   const url = new URL(req.url);
   const path = normalizeFunctionPath(url);
   const route = path.replace(/^\/api/, "") || "/";
   const parts = route.split("/").filter(Boolean);
   const body = await readJson(req);
-
-  if (req.method === "OPTIONS") return emptyResponse(req);
   if (path === "/api/health" && req.method === "GET") return jsonResponse(req, { ok: true, backend: "supabase-edge" });
   if (path === "/api/auth/login" && req.method === "POST") return await handleLogin(req, body);
   if (path === "/api/auth/register-client" && req.method === "POST") return await handleRegisterClient(req, body);
